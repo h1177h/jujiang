@@ -110,10 +110,8 @@ function extractCharacters(chapters: ParsedChapter[]): CharacterProfile[] {
   const counts = new Map<string, { count: number; firstChapter: number }>();
 
   for (const chapter of chapters) {
-    const matches = chapter.text.match(/[一-龥]{2,4}(?=(?:说|问|答|喊|道|想|看|走|笑|沉默))/g) ?? [];
-    for (const match of matches) {
-      const ignored = ["众人", "有人", "他们", "我们", "这个", "那个"];
-      if (ignored.includes(match)) {
+    for (const match of collectCharacterCandidates(chapter.text)) {
+      if (isIgnoredCharacterCandidate(match)) {
         continue;
       }
       const existing = counts.get(match);
@@ -141,6 +139,56 @@ function extractCharacters(chapters: ParsedChapter[]): CharacterProfile[] {
     relationshipSummary:
       index === 0 ? "主要视角人物，与其他角色共同推动章节目标。" : `与${names[0][0]}形成行动或情绪上的牵引关系。`
   }));
+}
+
+function collectCharacterCandidates(text: string): string[] {
+  const candidates = new Set<string>();
+
+  for (const sentence of text.split(/[。！？\n]/).map((item) => item.trim()).filter(Boolean)) {
+    const patterns = [
+      /^([一-龥]{2,4})从[^，。！？]{0,12}(?:走来|走出|出来)/,
+      /^([一-龥]{2,4})(?:说|问|答|喊|道|笑道|低声说|声音发紧)/,
+      /^([一-龥]{2,4})(?:忽然)?(?:抱着|看着|夺过|举起|拔刀|推门|翻身|把)/,
+      /(黑伞男人|许掌柜)(?:忽然|把|拔刀|推门|翻身)?/
+    ];
+
+    for (const pattern of patterns) {
+      const match = sentence.match(pattern);
+      if (match) {
+        candidates.add(match[1]);
+      }
+    }
+  }
+
+  return [...candidates];
+}
+
+function isIgnoredCharacterCandidate(candidate: string): boolean {
+  const ignored = new Set([
+    "众人",
+    "有人",
+    "他们",
+    "我们",
+    "这个",
+    "那个",
+    "低声",
+    "声音",
+    "身后",
+    "灯下",
+    "账册",
+    "街上",
+    "里面",
+    "码头",
+    "钟楼",
+    "忽然",
+    "举起火",
+    "清晨",
+    "大雾",
+    "夜色",
+    "夜色压"
+  ]);
+
+  return ignored.has(candidate) || /从|灯|声|门而|边翻|重新|只有|忽然|举起/.test(candidate);
 }
 
 function pickChapterCharacters(chapter: ParsedChapter, characters: CharacterProfile[]) {
