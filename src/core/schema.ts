@@ -15,7 +15,7 @@ export const screenplaySchema = z.object({
     adaptationStyle: z.enum(["balanced", "cinematic", "stage", "short_drama"]),
     logline: z.string().min(1),
     sourceChapterCount: z.number().int().min(3),
-    generatedBy: z.literal("jujiang-fallback-engine")
+    generatedBy: z.string().min(1)
   }),
   adaptationPlan: z.object({
     premise: z.string().min(1),

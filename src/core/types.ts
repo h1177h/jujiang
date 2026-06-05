@@ -73,7 +73,7 @@ export interface ScreenplayYaml {
     adaptationStyle: AdaptationStyle;
     logline: string;
     sourceChapterCount: number;
-    generatedBy: "jujiang-fallback-engine";
+    generatedBy: string;
   };
   adaptationPlan: {
     premise: string;

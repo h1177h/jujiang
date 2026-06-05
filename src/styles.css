@@ -183,6 +183,69 @@ select {
   width: 100%;
 }
 
+.api-box {
+  background: #f8faf7;
+  border: 1px solid #dce3dc;
+  border-radius: 8px;
+  display: grid;
+  gap: 10px;
+  margin-bottom: 12px;
+  padding: 12px;
+}
+
+.api-box label {
+  color: #44515a;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.api-grid {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: 1.2fr 0.8fr;
+}
+
+.toggle-line {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+}
+
+.toggle-line input {
+  height: 16px;
+  margin: 0;
+  width: 16px;
+}
+
+.secret-field {
+  align-items: center;
+  background: #ffffff;
+  border: 1px solid #cad4cb;
+  border-radius: 8px;
+  display: flex;
+  gap: 8px;
+  margin-top: 6px;
+  padding: 0 10px;
+}
+
+.secret-field input {
+  border: 0;
+  box-shadow: none;
+  margin: 0;
+  padding: 0;
+}
+
+.secret-field:focus-within {
+  border-color: #267c7c;
+  box-shadow: 0 0 0 3px rgb(38 124 124 / 14%);
+}
+
+.status-note {
+  color: #66737c;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
 textarea {
   border: 1px solid #cdd6cf;
   border-radius: 8px;
