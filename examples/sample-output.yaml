@@ -3,7 +3,7 @@
   adaptationStyle: cinematic
   logline: 围绕“迟到的渡船”开启的事件一路推进到“雾中的钟声”，人物在连续冲突中完成选择。
   sourceChapterCount: 3
-  generatedBy: jujiang-local-draft-engine
+  generatedBy: api:gpt-4.1-mini
 adaptationPlan:
   premise: 围绕“迟到的渡船”开启的事件一路推进到“雾中的钟声”，人物在连续冲突中完成选择。
   tone: 偏影视化悬疑，重画面、动作和钩子

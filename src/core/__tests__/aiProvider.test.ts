@@ -1,7 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { parse } from "yaml";
 import { generateScreenplayWithApi, normalizeBaseUrl } from "../aiProvider";
-import { generateScreenplayYamlModel } from "../generator";
 import { sampleNovel } from "../sampleNovel";
+import { validateScreenplay } from "../schema";
+import sampleOutputYaml from "../../../examples/sample-output.yaml?raw";
 
 describe("AI provider", () => {
   afterEach(() => {
@@ -14,10 +16,11 @@ describe("AI provider", () => {
   });
 
   it("calls a chat completions endpoint and validates the returned screenplay", async () => {
-    const screenplay = generateScreenplayYamlModel(sampleNovel, {
-      title: "雾港来信",
-      style: "cinematic"
-    });
+    const validation = validateScreenplay(parse(sampleOutputYaml));
+    expect(validation.success).toBe(true);
+    if (!validation.success) return;
+    const screenplay = validation.data;
+
     vi.stubGlobal(
       "fetch",
       vi.fn(async () => ({

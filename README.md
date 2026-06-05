@@ -1,19 +1,19 @@
 # 剧匠 Jujiang
 
-剧匠是一个轻量的 AI 小说转剧本工作台。它可以从一段试写、一个短篇片段或多章小说开始，生成可编辑、可校验、可复制/下载的结构化剧本 YAML，让作者先拿到能继续打磨的改编初稿。
+剧匠是一个轻量的 AI 小说转剧本工作台。配置 AI 后，它可以从一段试写、一个短篇片段或多章小说开始，生成可编辑、可校验、可复制/下载的结构化剧本 YAML，让作者先拿到能继续打磨的改编初稿。
 
-当前版本支持 OpenAI-compatible API 生成，也保留无 API key 的本地草稿引擎。即使没有网络，也能完成章节识别、多场景拆分、角色摘要、冲突节奏、改编诊断和原文追溯。
+当前版本支持 OpenAI-compatible API 生成。没有配置 AI 时，页面只提供示例 YAML 的查看、编辑和校验，不会用本地规则伪造剧情理解。
 
 ## 功能
 
-- 输入或上传小说文本：短篇片段和多章长文都可以先生成草稿。
+- 输入或上传小说文本：短篇片段和多章长文都可以交给 AI 生成剧本草稿。
 - 自动识别章节并清洗文本。
 - 生成结构化剧本 YAML，包含作品元信息、角色表、章节映射、场景列表、场景目标、地点、时间、出场人物、动作、对白、旁白/转场、情绪/冲突和原文来源定位。
 - 提供非 YAML 的场景编辑器，可修改场景目标、地点、时间、人物、动作、对白、转场、冲突等级和修订建议，并同步回 YAML。
 - 提供故事分析区，可点击查看章节到场景映射、冲突曲线和场景质量检查。
 - 提供可编辑 YAML 区域，编辑后实时 Schema 校验。
 - 支持复制和下载 YAML。
-- 内置多章示例小说《雾港来信》，无 API key 也能演示完整工作流。
+- 内置多章示例小说《雾港来信》和示例 YAML，无 API key 也能演示编辑、校验、复制和下载。
 - 可填写 Base URL、API Key 和 Model，调用兼容 `/v1/chat/completions` 的模型生成剧本。
 - 可选本地 API proxy：API key 放在环境变量里，前端只请求 `http://127.0.0.1:8787/v1`。
 - 创新点：场景级工作台编辑、章节到场景映射、冲突曲线、质量检查、角色关系摘要、原文追溯、改编风格选择、节奏统计、改编计划。
@@ -32,7 +32,7 @@ npm install
 npm run dev
 ```
 
-浏览器打开 Vite 输出的本地地址后，可以直接使用内置示例生成 YAML。
+浏览器打开 Vite 输出的本地地址后，可以先查看和编辑内置示例 YAML。自动生成需要配置 AI。
 
 如需通过本地 proxy 调用真实模型：
 
@@ -42,7 +42,14 @@ $env:JUJIANG_API_BASE_URL="https://api.openai.com/v1"
 npm run proxy
 ```
 
-然后在页面里勾选“AI 生成”和“本地 proxy”。前端会请求 `http://127.0.0.1:8787/v1/chat/completions`，真实 key 不会填进浏览器表单。
+如果你的网络需要代理，可以显式传给剧匠 proxy：
+
+```bash
+$env:JUJIANG_NETWORK_PROXY="http://127.0.0.1:7897"
+npm run proxy
+```
+
+`JUJIANG_NETWORK_PROXY` 优先级高于 `HTTPS_PROXY` / `HTTP_PROXY`。然后在页面里勾选“AI 生成”和“本地 proxy”。前端会请求 `http://127.0.0.1:8787/v1/chat/completions`，真实 key 不会填进浏览器表单。
 
 ## 验证命令
 
@@ -55,7 +62,7 @@ npm run build
 当前已验证结果：
 
 - `npm audit`：found 0 vulnerabilities。
-- `npm test`：3 个测试文件、10 个测试用例通过。
+- `npm test`：4 个测试文件、14 个测试用例通过。
 - `npm run build`：TypeScript 检查和 Vite 生产构建通过。
 
 ## 架构
@@ -65,7 +72,6 @@ src/
   App.tsx                  # 工作台 UI
   core/
     chapters.ts            # 章节识别与文本清洗
-    generator.ts           # 本地草稿生成引擎
     schema.ts              # Zod Schema 校验
     sceneEditor.ts         # 场景编辑与 YAML 同步
     storyAnalysis.ts       # 章节映射、冲突曲线和质量检查
