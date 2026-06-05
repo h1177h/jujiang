@@ -8,8 +8,11 @@ import {
   Sparkles,
   TriangleAlert
 } from "lucide-react";
+import { parse } from "yaml";
 import type { AdaptationStyle } from "./core/types";
+import type { ScreenplayYaml } from "./core/types";
 import { sampleNovel } from "./core/sampleNovel";
+import { validateScreenplay } from "./core/schema";
 import { generateScreenplayYaml, validateScreenplayYaml } from "./core/yaml";
 
 const styles: { value: AdaptationStyle; label: string }[] = [
@@ -29,6 +32,15 @@ export default function App() {
   const [copyLabel, setCopyLabel] = useState("复制");
 
   const validation = useMemo(() => validateScreenplayYaml(yamlText), [yamlText]);
+  const preview = useMemo(() => {
+    try {
+      const parsed = parse(yamlText);
+      const result = validateScreenplay(parsed);
+      return result.success ? result.data : null;
+    } catch {
+      return null;
+    }
+  }, [yamlText]);
   const chapterCount = useMemo(() => {
     const matches = novelText.match(/(^|\n)\s*(第\s*[0-9一二三四五六七八九十百千万]+\s*[章节回幕]|chapter\s+\d+)/gi);
     return matches?.length ?? 0;
@@ -178,6 +190,87 @@ export default function App() {
           <p>均衡、影视感、舞台、短剧四种轻量策略影响场景目标和转场表达。</p>
         </article>
       </section>
+
+      <ScreenplayPreview screenplay={preview} />
     </main>
+  );
+}
+
+function ScreenplayPreview({ screenplay }: { screenplay: ScreenplayYaml | null }) {
+  if (!screenplay) {
+    return (
+      <section className="structured-preview empty">
+        <div>
+          <h2>结构化预览</h2>
+          <p>YAML 校验通过后，这里会显示角色、节奏和分场卡片。</p>
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section className="structured-preview" aria-label="结构化剧本预览">
+      <div className="preview-heading">
+        <div>
+          <p className="eyebrow">Preview</p>
+          <h2>{screenplay.work.title}</h2>
+        </div>
+        <div className="metric-grid">
+          <Metric label="场景" value={screenplay.rhythmStats.sceneCount} />
+          <Metric label="对白" value={screenplay.rhythmStats.dialogueCount} />
+          <Metric label="平均冲突" value={screenplay.rhythmStats.averageConflict} />
+        </div>
+      </div>
+
+      <div className="preview-columns">
+        <aside className="character-rail">
+          <h3>角色关系</h3>
+          {screenplay.characters.slice(0, 5).map((character) => (
+            <article key={character.id} className="character-item">
+              <strong>{character.name}</strong>
+              <span>{character.role}</span>
+              <p>{character.relationshipSummary}</p>
+            </article>
+          ))}
+        </aside>
+
+        <div className="scene-grid">
+          {screenplay.scenes.map((scene) => (
+            <article key={scene.id} className="scene-card">
+              <div className="scene-card-top">
+                <span>{scene.id}</span>
+                <strong>冲突 {scene.conflict.level}/5</strong>
+              </div>
+              <h3>{scene.title}</h3>
+              <p>{scene.goal}</p>
+              <dl>
+                <div>
+                  <dt>地点</dt>
+                  <dd>{scene.location}</dd>
+                </div>
+                <div>
+                  <dt>时间</dt>
+                  <dd>{scene.time}</dd>
+                </div>
+                <div>
+                  <dt>人物</dt>
+                  <dd>{scene.characters.join("、")}</dd>
+                </div>
+              </dl>
+              <blockquote>{scene.source.excerpt}</blockquote>
+            </article>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function Metric({ label, value }: { label: string; value: number }) {
+  return (
+    <span className="metric">
+      <strong>{value}</strong>
+      {label}
+    </span>
   );
 }

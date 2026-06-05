@@ -286,6 +286,171 @@ select:focus {
   margin-top: 8px;
 }
 
+.structured-preview {
+  background: #ffffff;
+  border: 1px solid #d9dfd7;
+  border-radius: 8px;
+  margin: 16px auto 0;
+  max-width: 1440px;
+  padding: 18px;
+}
+
+.structured-preview.empty {
+  color: #66737c;
+}
+
+.structured-preview.empty p {
+  font-size: 13px;
+  margin-top: 6px;
+}
+
+.preview-heading {
+  align-items: center;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.metric-grid {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(3, minmax(86px, 1fr));
+}
+
+.metric {
+  background: #edf5f1;
+  border: 1px solid #c6dbd0;
+  border-radius: 8px;
+  color: #315347;
+  display: grid;
+  font-size: 12px;
+  gap: 2px;
+  justify-items: center;
+  min-height: 56px;
+  padding: 8px;
+}
+
+.metric strong {
+  color: #172026;
+  font-size: 20px;
+}
+
+.preview-columns {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: 280px 1fr;
+}
+
+.character-rail {
+  background: #f8faf7;
+  border: 1px solid #dce3dc;
+  border-radius: 8px;
+  padding: 14px;
+}
+
+.character-rail h3,
+.scene-card h3 {
+  font-size: 15px;
+  margin: 0;
+}
+
+.character-item {
+  border-top: 1px solid #dce3dc;
+  margin-top: 12px;
+  padding-top: 12px;
+}
+
+.character-item strong,
+.character-item span {
+  display: inline-block;
+  font-size: 13px;
+}
+
+.character-item span {
+  color: #8a4a2a;
+  margin-left: 8px;
+}
+
+.character-item p {
+  color: #66737c;
+  font-size: 13px;
+  line-height: 1.45;
+  margin-top: 6px;
+}
+
+.scene-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.scene-card {
+  border: 1px solid #dce3dc;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 260px;
+  padding: 14px;
+}
+
+.scene-card-top {
+  align-items: center;
+  display: flex;
+  font-size: 12px;
+  justify-content: space-between;
+}
+
+.scene-card-top span {
+  color: #66737c;
+  font-family: "Cascadia Code", Consolas, monospace;
+}
+
+.scene-card-top strong {
+  background: #fff0e1;
+  border-radius: 8px;
+  color: #9b4a08;
+  padding: 4px 8px;
+}
+
+.scene-card p,
+.scene-card dd,
+.scene-card blockquote {
+  color: #66737c;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.scene-card dl {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+}
+
+.scene-card dl div {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: 42px 1fr;
+}
+
+.scene-card dt {
+  color: #172026;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.scene-card dd {
+  margin: 0;
+}
+
+.scene-card blockquote {
+  background: #f8faf7;
+  border-left: 3px solid #267c7c;
+  margin: auto 0 0;
+  padding: 8px 10px;
+}
+
 @media (max-width: 960px) {
   .app-shell {
     padding: 16px;
@@ -297,8 +462,13 @@ select:focus {
   }
 
   .workspace,
-  .preview-band {
+  .preview-band,
+  .preview-columns {
     grid-template-columns: 1fr;
+  }
+
+  .scene-grid {
+    grid-template-columns: 1fr 1fr;
   }
 
   .panel {
@@ -327,5 +497,16 @@ select:focus {
 
   .text-button {
     flex: 1;
+  }
+
+  .preview-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .metric-grid,
+  .scene-grid {
+    grid-template-columns: 1fr;
+    width: 100%;
   }
 }
