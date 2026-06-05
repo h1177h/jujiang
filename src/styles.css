@@ -38,7 +38,7 @@ p {
 
 .app-shell {
   min-height: 100vh;
-  padding: 18px;
+  padding: 30px;
 }
 
 .topbar {
@@ -46,8 +46,8 @@ p {
   display: flex;
   gap: 18px;
   justify-content: space-between;
-  margin: 0 auto 14px;
-  max-width: 1760px;
+  margin: 0 auto 24px;
+  max-width: 1320px;
 }
 
 .eyebrow,
@@ -103,8 +103,8 @@ h3 {
   display: inline-flex;
   font-size: 12px;
   font-weight: 850;
-  min-height: 30px;
-  padding: 0 10px;
+  min-height: 32px;
+  padding: 0 12px;
 }
 
 .status-strip span {
@@ -127,23 +127,25 @@ h3 {
 
 .studio-shell {
   display: grid;
-  gap: 14px;
-  grid-template-columns: minmax(300px, 0.9fr) minmax(520px, 1.65fr) minmax(360px, 1fr);
+  gap: 26px;
+  grid-template-columns: 1fr;
   margin: 0 auto;
-  max-width: 1760px;
+  max-width: 1320px;
 }
 
 .source-rail,
 .delivery-rail {
   align-self: start;
   display: grid;
-  gap: 12px;
-  position: sticky;
-  top: 14px;
+  gap: 20px;
 }
 
 .review-stage {
   min-width: 0;
+}
+
+.delivery-rail {
+  grid-template-columns: minmax(0, 1fr) minmax(410px, 0.72fr);
 }
 
 .panel,
@@ -159,7 +161,7 @@ h3 {
 .panel,
 .structured-preview,
 .review-empty {
-  padding: 15px;
+  padding: 24px;
 }
 
 .panel {
@@ -168,11 +170,14 @@ h3 {
 }
 
 .input-panel {
-  min-height: calc(100vh - 116px);
+  display: grid;
+  gap: 18px 22px;
+  grid-template-columns: minmax(320px, 0.42fr) minmax(0, 1fr);
+  min-height: 0;
 }
 
 .output-panel {
-  min-height: 430px;
+  min-height: 620px;
 }
 
 .panel-header {
@@ -180,7 +185,23 @@ h3 {
   display: flex;
   gap: 12px;
   justify-content: space-between;
-  margin-bottom: 12px;
+  margin-bottom: 16px;
+}
+
+.input-panel .panel-header {
+  grid-column: 1 / -1;
+  margin-bottom: 0;
+}
+
+.input-panel .field-row,
+.input-panel .api-box,
+.input-panel .primary-action {
+  grid-column: 1;
+}
+
+.input-panel .novel-editor {
+  grid-column: 2;
+  grid-row: 2 / span 3;
 }
 
 .panel-header p:not(.section-kicker),
@@ -204,11 +225,11 @@ h3 {
 .field-row,
 .switch-row {
   display: flex;
-  gap: 8px;
+  gap: 10px;
 }
 
 .field-row {
-  margin-bottom: 10px;
+  margin-bottom: 14px;
 }
 
 .field-row label {
@@ -258,9 +279,9 @@ select:focus,
   border: 1px solid #d8e0eb;
   border-radius: 8px;
   display: grid;
-  gap: 9px;
-  margin-bottom: 12px;
-  padding: 12px;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding: 14px;
 }
 
 .api-grid {
@@ -324,8 +345,8 @@ select:focus,
   background: #ffffff;
   color: #1f2937;
   flex: 1;
-  min-height: 430px;
-  padding: 14px;
+  min-height: 520px;
+  padding: 16px;
 }
 
 .yaml-editor {
@@ -335,8 +356,8 @@ select:focus,
   flex: 1;
   font-family: "Cascadia Code", "JetBrains Mono", Consolas, monospace;
   font-size: 12px;
-  min-height: 305px;
-  padding: 13px;
+  min-height: 430px;
+  padding: 16px;
 }
 
 .primary-action,
@@ -386,9 +407,9 @@ select:focus,
 
 .product-flow {
   display: grid;
-  gap: 8px;
+  gap: 12px;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  margin-bottom: 12px;
+  margin-bottom: 18px;
 }
 
 .product-flow span {
@@ -396,6 +417,7 @@ select:focus,
   border: 1px solid #d4dbe7;
   color: #64748b;
   justify-content: center;
+  min-height: 36px;
 }
 
 .product-flow span.active {
@@ -439,7 +461,7 @@ select:focus,
 }
 
 .structured-preview {
-  min-height: calc(100vh - 118px);
+  min-height: 0;
 }
 
 .preview-heading {
@@ -447,14 +469,14 @@ select:focus,
   display: flex;
   gap: 16px;
   justify-content: space-between;
-  margin-bottom: 12px;
+  margin-bottom: 16px;
 }
 
 .brief-grid,
 .analysis-board {
   display: grid;
-  gap: 10px;
-  margin-bottom: 12px;
+  gap: 16px;
+  margin-bottom: 20px;
 }
 
 .brief-grid {
@@ -462,7 +484,15 @@ select:focus,
 }
 
 .analysis-board {
-  grid-template-columns: 1.15fr 0.85fr 1fr;
+  grid-template-columns: minmax(260px, 1.1fr) minmax(240px, 0.9fr);
+}
+
+.quality-list {
+  grid-column: 1 / -1;
+}
+
+.quality-items {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .brief-card,
@@ -477,7 +507,7 @@ select:focus,
 .brief-card,
 .analysis-card,
 .character-rail {
-  padding: 12px;
+  padding: 16px;
 }
 
 .brief-card span {
@@ -515,13 +545,13 @@ select:focus,
   font-size: 11px;
   gap: 2px;
   justify-items: center;
-  min-height: 54px;
-  padding: 8px;
+  min-height: 64px;
+  padding: 10px;
 }
 
 .metric strong {
   color: #111827;
-  font-size: 20px;
+  font-size: 23px;
 }
 
 .analysis-card {
@@ -635,7 +665,7 @@ select:focus,
   color: #111827;
   display: grid;
   gap: 4px;
-  padding: 9px 10px;
+  padding: 12px;
   text-align: left;
 }
 
@@ -649,8 +679,18 @@ select:focus,
 
 .review-board {
   display: grid;
+  gap: 18px;
+  grid-template-columns: 1fr;
+}
+
+.character-rail {
+  display: grid;
   gap: 12px;
-  grid-template-columns: 230px 1fr;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.character-rail h3 {
+  grid-column: 1 / -1;
 }
 
 .character-rail h3,
@@ -661,9 +701,11 @@ select:focus,
 }
 
 .character-item {
-  border-top: 1px solid #d8e0eb;
-  margin-top: 11px;
-  padding-top: 11px;
+  background: #ffffff;
+  border: 1px solid #d8e0eb;
+  border-radius: 8px;
+  margin-top: 0;
+  padding: 12px;
 }
 
 .character-item strong,
@@ -683,8 +725,8 @@ select:focus,
 
 .scene-grid {
   display: grid;
-  gap: 10px;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .scene-card {
@@ -692,9 +734,9 @@ select:focus,
   cursor: pointer;
   display: flex;
   flex-direction: column;
-  gap: 9px;
-  min-height: 220px;
-  padding: 12px;
+  gap: 12px;
+  min-height: 270px;
+  padding: 18px;
   text-align: left;
 }
 
@@ -753,7 +795,7 @@ select:focus,
 .scene-inspector {
   background: #111827;
   color: #e5edf7;
-  padding: 15px;
+  padding: 20px;
 }
 
 .scene-inspector.empty {
@@ -773,7 +815,7 @@ select:focus,
   font-size: 11px;
   font-weight: 850;
   gap: 6px;
-  margin-top: 11px;
+  margin-top: 14px;
 }
 
 .scene-inspector input,
@@ -791,12 +833,12 @@ select:focus,
 }
 
 .scene-inspector textarea {
-  min-height: 72px;
-  padding: 9px 10px;
+  min-height: 86px;
+  padding: 11px 12px;
 }
 
 .scene-inspector .compact-editor.tall {
-  min-height: 110px;
+  min-height: 132px;
 }
 
 .scene-inspector .scene-card-top strong {
@@ -820,19 +862,19 @@ select:focus,
   align-items: center;
   display: flex;
   gap: 8px;
-  margin: 13px 0 6px;
+  margin: 16px 0 8px;
 }
 
 .sync-note {
   border-bottom: 1px solid #334155;
   font-size: 12px;
   line-height: 1.45;
-  padding-bottom: 11px;
+  padding-bottom: 14px;
 }
 
 .inspector-grid {
   display: grid;
-  gap: 9px;
+  gap: 12px;
   grid-template-columns: 1fr 1fr;
 }
 
@@ -852,25 +894,33 @@ select:focus,
   padding: 10px;
 }
 
-@media (max-width: 1380px) {
-  .studio-shell {
-    grid-template-columns: minmax(300px, 0.9fr) minmax(520px, 1.55fr);
+@media (max-width: 1180px) {
+  .delivery-rail {
+    grid-template-columns: 1fr;
   }
 
-  .delivery-rail {
-    grid-column: 1 / -1;
-    grid-template-columns: minmax(420px, 0.9fr) minmax(420px, 1.1fr);
-    position: static;
+  .scene-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
 @media (max-width: 980px) {
   .studio-shell,
   .delivery-rail,
+  .input-panel,
   .analysis-board,
   .brief-grid,
   .review-board {
     grid-template-columns: 1fr;
+  }
+
+  .input-panel .panel-header,
+  .input-panel .field-row,
+  .input-panel .api-box,
+  .input-panel .primary-action,
+  .input-panel .novel-editor {
+    grid-column: auto;
+    grid-row: auto;
   }
 
   .source-rail {
@@ -898,7 +948,9 @@ select:focus,
   .product-flow,
   .metric-grid,
   .scene-grid,
-  .api-grid {
+  .api-grid,
+  .quality-items,
+  .character-rail {
     grid-template-columns: 1fr;
     width: 100%;
   }
