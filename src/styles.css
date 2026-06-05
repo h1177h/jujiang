@@ -463,6 +463,163 @@ select:focus {
   font-size: 20px;
 }
 
+.analysis-board {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: 1.15fr 0.85fr 1fr;
+  margin-bottom: 16px;
+}
+
+.analysis-card {
+  background: #f8faf7;
+  border: 1px solid #dce3dc;
+  border-radius: 8px;
+  min-width: 0;
+  padding: 14px;
+}
+
+.analysis-card-head {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.analysis-card h3 {
+  font-size: 15px;
+  margin: 0;
+}
+
+.analysis-card-head span {
+  background: #e8f4f2;
+  border: 1px solid #b8d9d5;
+  border-radius: 8px;
+  color: #1f6768;
+  font-size: 12px;
+  font-weight: 900;
+  padding: 4px 8px;
+  white-space: nowrap;
+}
+
+.chapter-map-list,
+.quality-items {
+  display: grid;
+  gap: 10px;
+}
+
+.chapter-map-row {
+  border-top: 1px solid #dce3dc;
+  display: grid;
+  gap: 8px;
+  padding-top: 10px;
+}
+
+.chapter-map-row:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.chapter-map-row strong {
+  color: #172026;
+  font-size: 13px;
+}
+
+.chapter-map-row p,
+.quality-empty {
+  color: #66737c;
+  font-size: 12px;
+  line-height: 1.45;
+  margin-top: 4px;
+}
+
+.scene-chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.scene-chip,
+.quality-item,
+.curve-bar {
+  border: 0;
+  cursor: pointer;
+}
+
+.scene-chip {
+  background: #edf5f1;
+  border-radius: 8px;
+  color: #315347;
+  font-family: "Cascadia Code", Consolas, monospace;
+  font-size: 12px;
+  font-weight: 900;
+  min-height: 28px;
+  padding: 0 8px;
+}
+
+.scene-chip.active {
+  background: #267c7c;
+  color: #ffffff;
+}
+
+.curve-bars {
+  align-items: end;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(34px, 1fr));
+  min-height: 170px;
+}
+
+.curve-bar {
+  align-items: center;
+  background: linear-gradient(180deg, #f0b66b, #267c7c);
+  border-radius: 8px 8px 4px 4px;
+  color: #ffffff;
+  display: flex;
+  flex-direction: column;
+  font-weight: 900;
+  gap: 6px;
+  height: calc(var(--level) * 28px);
+  justify-content: flex-end;
+  min-height: 42px;
+  padding: 8px 4px;
+}
+
+.curve-bar.active {
+  box-shadow: 0 0 0 3px rgb(38 124 124 / 18%);
+  outline: 2px solid #1f6768;
+}
+
+.curve-bar small {
+  font-family: "Cascadia Code", Consolas, monospace;
+  font-size: 11px;
+}
+
+.quality-item {
+  background: #ffffff;
+  border-left: 4px solid #efb270;
+  border-radius: 8px;
+  color: #172026;
+  display: grid;
+  gap: 4px;
+  padding: 10px;
+  text-align: left;
+}
+
+.quality-item.risk {
+  border-left-color: #c94444;
+}
+
+.quality-item strong {
+  font-size: 12px;
+}
+
+.quality-item span {
+  color: #66737c;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
 .preview-columns {
   display: grid;
   gap: 14px;
@@ -660,6 +817,17 @@ select:focus {
   padding-left: 10px;
 }
 
+.source-excerpt {
+  background: rgb(255 255 255 / 6%);
+  border-left: 3px solid #bff1df;
+  border-radius: 8px;
+  color: #d6e8e0;
+  font-size: 12px;
+  line-height: 1.55;
+  margin: 10px 0 0;
+  padding: 10px;
+}
+
 .scene-card dl {
   display: grid;
   gap: 6px;
@@ -701,6 +869,7 @@ select:focus {
 
   .workspace,
   .preview-band,
+  .analysis-board,
   .preview-columns,
   .brief-grid,
   .scene-review-layout {
