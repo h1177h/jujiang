@@ -88,9 +88,9 @@ export function normalizeBaseUrl(baseUrl: string): string {
 function buildSystemPrompt(): string {
   return [
     "你是剧匠的小说改编引擎，只输出 JSON，不要输出 Markdown。",
-    "你的任务是把三章以上小说改成结构化剧本初稿。",
+    "你的任务是把小说正文改成结构化剧本初稿，短篇片段和多章长文都可以处理。",
     "输出必须匹配剧匠 ScreenplayYaml Schema：work、adaptationPlan、characters、chapterMappings、scenes、rhythmStats、storyDiagnostics、validationHints。",
-    "每章至少拆出 1 个 scene；如果段落足够，优先拆成 setup / turning_point / payoff。",
+    "每个结构单元至少拆出 1 个 scene；如果段落足够，优先拆成 setup / turning_point / payoff。",
     "每个 scene 必须保留 source，写出 chapterIndex、chapterTitle、paragraphIndexes、lineStart、lineEnd、excerpt。",
     "不要照抄本文说明，不要编造不存在的章节。"
   ].join("\n");

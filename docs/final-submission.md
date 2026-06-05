@@ -2,14 +2,14 @@
 
 ## 一句话介绍
 
-剧匠把三章以上小说文本转换成可编辑、可校验、可复制/下载的结构化剧本 YAML。它支持 OpenAI-compatible API，也保留无 API key fallback demo。
+剧匠把小说文本转换成可编辑、可校验、可复制/下载的结构化剧本 YAML。作者可以先贴一段短篇素材起稿，也可以输入多章长文继续打磨。它支持 OpenAI-compatible API，也保留无 API key 的本地草稿模式。
 
 ## 本地演示闭环
 
 1. `npm install`
 2. `npm run dev`
 3. 打开 Vite 本地地址。
-4. 使用内置三章示例，或上传 `examples/sample-novel.md`。
+4. 使用内置多章示例，上传 `examples/sample-novel.md`，或直接粘贴一段短篇素材。
 5. 如果展示真实 API，先设置 `JUJIANG_API_KEY` 并运行 `npm run proxy`，页面勾选“使用本地 proxy”。
 6. 点击“生成结构化剧本 YAML”。
 7. 查看页面底部作者审稿台：改编计划、故事诊断、角色关系、节奏指标、章节映射、冲突曲线和质量检查。
@@ -24,13 +24,13 @@
 
 40% 作品完整度与创新性：
 
-- 三章以上输入和上传。
+- 短篇片段、多章小说输入和上传。
 - 自动章节识别和文本清洗。
 - 生成剧本 YAML，字段覆盖作品、角色、章节映射、场景、动作、对白、转场、情绪、冲突和原文来源。
 - YAML 可编辑、可校验、可复制、可下载。
 - 非 YAML 场景编辑器可直接修改场景内容，并同步回结构化 YAML。
 - 故事分析区支持章节到场景映射、冲突曲线和质量检查，点击即可定位场景。
-- 无 API key fallback demo。
+- 无 API key 本地草稿模式。
 - OpenAI-compatible API 接入，可配置 Base URL、API Key 和 Model。
 - 本地 API proxy 可从环境变量读取 key，前端不必直接保存真实 key。
 - 可操作创新点：场景级工作台编辑、章节到场景映射、冲突曲线、质量检查、角色关系摘要、原文追溯、改编风格选择、节奏统计。
@@ -52,7 +52,7 @@
 
 ## PR 与 commit 分布
 
-- PR #1 `feat(core): add screenplay generation workspace`：工程基础、fallback 转换、工作台、测试。
+- PR #1 `feat(core): add screenplay generation workspace`：工程基础、本地转换、工作台、测试。
 - PR #2 `docs(deliverables): add competition materials`：README、Schema 文档、参考分析、demo 脚本。
 - PR #3 `feat(ui): add screenplay preview cards`：结构化预览、分场卡片、浏览器 QA。
 - PR #4 `fix(parser): avoid false character names`：修复角色抽取误判。
@@ -63,19 +63,24 @@
 - PR #9 `feat(workspace): add scene editor sync`：非 YAML 场景编辑和 YAML 同步。
 - PR #10 `feat(analysis): add story dashboard`：章节映射、冲突曲线和质量检查。
 - PR #11 `feat(api): add local proxy mode`：本地 API proxy 和页面 proxy 模式。
+- PR #12 `docs(submission): refresh final summary`：刷新最终说明和验证记录。
+- PR #13 `feat(ui): refresh workbench design`：第一次工作台视觉整理。
+- PR #14 `feat(ui): rebuild studio layout`：重建作者审稿台、YAML 交付和场景编辑布局。
+- PR #15 `style(ui): loosen studio layout density`：降低界面密度，让输入、审稿和交付区更有层次。
+- 本轮产品打磨：放开短文本/单章草稿、补空输入和 AI 失败后的本地草稿兜底、同步产品文案。
 
 ## 已运行验证
 
 - `npm audit`：found 0 vulnerabilities。
-- `npm test`：3 个测试文件、10 个测试用例通过。
+- `npm test`：4 个测试文件、15 个测试用例通过。
 - `npm run build`：通过。
 - proxy health check：`http://127.0.0.1:8787/health` 返回 `ok:true`，可显示 target 和 key 加载状态。
-- 本地浏览器 QA：`http://127.0.0.1:5173` 返回 200；1440px 和 390px 视口检查过，场景编辑器、故事分析区和 YAML 区没有横向溢出。
+- 本地浏览器 QA：1440px 和 390px 视口检查过，场景编辑器、故事分析区和 YAML 区没有横向溢出。
 - Playwright 交互 QA：点击质量检查项可定位到对应场景；勾选“使用本地 proxy”会自动启用 API 生成、切换 Base URL 并禁用页面 API Key 输入框。
 
 ## 剩余风险
 
-- 当前 fallback 引擎是启发式规则，适合稳定 demo；真实质量主要依赖已接入的 OpenAI-compatible provider。
+- 当前本地草稿引擎是启发式规则，适合稳定起稿和离线演示；真实长文质量主要依赖已接入的 OpenAI-compatible provider。
 - 浏览器直连模式仍保留给临时测试；正式展示真实 key 时建议使用本地 proxy。
 - 当前已支持一章多场和场景级内容编辑，但复杂小说仍需要作者继续调整分场边界。
 - 角色抽取已经为示例做了回归，但面对更复杂小说仍可能需要 AI 或更强 NLP 补充。
