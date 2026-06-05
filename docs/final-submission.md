@@ -62,13 +62,16 @@
 - PR #8 `feat(api): add openai compatible generation`：OpenAI-compatible API 配置、调用和失败回退。
 - PR #9 `feat(workspace): add scene editor sync`：非 YAML 场景编辑和 YAML 同步。
 - PR #10 `feat(analysis): add story dashboard`：章节映射、冲突曲线和质量检查。
+- PR #11 `feat(api): add local proxy mode`：本地 API proxy 和页面 proxy 模式。
 
 ## 已运行验证
 
 - `npm audit`：found 0 vulnerabilities。
-- `npm test`：通过。
+- `npm test`：3 个测试文件、10 个测试用例通过。
 - `npm run build`：通过。
-- 本地浏览器 QA：`http://127.0.0.1:5173` 返回 200；1440px 和 390px 视口检查过，没有横向溢出。
+- proxy health check：`http://127.0.0.1:8787/health` 返回 `ok:true`，可显示 target 和 key 加载状态。
+- 本地浏览器 QA：`http://127.0.0.1:5173` 返回 200；1440px 和 390px 视口检查过，场景编辑器、故事分析区和 YAML 区没有横向溢出。
+- Playwright 交互 QA：点击质量检查项可定位到对应场景；勾选“使用本地 proxy”会自动启用 API 生成、切换 Base URL 并禁用页面 API Key 输入框。
 
 ## 剩余风险
 
