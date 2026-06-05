@@ -202,8 +202,8 @@ function extractDialogue(chapter: ParsedChapter, characters: CharacterProfile[])
   let match: RegExpExecArray | null;
 
   while ((match = dialoguePattern.exec(chapter.text)) && beats.length < 4) {
-    const before = chapter.text.slice(Math.max(0, match.index - 12), match.index);
-    const speaker = characters.find((character) => before.includes(character.name))?.name ?? characters[0]?.name ?? "角色";
+    const before = chapter.text.slice(Math.max(0, match.index - 40), match.index);
+    const speaker = inferDialogueSpeaker(before, characters.map((character) => character.name));
     beats.push({
       speaker,
       line: match[1],
@@ -214,6 +214,28 @@ function extractDialogue(chapter: ParsedChapter, characters: CharacterProfile[])
   }
 
   return beats;
+}
+
+function inferDialogueSpeaker(beforeQuote: string, characterNames: string[]): string {
+  const sentenceStart = Math.max(
+    beforeQuote.lastIndexOf("。"),
+    beforeQuote.lastIndexOf("！"),
+    beforeQuote.lastIndexOf("？"),
+    beforeQuote.lastIndexOf("\n")
+  );
+  const cue = beforeQuote.slice(sentenceStart + 1);
+  const speechVerbMatch = cue.match(/(?:说|问|答|喊|道|笑道|低声说|声音发紧)[:：]?\s*$/);
+  const beforeVerb = speechVerbMatch ? cue.slice(0, speechVerbMatch.index) : cue;
+  const candidates = characterNames
+    .map((name) => ({ name, index: beforeVerb.indexOf(name) }))
+    .filter((item) => item.index >= 0)
+    .sort((a, b) => a.index - b.index);
+
+  if (candidates.length > 0) {
+    return candidates[0].name;
+  }
+
+  return characterNames.find((name) => cue.includes(name)) ?? characterNames[0] ?? "角色";
 }
 
 function makeSource(chapter: ParsedChapter, paragraphIndexes: number[]): SourceLocator {
