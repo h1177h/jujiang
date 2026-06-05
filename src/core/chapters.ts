@@ -70,6 +70,10 @@ export function parseChapters(input: string): ParsedChapter[] {
   });
 }
 
+export function countChapters(input: string): number {
+  return parseChapters(input).length;
+}
+
 function mergeDuplicatedHeadings(headings: ChapterHeading[], lines: string[]): ChapterHeading[] {
   const merged: ChapterHeading[] = [];
 

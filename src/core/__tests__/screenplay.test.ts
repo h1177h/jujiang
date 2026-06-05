@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { parse } from "yaml";
-import { parseChapters } from "../chapters";
+import { countChapters, parseChapters } from "../chapters";
 import { sampleNovel } from "../sampleNovel";
 import { updateScreenplaySceneYaml } from "../sceneEditor";
 import { validateScreenplay } from "../schema";
@@ -35,6 +35,25 @@ describe("chapter parsing", () => {
     expect(chapters.map((chapter) => chapter.title)).toEqual(["他叫白小纯", "火灶房", "六句真言"]);
     expect(chapters).toHaveLength(3);
     expect(chapters[1].paragraphs.join(" ")).toContain("火灶房里");
+  });
+
+  it("counts chapters with the same parser used for generation", () => {
+    const count = countChapters(
+      [
+        "第一章 他叫白小纯",
+        "白小纯离开村子。",
+        "第二章 火灶房",
+        "",
+        "第二章",
+        "火灶房里烟火正旺。",
+        "第三章 六句真言",
+        "",
+        "第三章",
+        "钟声响起。"
+      ].join("\n")
+    );
+
+    expect(count).toBe(3);
   });
 });
 

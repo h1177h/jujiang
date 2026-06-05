@@ -1,4 +1,5 @@
 import type { AdaptationStyle, ScreenplayYaml } from "./types";
+import { parseChapters } from "./chapters";
 import { validateScreenplay } from "./schema";
 
 export interface AiProviderSettings {
@@ -88,7 +89,8 @@ export function normalizeBaseUrl(baseUrl: string): string {
 function buildSystemPrompt(): string {
   return [
     "你是剧匠的小说改编引擎，只输出 JSON，不要输出 Markdown。",
-    "你的任务是把小说正文改成结构化剧本初稿，短篇片段和多章长文都可以处理。",
+    "你的任务是把结构化章节上下文改成剧本初稿，短篇片段和多章长文都可以处理。",
+    "处理长文时必须先按 sourceChapters 提取每章关键事件、人物行动和冲突转折，再决定分场，不能机械按章节数量平均拆分。",
     "输出必须匹配剧匠 ScreenplayYaml Schema：work、adaptationPlan、characters、chapterMappings、scenes、rhythmStats、storyDiagnostics、validationHints。",
     "每个结构单元至少拆出 1 个 scene；如果段落足够，优先拆成 setup / turning_point / payoff。",
     "每个 scene 必须保留 source，写出 chapterIndex、chapterTitle、paragraphIndexes、lineStart、lineEnd、excerpt。",
@@ -97,9 +99,26 @@ function buildSystemPrompt(): string {
 }
 
 function buildUserPrompt(options: AiGenerationOptions): string {
+  const sourceChapters = parseChapters(options.novelText).map((chapter) => ({
+    chapterIndex: chapter.index,
+    chapterTitle: chapter.title,
+    heading: chapter.heading,
+    lineStart: chapter.startLine,
+    lineEnd: chapter.endLine,
+    paragraphs: chapter.paragraphs.map((paragraph, index) => ({
+      paragraphIndex: index + 1,
+      text: paragraph
+    }))
+  }));
+
   return JSON.stringify({
     title: options.title,
     adaptationStyle: options.style,
+    longNovelStrategy: [
+      "先从每章 paragraphs 中提取事件链、人物目标、阻碍、转折和结尾钩子。",
+      "再把事件链改编成 scenes；地点、时间、人物行动或冲突发生变化时才开新场。",
+      "chapterMappings 必须覆盖所有 sourceChapters，source.excerpt 必须来自对应段落。"
+    ],
     schemaNotes: {
       generatedBy: "请写成 api:<model>",
       conflictLevel: "1 到 5 的整数",
@@ -107,7 +126,8 @@ function buildUserPrompt(options: AiGenerationOptions): string {
       beatType: ["setup", "turning_point", "payoff"],
       minimumScenes: 3
     },
-    novelText: options.novelText
+    sourceChapterCount: sourceChapters.length,
+    sourceChapters
   });
 }
 

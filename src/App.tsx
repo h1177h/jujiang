@@ -11,6 +11,7 @@ import {
   TriangleAlert
 } from "lucide-react";
 import { parse } from "yaml";
+import { countChapters } from "./core/chapters";
 import type { AdaptationStyle, Scene, ScreenplayYaml } from "./core/types";
 import { generateScreenplayWithApi } from "./core/aiProvider";
 import { generateWorkspaceDraft } from "./core/generationWorkflow";
@@ -61,8 +62,7 @@ export default function App() {
     }
   }, [yamlText]);
   const chapterCount = useMemo(() => {
-    const matches = novelText.match(/(^|\n)\s*(第\s*[0-9一二三四五六七八九十百千万]+\s*[章节回幕]|chapter\s+\d+)/gi);
-    return matches?.length ?? 0;
+    return countChapters(novelText);
   }, [novelText]);
   const sceneCount = preview?.scenes.length ?? 0;
   const selectedScene =
