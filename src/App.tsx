@@ -32,13 +32,16 @@ const styles: { value: AdaptationStyle; label: string }[] = [
   { value: "stage", label: "舞台" },
   { value: "short_drama", label: "短剧" }
 ];
+const directApiBaseUrl = "https://api.openai.com/v1";
+const localProxyBaseUrl = "http://127.0.0.1:8787/v1";
 
 export default function App() {
   const [novelText, setNovelText] = useState(sampleNovel);
   const [title, setTitle] = useState("雾港来信");
   const [style, setStyle] = useState<AdaptationStyle>("cinematic");
   const [useApi, setUseApi] = useState(false);
-  const [apiBaseUrl, setApiBaseUrl] = useState("https://api.openai.com/v1");
+  const [useLocalProxy, setUseLocalProxy] = useState(false);
+  const [apiBaseUrl, setApiBaseUrl] = useState(directApiBaseUrl);
   const [apiModel, setApiModel] = useState("gpt-4.1-mini");
   const [apiKey, setApiKey] = useState("");
   const [generationStatus, setGenerationStatus] = useState("fallback 本地生成就绪");
@@ -65,12 +68,13 @@ export default function App() {
 
   async function handleGenerate() {
     try {
-      if (useApi && apiKey.trim()) {
+      const apiKeyForRequest = useLocalProxy ? "jujiang-local-proxy" : apiKey.trim();
+      if (useApi && apiKeyForRequest) {
         setGenerationStatus(`正在调用 ${apiModel}...`);
         const screenplay = await generateScreenplayWithApi(
           {
             baseUrl: apiBaseUrl,
-            apiKey,
+            apiKey: apiKeyForRequest,
             model: apiModel
           },
           {
@@ -122,6 +126,19 @@ export default function App() {
     } catch (error) {
       const message = error instanceof Error ? error.message : "场景同步失败";
       setGenerationStatus(message);
+    }
+  }
+
+  function handleProxyToggle(checked: boolean) {
+    setUseLocalProxy(checked);
+    if (checked) {
+      setUseApi(true);
+    }
+    if (checked && apiBaseUrl === directApiBaseUrl) {
+      setApiBaseUrl(localProxyBaseUrl);
+    }
+    if (!checked && apiBaseUrl === localProxyBaseUrl) {
+      setApiBaseUrl(directApiBaseUrl);
     }
   }
 
@@ -183,6 +200,14 @@ export default function App() {
               <input type="checkbox" checked={useApi} onChange={(event) => setUseApi(event.target.checked)} />
               <span>使用 API 生成</span>
             </label>
+            <label className="toggle-line">
+              <input
+                type="checkbox"
+                checked={useLocalProxy}
+                onChange={(event) => handleProxyToggle(event.target.checked)}
+              />
+              <span>使用本地 proxy</span>
+            </label>
             <div className="api-grid">
               <label>
                 Base URL
@@ -201,10 +226,16 @@ export default function App() {
                   type="password"
                   value={apiKey}
                   onChange={(event) => setApiKey(event.target.value)}
-                  placeholder="只保存在当前浏览器页面状态"
+                  disabled={useLocalProxy}
+                  placeholder={useLocalProxy ? "由本地 proxy 从环境变量读取" : "只保存在当前浏览器页面状态"}
                 />
               </div>
             </label>
+            <p className="status-note">
+              {useLocalProxy
+                ? "本地 proxy 需先运行 npm run proxy，并设置 JUJIANG_API_KEY 或 OPENAI_API_KEY。"
+                : "前端直连适合本地 demo；公开部署时建议使用本地 proxy 或后端代理。"}
+            </p>
             <p className="status-note">{generationStatus}</p>
           </div>
 

@@ -10,14 +10,15 @@
 2. `npm run dev`
 3. 打开 Vite 本地地址。
 4. 使用内置三章示例，或上传 `examples/sample-novel.md`。
-5. 点击“生成结构化剧本 YAML”。
-6. 查看页面底部作者审稿台：改编计划、故事诊断、角色关系、节奏指标、章节映射、冲突曲线和质量检查。
-7. 点击章节映射、冲突柱或质量检查项，定位到对应场景。
-8. 在场景编辑器里修改目标、地点、对白、冲突等级或修订建议，确认 YAML 同步更新。
-9. 手动编辑右侧 YAML，观察 Schema 校验提示。
-10. 点击复制或下载 YAML。
-11. 对照 `docs/yaml-schema.md` 讲字段设计。
-12. 对照 `docs/reference-analysis.md` 讲参考项目借鉴和独立改写。
+5. 如果展示真实 API，先设置 `JUJIANG_API_KEY` 并运行 `npm run proxy`，页面勾选“使用本地 proxy”。
+6. 点击“生成结构化剧本 YAML”。
+7. 查看页面底部作者审稿台：改编计划、故事诊断、角色关系、节奏指标、章节映射、冲突曲线和质量检查。
+8. 点击章节映射、冲突柱或质量检查项，定位到对应场景。
+9. 在场景编辑器里修改目标、地点、对白、冲突等级或修订建议，确认 YAML 同步更新。
+10. 手动编辑右侧 YAML，观察 Schema 校验提示。
+11. 点击复制或下载 YAML。
+12. 对照 `docs/yaml-schema.md` 讲字段设计。
+13. 对照 `docs/reference-analysis.md` 讲参考项目借鉴和独立改写。
 
 ## 评分点对应
 
@@ -31,6 +32,7 @@
 - 故事分析区支持章节到场景映射、冲突曲线和质量检查，点击即可定位场景。
 - 无 API key fallback demo。
 - OpenAI-compatible API 接入，可配置 Base URL、API Key 和 Model。
+- 本地 API proxy 可从环境变量读取 key，前端不必直接保存真实 key。
 - 可操作创新点：场景级工作台编辑、章节到场景映射、冲突曲线、质量检查、角色关系摘要、原文追溯、改编风格选择、节奏统计。
 
 40% 开发过程与质量：
@@ -59,6 +61,7 @@
 - PR #7 `feat(workspace): build author review workflow`：多场景拆分、改编计划、故事诊断和作者审稿台。
 - PR #8 `feat(api): add openai compatible generation`：OpenAI-compatible API 配置、调用和失败回退。
 - PR #9 `feat(workspace): add scene editor sync`：非 YAML 场景编辑和 YAML 同步。
+- PR #10 `feat(analysis): add story dashboard`：章节映射、冲突曲线和质量检查。
 
 ## 已运行验证
 
@@ -70,6 +73,6 @@
 ## 剩余风险
 
 - 当前 fallback 引擎是启发式规则，适合稳定 demo；真实质量主要依赖已接入的 OpenAI-compatible provider。
-- API key 目前只放在浏览器页面状态里，适合本地 demo；如果要部署给多人使用，应改成后端代理，避免前端暴露 key。
+- 浏览器直连模式仍保留给临时测试；正式展示真实 key 时建议使用本地 proxy。
 - 当前已支持一章多场和场景级内容编辑，但复杂小说仍需要作者继续调整分场边界。
 - 角色抽取已经为示例做了回归，但面对更复杂小说仍可能需要 AI 或更强 NLP 补充。
