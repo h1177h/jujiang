@@ -290,21 +290,6 @@ export default function App() {
         </section>
       </section>
 
-      <section className="preview-band">
-        <article>
-          <h2>创新点 1：原文追溯</h2>
-          <p>每场戏写入 chapter、paragraph 和 line 范围，作者可以从 YAML 直接回到小说依据。</p>
-        </article>
-        <article>
-          <h2>创新点 2：冲突节奏</h2>
-          <p>场景级 conflict.level 与全局 rhythmStats 帮助快速判断三章改编后的节奏起伏。</p>
-        </article>
-        <article>
-          <h2>创新点 3：风格切换</h2>
-          <p>均衡、影视感、舞台、短剧四种轻量策略影响场景目标和转场表达。</p>
-        </article>
-      </section>
-
       <ScreenplayPreview screenplay={preview} onScenePatch={handleScenePatch} />
     </main>
   );
