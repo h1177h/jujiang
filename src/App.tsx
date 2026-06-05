@@ -11,8 +11,7 @@ import {
   TriangleAlert
 } from "lucide-react";
 import { parse } from "yaml";
-import type { AdaptationStyle } from "./core/types";
-import type { ScreenplayYaml } from "./core/types";
+import type { AdaptationStyle, Scene, ScreenplayYaml } from "./core/types";
 import { generateScreenplayWithApi } from "./core/aiProvider";
 import { sampleNovel } from "./core/sampleNovel";
 import { validateScreenplay } from "./core/schema";
@@ -49,6 +48,7 @@ export default function App() {
     generateScreenplayYaml(sampleNovel, { title: "雾港来信", style: "cinematic" })
   );
   const [copyLabel, setCopyLabel] = useState("复制");
+  const [selectedSceneId, setSelectedSceneId] = useState<string | null>(null);
 
   const validation = useMemo(() => validateScreenplayYaml(yamlText), [yamlText]);
   const preview = useMemo(() => {
@@ -65,6 +65,8 @@ export default function App() {
     return matches?.length ?? 0;
   }, [novelText]);
   const sceneCount = preview?.scenes.length ?? 0;
+  const selectedScene =
+    preview?.scenes.find((scene) => scene.id === selectedSceneId) ?? preview?.scenes[0] ?? null;
 
   async function handleGenerate() {
     try {
@@ -84,15 +86,19 @@ export default function App() {
           }
         );
         setYamlText(screenplayToYaml(screenplay));
+        setSelectedSceneId(screenplay.scenes[0]?.id ?? null);
         setGenerationStatus(`API 生成完成：${apiModel}`);
         return;
       }
 
-      setYamlText(generateScreenplayYaml(novelText, { title, style }));
+      const fallbackYaml = generateScreenplayYaml(novelText, { title, style });
+      setYamlText(fallbackYaml);
+      setSelectedSceneId(null);
       setGenerationStatus(useApi ? "未填写 API key，已使用 fallback 生成" : "fallback 本地生成完成");
     } catch (error) {
       const message = error instanceof Error ? error.message : "生成失败";
       setYamlText(generateScreenplayYaml(novelText, { title, style }));
+      setSelectedSceneId(null);
       setGenerationStatus(`API 失败，已回退 fallback：${message}`);
     }
   }
@@ -122,6 +128,7 @@ export default function App() {
   function handleScenePatch(sceneId: string, patch: ScenePatch) {
     try {
       setYamlText((current) => updateScreenplaySceneYaml(current, sceneId, patch));
+      setSelectedSceneId(sceneId);
       setGenerationStatus(`已同步 ${sceneId} 到 YAML`);
     } catch (error) {
       const message = error instanceof Error ? error.message : "场景同步失败";
@@ -144,9 +151,9 @@ export default function App() {
 
   return (
     <main className="app-shell">
-      <section className="topbar">
+      <header className="topbar">
         <div>
-          <p className="eyebrow">Jujiang</p>
+          <p className="eyebrow">Jujiang Studio</p>
           <h1>剧匠 AI 小说转剧本工作台</h1>
         </div>
         <div className="status-strip">
@@ -156,158 +163,184 @@ export default function App() {
             {validation.ok ? "YAML 校验通过" : "YAML 待修正"}
           </span>
         </div>
-      </section>
+      </header>
 
-      <section className="product-flow" aria-label="创作流程">
-        <span className="active">1. 原文解析</span>
-        <span className={sceneCount > 0 ? "active" : ""}>2. 分场改编</span>
-        <span className={preview ? "active" : ""}>3. 作者审稿</span>
-        <span className={validation.ok ? "active" : ""}>4. YAML 交付</span>
-      </section>
-
-      <section className="workspace">
-        <section className="panel input-panel" aria-label="小说输入">
-          <div className="panel-header">
-            <div>
-              <h2>小说输入</h2>
-              <p>粘贴或上传三章以上文本，可调用 API，也可离线 fallback。</p>
-            </div>
-            <label className="icon-button file-button" title="上传文本文件">
-              <FileInput size={18} />
-              <input type="file" accept=".txt,.md" onChange={(event) => handleFileUpload(event.target.files?.[0] ?? null)} />
-            </label>
-          </div>
-
-          <div className="field-row">
-            <label>
-              作品名
-              <input value={title} onChange={(event) => setTitle(event.target.value)} />
-            </label>
-            <label>
-              改编风格
-              <select value={style} onChange={(event) => setStyle(event.target.value as AdaptationStyle)}>
-                {styles.map((item) => (
-                  <option key={item.value} value={item.value}>
-                    {item.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
-
-          <div className="api-box">
-            <label className="toggle-line">
-              <input type="checkbox" checked={useApi} onChange={(event) => setUseApi(event.target.checked)} />
-              <span>使用 API 生成</span>
-            </label>
-            <label className="toggle-line">
-              <input
-                type="checkbox"
-                checked={useLocalProxy}
-                onChange={(event) => handleProxyToggle(event.target.checked)}
-              />
-              <span>使用本地 proxy</span>
-            </label>
-            <div className="api-grid">
-              <label>
-                Base URL
-                <input value={apiBaseUrl} onChange={(event) => setApiBaseUrl(event.target.value)} />
-              </label>
-              <label>
-                Model
-                <input value={apiModel} onChange={(event) => setApiModel(event.target.value)} />
-              </label>
-            </div>
-            <label>
-              API Key
-              <div className="secret-field">
-                <KeyRound size={16} />
-                <input
-                  type="password"
-                  value={apiKey}
-                  onChange={(event) => setApiKey(event.target.value)}
-                  disabled={useLocalProxy}
-                  placeholder={useLocalProxy ? "由本地 proxy 从环境变量读取" : "只保存在当前浏览器页面状态"}
-                />
+      <section className="studio-shell">
+        <aside className="source-rail" aria-label="原文与生成设置">
+          <section className="panel input-panel">
+            <div className="panel-header">
+              <div>
+                <p className="section-kicker">Source</p>
+                <h2>原文与生成设置</h2>
               </div>
-            </label>
-            <p className="status-note">
-              {useLocalProxy
-                ? "本地 proxy 需先运行 npm run proxy，并设置 JUJIANG_API_KEY 或 OPENAI_API_KEY。"
-                : "前端直连适合本地 demo；公开部署时建议使用本地 proxy 或后端代理。"}
-            </p>
-            <p className="status-note">{generationStatus}</p>
-          </div>
+              <label className="icon-button file-button" title="上传文本文件">
+                <FileInput size={18} />
+                <input type="file" accept=".txt,.md" onChange={(event) => handleFileUpload(event.target.files?.[0] ?? null)} />
+              </label>
+            </div>
 
-          <textarea
-            className="novel-editor"
-            value={novelText}
-            onChange={(event) => setNovelText(event.target.value)}
-            spellCheck={false}
+            <div className="field-row">
+              <label>
+                作品名
+                <input value={title} onChange={(event) => setTitle(event.target.value)} />
+              </label>
+              <label>
+                改编风格
+                <select value={style} onChange={(event) => setStyle(event.target.value as AdaptationStyle)}>
+                  {styles.map((item) => (
+                    <option key={item.value} value={item.value}>
+                      {item.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+
+            <div className="api-box">
+              <div className="switch-row">
+                <label className="toggle-line">
+                  <input type="checkbox" checked={useApi} onChange={(event) => setUseApi(event.target.checked)} />
+                  <span>API 生成</span>
+                </label>
+                <label className="toggle-line">
+                  <input
+                    type="checkbox"
+                    checked={useLocalProxy}
+                    onChange={(event) => handleProxyToggle(event.target.checked)}
+                  />
+                  <span>本地 proxy</span>
+                </label>
+              </div>
+              <div className="api-grid">
+                <label>
+                  Base URL
+                  <input value={apiBaseUrl} onChange={(event) => setApiBaseUrl(event.target.value)} />
+                </label>
+                <label>
+                  Model
+                  <input value={apiModel} onChange={(event) => setApiModel(event.target.value)} />
+                </label>
+              </div>
+              <label>
+                API Key
+                <div className="secret-field">
+                  <KeyRound size={16} />
+                  <input
+                    type="password"
+                    value={apiKey}
+                    onChange={(event) => setApiKey(event.target.value)}
+                    disabled={useLocalProxy}
+                    placeholder={useLocalProxy ? "由本地 proxy 从环境变量读取" : "只保存在当前浏览器页面状态"}
+                  />
+                </div>
+              </label>
+              <p className="status-note">
+                {useLocalProxy
+                  ? "本地 proxy 需先运行 npm run proxy，并设置 JUJIANG_API_KEY 或 OPENAI_API_KEY。"
+                  : "前端直连适合本地 demo；公开部署时建议使用本地 proxy 或后端代理。"}
+              </p>
+              <p className="status-note strong">{generationStatus}</p>
+            </div>
+
+            <textarea
+              className="novel-editor"
+              value={novelText}
+              onChange={(event) => setNovelText(event.target.value)}
+              spellCheck={false}
+            />
+
+            <button className="primary-action" type="button" onClick={handleGenerate}>
+              <Sparkles size={18} />
+              {useApi ? "调用 API 生成剧本" : "生成结构化剧本"}
+            </button>
+          </section>
+        </aside>
+
+        <section className="review-stage" aria-label="审稿工作区">
+          <section className="product-flow" aria-label="创作流程">
+            <span className="active">1. 原文解析</span>
+            <span className={sceneCount > 0 ? "active" : ""}>2. 分场改编</span>
+            <span className={preview ? "active" : ""}>3. 作者审稿</span>
+            <span className={validation.ok ? "active" : ""}>4. YAML 交付</span>
+          </section>
+          <ScreenplayReview
+            screenplay={preview}
+            selectedSceneId={selectedScene?.id ?? null}
+            onSelectScene={setSelectedSceneId}
           />
-
-          <button className="primary-action" type="button" onClick={handleGenerate}>
-            <Sparkles size={18} />
-            {useApi ? "调用 API 生成剧本 YAML" : "生成结构化剧本 YAML"}
-          </button>
         </section>
 
-        <section className="panel output-panel" aria-label="YAML 输出">
-          <div className="panel-header">
-            <div>
-              <h2>可编辑 YAML</h2>
-              <p>修改后实时校验 Schema，可复制或下载交付。</p>
+        <aside className="delivery-rail" aria-label="交付与场景编辑">
+          <section className="panel output-panel">
+            <div className="panel-header">
+              <div>
+                <p className="section-kicker">Delivery</p>
+                <h2>YAML 交付</h2>
+              </div>
+              <div className="toolbar">
+                <button className="icon-button" type="button" onClick={handleGenerate} title="重新生成">
+                  <RefreshCw size={18} />
+                </button>
+                <button className="icon-button text-button" type="button" onClick={handleCopy} title="复制 YAML">
+                  <Clipboard size={18} />
+                  {copyLabel}
+                </button>
+                <button className="icon-button text-button" type="button" onClick={handleDownload} title="下载 YAML">
+                  <Download size={18} />
+                  下载
+                </button>
+              </div>
             </div>
-            <div className="toolbar">
-              <button className="icon-button" type="button" onClick={handleGenerate} title="重新生成">
-                <RefreshCw size={18} />
-              </button>
-              <button className="icon-button text-button" type="button" onClick={handleCopy} title="复制 YAML">
-                <Clipboard size={18} />
-                {copyLabel}
-              </button>
-              <button className="icon-button text-button" type="button" onClick={handleDownload} title="下载 YAML">
-                <Download size={18} />
-                下载
-              </button>
-            </div>
-          </div>
 
-          <textarea
-            className="yaml-editor"
-            value={yamlText}
-            onChange={(event) => setYamlText(event.target.value)}
-            spellCheck={false}
-          />
+            <textarea
+              className="yaml-editor"
+              value={yamlText}
+              onChange={(event) => setYamlText(event.target.value)}
+              spellCheck={false}
+            />
 
-          <div className={validation.ok ? "validation-box ok" : "validation-box error"}>
-            {validation.ok ? <CheckCircle2 size={18} /> : <TriangleAlert size={18} />}
-            <div>
-              <strong>{validation.ok ? "Schema 校验通过" : "Schema 校验失败"}</strong>
-              <p>{validation.ok ? "当前 YAML 可用于复制、下载和继续改写。" : validation.errors.slice(0, 3).join("；")}</p>
+            <div className={validation.ok ? "validation-box ok" : "validation-box error"}>
+              {validation.ok ? <CheckCircle2 size={18} /> : <TriangleAlert size={18} />}
+              <div>
+                <strong>{validation.ok ? "Schema 校验通过" : "Schema 校验失败"}</strong>
+                <p>{validation.ok ? "当前 YAML 可复制、下载和继续改写。" : validation.errors.slice(0, 3).join("；")}</p>
+              </div>
             </div>
-          </div>
-        </section>
+          </section>
+
+          {selectedScene ? (
+            <SceneInspector
+              scene={selectedScene}
+              onPatch={(patch) => handleScenePatch(selectedScene.id, patch)}
+            />
+          ) : (
+            <section className="scene-inspector empty">
+              <h3>场景编辑器</h3>
+              <p>生成并选中场景后，这里会显示可编辑字段和原文依据。</p>
+            </section>
+          )}
+        </aside>
       </section>
-
-      <ScreenplayPreview screenplay={preview} onScenePatch={handleScenePatch} />
     </main>
   );
 }
 
-function ScreenplayPreview({
+function ScreenplayReview({
   screenplay,
-  onScenePatch
+  selectedSceneId,
+  onSelectScene
 }: {
   screenplay: ScreenplayYaml | null;
-  onScenePatch: (sceneId: string, patch: ScenePatch) => void;
+  selectedSceneId: string | null;
+  onSelectScene: (sceneId: string) => void;
 }) {
-  const [selectedSceneId, setSelectedSceneId] = useState<string | null>(null);
+  const analysis = useMemo(() => (screenplay ? analyzeScreenplay(screenplay) : null), [screenplay]);
 
-  if (!screenplay) {
+  if (!screenplay || !analysis) {
     return (
-      <section className="structured-preview empty">
+      <section className="review-empty">
         <div>
+          <p className="section-kicker">Review</p>
           <h2>作者审稿台</h2>
           <p>YAML 校验通过后，这里会显示改编计划、故事诊断和分场审稿卡。</p>
         </div>
@@ -315,16 +348,13 @@ function ScreenplayPreview({
     );
   }
 
-  const selectedScene =
-    screenplay.scenes.find((scene) => scene.id === selectedSceneId) ?? screenplay.scenes[0];
-  const applyPatch = (patch: ScenePatch) => onScenePatch(selectedScene.id, patch);
-  const analysis = useMemo(() => analyzeScreenplay(screenplay), [screenplay]);
+  const selectedScene = screenplay.scenes.find((scene) => scene.id === selectedSceneId) ?? screenplay.scenes[0];
 
   return (
     <section className="structured-preview" aria-label="作者审稿台">
       <div className="preview-heading">
         <div>
-          <p className="eyebrow">Author Review</p>
+          <p className="section-kicker">Author Review</p>
           <h2>{screenplay.work.title} 审稿台</h2>
         </div>
         <div className="metric-grid">
@@ -358,10 +388,10 @@ function ScreenplayPreview({
       <StoryAnalysisPanel
         analysis={analysis}
         selectedSceneId={selectedScene.id}
-        onSelectScene={setSelectedSceneId}
+        onSelectScene={onSelectScene}
       />
 
-      <div className="preview-columns">
+      <div className="review-board">
         <aside className="character-rail">
           <h3>角色关系</h3>
           {screenplay.characters.slice(0, 5).map((character) => (
@@ -373,15 +403,14 @@ function ScreenplayPreview({
           ))}
         </aside>
 
-        <div className="scene-review-layout">
-          <div className="scene-grid">
-            {screenplay.scenes.map((scene) => (
-              <button
-                key={scene.id}
-                className={scene.id === selectedScene.id ? "scene-card selected" : "scene-card"}
-                type="button"
-                onClick={() => setSelectedSceneId(scene.id)}
-              >
+        <div className="scene-grid">
+          {screenplay.scenes.map((scene) => (
+            <button
+              key={scene.id}
+              className={scene.id === selectedScene.id ? "scene-card selected" : "scene-card"}
+              type="button"
+              onClick={() => onSelectScene(scene.id)}
+            >
               <div className="scene-card-top">
                 <span>{scene.id} / {scene.beatType}</span>
                 <strong>冲突 {scene.conflict.level}/5</strong>
@@ -403,159 +432,148 @@ function ScreenplayPreview({
                 </div>
               </dl>
               <blockquote>{scene.source.excerpt}</blockquote>
-              </button>
-            ))}
-          </div>
-
-          <aside className="scene-inspector">
-            <div className="scene-card-top">
-              <span>{selectedScene.id}</span>
-              <strong>{selectedScene.pacing}</strong>
-            </div>
-            <div className="editor-heading">
-              <PencilLine size={18} />
-              <h3>场景编辑器</h3>
-            </div>
-            <p className="sync-note">修改会立即同步到右侧 YAML，并触发 Schema 校验。</p>
-
-            <label>
-              场景标题
-              <input
-                value={selectedScene.title}
-                onChange={(event) => applyPatch({ title: event.target.value })}
-              />
-            </label>
-            <label>
-              场景目标
-              <textarea
-                className="compact-editor"
-                value={selectedScene.goal}
-                onChange={(event) => applyPatch({ goal: event.target.value })}
-              />
-            </label>
-            <div className="inspector-grid">
-              <label>
-                地点
-                <input
-                  value={selectedScene.location}
-                  onChange={(event) => applyPatch({ location: event.target.value })}
-                />
-              </label>
-              <label>
-                时间
-                <input
-                  value={selectedScene.time}
-                  onChange={(event) => applyPatch({ time: event.target.value })}
-                />
-              </label>
-            </div>
-            <div className="inspector-grid">
-              <label>
-                冲突等级
-                <select
-                  value={selectedScene.conflict.level}
-                  onChange={(event) =>
-                    applyPatch({
-                      conflict: {
-                        ...selectedScene.conflict,
-                        level: Number(event.target.value) as 1 | 2 | 3 | 4 | 5
-                      }
-                    })
-                  }
-                >
-                  {[1, 2, 3, 4, 5].map((level) => (
-                    <option key={level} value={level}>
-                      {level}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                节奏
-                <select
-                  value={selectedScene.pacing}
-                  onChange={(event) => applyPatch({ pacing: event.target.value as ScenePatch["pacing"] })}
-                >
-                  <option value="quiet">quiet</option>
-                  <option value="steady">steady</option>
-                  <option value="tense">tense</option>
-                  <option value="cliffhanger">cliffhanger</option>
-                </select>
-              </label>
-            </div>
-            <label>
-              冲突说明
-              <textarea
-                className="compact-editor"
-                value={selectedScene.conflict.reason}
-                onChange={(event) =>
-                  applyPatch({
-                    conflict: {
-                      ...selectedScene.conflict,
-                      reason: event.target.value
-                    }
-                  })
-                }
-              />
-            </label>
-            <label>
-              出场人物
-              <textarea
-                className="compact-editor"
-                value={selectedScene.characters.join("\n")}
-                onChange={(event) => applyPatch({ characters: parseListInput(event.target.value) })}
-              />
-            </label>
-            <label>
-              动作描写
-              <textarea
-                className="compact-editor tall"
-                value={selectedScene.action.join("\n")}
-                onChange={(event) => applyPatch({ action: parseListInput(event.target.value) })}
-              />
-            </label>
-            <label>
-              对白
-              <textarea
-                className="compact-editor tall"
-                value={serializeDialogueInput(selectedScene.dialogue)}
-                onChange={(event) =>
-                  applyPatch({ dialogue: parseDialogueInput(event.target.value, selectedScene) })
-                }
-              />
-            </label>
-            <label>
-              旁白 / 转场
-              <textarea
-                className="compact-editor"
-                value={selectedScene.narrationOrTransition}
-                onChange={(event) => applyPatch({ narrationOrTransition: event.target.value })}
-              />
-            </label>
-            <label>
-              情绪
-              <input
-                value={selectedScene.emotion}
-                onChange={(event) => applyPatch({ emotion: event.target.value })}
-              />
-            </label>
-            <label>
-              修订建议
-              <textarea
-                className="compact-editor tall"
-                value={selectedScene.revisionNotes.join("\n")}
-                onChange={(event) => applyPatch({ revisionNotes: parseListInput(event.target.value) })}
-              />
-            </label>
-            <h4>原文依据</h4>
-            <p className="source-note">
-              第 {selectedScene.source.chapterIndex} 章，段落 {selectedScene.source.paragraphIndexes.join("、")}，
-              行 {selectedScene.source.lineStart}-{selectedScene.source.lineEnd}
-            </p>
-            <blockquote className="source-excerpt">{selectedScene.source.excerpt}</blockquote>
-          </aside>
+            </button>
+          ))}
         </div>
       </div>
+    </section>
+  );
+}
+
+function SceneInspector({ scene, onPatch }: { scene: Scene; onPatch: (patch: ScenePatch) => void }) {
+  return (
+    <section className="scene-inspector">
+      <div className="scene-card-top">
+        <span>{scene.id}</span>
+        <strong>{scene.pacing}</strong>
+      </div>
+      <div className="editor-heading">
+        <PencilLine size={18} />
+        <h3>场景编辑器</h3>
+      </div>
+      <p className="sync-note">修改会立即同步到 YAML，并触发 Schema 校验。</p>
+
+      <label>
+        场景标题
+        <input value={scene.title} onChange={(event) => onPatch({ title: event.target.value })} />
+      </label>
+      <label>
+        场景目标
+        <textarea
+          className="compact-editor"
+          value={scene.goal}
+          onChange={(event) => onPatch({ goal: event.target.value })}
+        />
+      </label>
+      <div className="inspector-grid">
+        <label>
+          地点
+          <input value={scene.location} onChange={(event) => onPatch({ location: event.target.value })} />
+        </label>
+        <label>
+          时间
+          <input value={scene.time} onChange={(event) => onPatch({ time: event.target.value })} />
+        </label>
+      </div>
+      <div className="inspector-grid">
+        <label>
+          冲突等级
+          <select
+            value={scene.conflict.level}
+            onChange={(event) =>
+              onPatch({
+                conflict: {
+                  ...scene.conflict,
+                  level: Number(event.target.value) as 1 | 2 | 3 | 4 | 5
+                }
+              })
+            }
+          >
+            {[1, 2, 3, 4, 5].map((level) => (
+              <option key={level} value={level}>
+                {level}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          节奏
+          <select
+            value={scene.pacing}
+            onChange={(event) => onPatch({ pacing: event.target.value as ScenePatch["pacing"] })}
+          >
+            <option value="quiet">quiet</option>
+            <option value="steady">steady</option>
+            <option value="tense">tense</option>
+            <option value="cliffhanger">cliffhanger</option>
+          </select>
+        </label>
+      </div>
+      <label>
+        冲突说明
+        <textarea
+          className="compact-editor"
+          value={scene.conflict.reason}
+          onChange={(event) =>
+            onPatch({
+              conflict: {
+                ...scene.conflict,
+                reason: event.target.value
+              }
+            })
+          }
+        />
+      </label>
+      <label>
+        出场人物
+        <textarea
+          className="compact-editor"
+          value={scene.characters.join("\n")}
+          onChange={(event) => onPatch({ characters: parseListInput(event.target.value) })}
+        />
+      </label>
+      <label>
+        动作描写
+        <textarea
+          className="compact-editor tall"
+          value={scene.action.join("\n")}
+          onChange={(event) => onPatch({ action: parseListInput(event.target.value) })}
+        />
+      </label>
+      <label>
+        对白
+        <textarea
+          className="compact-editor tall"
+          value={serializeDialogueInput(scene.dialogue)}
+          onChange={(event) => onPatch({ dialogue: parseDialogueInput(event.target.value, scene) })}
+        />
+      </label>
+      <label>
+        旁白 / 转场
+        <textarea
+          className="compact-editor"
+          value={scene.narrationOrTransition}
+          onChange={(event) => onPatch({ narrationOrTransition: event.target.value })}
+        />
+      </label>
+      <label>
+        情绪
+        <input value={scene.emotion} onChange={(event) => onPatch({ emotion: event.target.value })} />
+      </label>
+      <label>
+        修订建议
+        <textarea
+          className="compact-editor tall"
+          value={scene.revisionNotes.join("\n")}
+          onChange={(event) => onPatch({ revisionNotes: parseListInput(event.target.value) })}
+        />
+      </label>
+      <h4>原文依据</h4>
+      <p className="source-note">
+        第 {scene.source.chapterIndex} 章，段落 {scene.source.paragraphIndexes.join("、")}，行 {scene.source.lineStart}-
+        {scene.source.lineEnd}
+      </p>
+      <blockquote className="source-excerpt">{scene.source.excerpt}</blockquote>
     </section>
   );
 }
