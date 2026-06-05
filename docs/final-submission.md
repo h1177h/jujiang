@@ -12,7 +12,7 @@
 4. 使用内置三章示例，或上传 `examples/sample-novel.md`。
 5. 点击“生成结构化剧本 YAML”。
 6. 查看右侧 YAML，手动编辑并观察 Schema 校验提示。
-7. 查看页面底部角色关系、节奏指标和分场卡片。
+7. 查看页面底部作者审稿台：改编计划、故事诊断、角色关系、节奏指标、分场卡片和修订建议。
 8. 点击复制或下载 YAML。
 9. 对照 `docs/yaml-schema.md` 讲字段设计。
 10. 对照 `docs/reference-analysis.md` 讲参考项目借鉴和独立改写。
@@ -26,7 +26,7 @@
 - 生成剧本 YAML，字段覆盖作品、角色、章节映射、场景、动作、对白、转场、情绪、冲突和原文来源。
 - YAML 可编辑、可校验、可复制、可下载。
 - 无 API key fallback demo。
-- 展示型创新点：角色关系摘要、冲突强度、原文追溯、改编风格选择、节奏统计、分场卡片预览。
+- 展示型创新点：角色关系摘要、冲突强度、原文追溯、改编风格选择、节奏统计、改编计划、故事诊断、作者审稿台。
 
 40% 开发过程与质量：
 
@@ -34,7 +34,7 @@
 - 核心逻辑放在 `src/core/`，UI 和转换逻辑分开。
 - Zod Schema 和 `docs/yaml-schema.md` 对齐。
 - 测试覆盖章节解析、YAML 生成结构、Schema 校验，以及角色抽取误判回归。
-- 通过 4 个 PR 分阶段推进，没有直推 main。
+- 通过多个小 PR 分阶段推进，没有直推 main。
 
 20% 演示与表达：
 
@@ -49,6 +49,9 @@
 - PR #2 `docs(deliverables): add competition materials`：README、Schema 文档、参考分析、demo 脚本。
 - PR #3 `feat(ui): add screenplay preview cards`：结构化预览、分场卡片、浏览器 QA。
 - PR #4 `fix(parser): avoid false character names`：修复角色抽取误判。
+- PR #5 `fix(parser): infer dialogue speakers from speech cues`：修复对白归属。
+- PR #6 `docs(submission): add final package summary`：最终提交说明和示例文件。
+- PR #7 `feat(workspace): build author review workflow`：多场景拆分、改编计划、故事诊断和作者审稿台。
 
 ## 已运行验证
 
@@ -60,5 +63,5 @@
 ## 剩余风险
 
 - 当前 fallback 引擎是启发式规则，适合稳定 demo。真实 AI provider 可以后续接入。
-- 每章目前生成一个场景，后续可以扩展成一章多场。
+- 当前已支持一章多场，但复杂小说仍需要作者在审稿台里继续调整分场边界。
 - 角色抽取已经为示例做了回归，但面对更复杂小说仍可能需要 AI 或更强 NLP 补充。

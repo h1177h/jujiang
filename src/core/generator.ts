@@ -18,6 +18,13 @@ export interface GenerateScreenplayOptions {
 const knownLocationWords = ["城", "门", "院", "街", "桥", "楼", "厅", "屋", "山", "河", "驿站", "书房"];
 const conflictWords = ["争", "怒", "喊", "杀", "逃", "疑", "逼", "急", "断", "泪", "血", "火", "秘密"];
 
+interface SceneDraft {
+  chapter: ParsedChapter;
+  beatIndex: number;
+  paragraphIndexes: number[];
+  paragraphs: string[];
+}
+
 export function generateScreenplayYamlModel(
   input: string,
   options: GenerateScreenplayOptions = {}
@@ -28,7 +35,10 @@ export function generateScreenplayYamlModel(
   }
 
   const characters = extractCharacters(chapters);
-  const scenes = chapters.map((chapter) => buildScene(chapter, characters, options.style ?? "balanced"));
+  const sceneDrafts = chapters.flatMap((chapter) => splitChapterIntoSceneDrafts(chapter));
+  const scenes = sceneDrafts.map((draft, index) =>
+    buildScene(draft, index + 1, characters, options.style ?? "balanced")
+  );
   const dialogueCount = scenes.reduce((sum, scene) => sum + scene.dialogue.length, 0);
   const averageConflict = Number(
     (scenes.reduce((sum, scene) => sum + scene.conflict.level, 0) / scenes.length).toFixed(2)
@@ -45,11 +55,12 @@ export function generateScreenplayYamlModel(
       sourceChapterCount: chapters.length,
       generatedBy: "jujiang-fallback-engine"
     },
+    adaptationPlan: buildAdaptationPlan(chapters, scenes, options.style ?? "balanced"),
     characters,
     chapterMappings: chapters.map((chapter) => ({
       chapterIndex: chapter.index,
       novelTitle: chapter.title,
-      sceneIds: [`scene-${String(chapter.index).padStart(2, "0")}`],
+      sceneIds: scenes.filter((scene) => scene.chapterIndex === chapter.index).map((scene) => scene.id),
       summary: summarizeParagraphs(chapter.paragraphs),
       sourceLines: [chapter.startLine, chapter.endLine]
     })),
@@ -60,10 +71,11 @@ export function generateScreenplayYamlModel(
       averageConflict,
       highConflictSceneIds
     },
+    storyDiagnostics: buildStoryDiagnostics(chapters, scenes),
     validationHints: [
       "可在左侧继续替换三章以上小说文本，右侧 YAML 会重新生成。",
       "每个 scene.source 保留章节、段落和行号，便于回到原文继续改编。",
-      "conflict.level 与 rhythmStats 可帮助作者判断节奏起伏。"
+      "conflict.level、pacing 与 rhythmStats 可帮助作者判断节奏起伏。"
     ]
   };
 
@@ -76,33 +88,112 @@ export function generateScreenplayYamlModel(
 }
 
 function buildScene(
-  chapter: ParsedChapter,
+  draft: SceneDraft,
+  globalIndex: number,
   characters: CharacterProfile[],
   style: AdaptationStyle
 ): Scene {
-  const paragraphIndexes = chapter.paragraphs.map((_, index) => index);
-  const source = makeSource(chapter, paragraphIndexes);
-  const chapterCharacters = pickChapterCharacters(chapter, characters);
-  const dialogue = extractDialogue(chapter, chapterCharacters);
-  const conflictLevel = estimateConflict(chapter.text, dialogue.length, style);
+  const text = draft.paragraphs.join("\n");
+  const source = makeSource(draft.chapter, draft.paragraphIndexes);
+  const chapterCharacters = pickChapterCharacters(text, characters);
+  const dialogue = extractDialogue(draft.chapter, chapterCharacters, text);
+  const conflictLevel = estimateConflict(text, dialogue.length, style);
+  const beatType = inferBeatType(draft);
 
   return {
-    id: `scene-${String(chapter.index).padStart(2, "0")}`,
-    chapterIndex: chapter.index,
-    title: `${chapter.title}：${buildSceneTitle(chapter)}`,
-    goal: buildSceneGoal(chapter, style),
-    location: inferLocation(chapter.text),
-    time: inferTime(chapter.text),
+    id: `scene-${String(globalIndex).padStart(2, "0")}`,
+    chapterIndex: draft.chapter.index,
+    beatIndex: draft.beatIndex,
+    beatType,
+    title: `${draft.chapter.title} / ${buildSceneTitle(draft.paragraphs)}`,
+    goal: buildSceneGoal(draft.chapter, beatType, style),
+    location: inferLocation(text),
+    time: inferTime(text),
     characters: chapterCharacters.map((character) => character.name),
-    action: buildActionBeats(chapter),
+    action: buildActionBeats(draft.paragraphs),
     dialogue,
-    narrationOrTransition: buildTransition(chapter.index, style),
-    emotion: inferEmotion(chapter.text),
+    narrationOrTransition: buildTransition(draft, style),
+    emotion: inferEmotion(text),
+    pacing: inferPacing(conflictLevel, beatType, dialogue.length),
     conflict: {
       level: conflictLevel,
-      reason: buildConflictReason(conflictLevel, chapter.text)
+      reason: buildConflictReason(conflictLevel, text)
     },
+    revisionNotes: buildRevisionNotes(beatType, conflictLevel, dialogue.length),
     source
+  };
+}
+
+function splitChapterIntoSceneDrafts(chapter: ParsedChapter): SceneDraft[] {
+  const paragraphCount = chapter.paragraphs.length;
+  if (paragraphCount <= 2) {
+    return [
+      {
+        chapter,
+        beatIndex: 1,
+        paragraphIndexes: chapter.paragraphs.map((_, index) => index),
+        paragraphs: chapter.paragraphs
+      }
+    ];
+  }
+
+  const midpoint = Math.ceil(paragraphCount / 2);
+  const chunks = [chapter.paragraphs.slice(0, midpoint), chapter.paragraphs.slice(midpoint)].filter(
+    (chunk) => chunk.length > 0
+  );
+
+  return chunks.map((paragraphs, index) => {
+    const offset = index === 0 ? 0 : midpoint;
+    return {
+      chapter,
+      beatIndex: index + 1,
+      paragraphIndexes: paragraphs.map((_, paragraphIndex) => paragraphIndex + offset),
+      paragraphs
+    };
+  });
+}
+
+function buildAdaptationPlan(chapters: ParsedChapter[], scenes: Scene[], style: AdaptationStyle) {
+  const styleTone: Record<AdaptationStyle, string> = {
+    balanced: "悬疑叙事和人物选择并重",
+    cinematic: "偏影视化悬疑，重画面、动作和钩子",
+    stage: "偏舞台调度，重空间压迫和台词张力",
+    short_drama: "偏短剧节奏，重反转和场尾悬念"
+  };
+
+  return {
+    premise: buildLogline(chapters),
+    tone: styleTone[style],
+    targetAudience: "需要快速判断改编方向的小说作者、短剧编剧和内容策划",
+    structure: chapters.map((chapter) => {
+      const sceneCount = scenes.filter((scene) => scene.chapterIndex === chapter.index).length;
+      return `${chapter.title}：拆为 ${sceneCount} 个场景，保留章节事件并补足戏剧节奏。`;
+    }),
+    nextRevisionFocus: [
+      "逐场确认人物动机是否清楚。",
+      "把 source.excerpt 中的叙述句继续改成可拍摄动作。",
+      "优先打磨 highConflictSceneIds 中的场尾钩子。"
+    ]
+  };
+}
+
+function buildStoryDiagnostics(chapters: ParsedChapter[], scenes: Scene[]) {
+  const paragraphCount = chapters.reduce((sum, chapter) => sum + chapter.paragraphs.length, 0);
+  const strongest = [...scenes].sort((a, b) => b.conflict.level - a.conflict.level)[0];
+  const quietScenes = scenes.filter((scene) => scene.pacing === "quiet").length;
+  const warnings = [
+    quietScenes > scenes.length / 2 ? "低冲突场景偏多，建议增加选择压力或明确阻碍。" : "",
+    scenes.some((scene) => scene.dialogue.length === 0) ? "部分场景没有对白，录屏时可展示为动作场。" : ""
+  ].filter(Boolean);
+
+  return {
+    paragraphCount,
+    sourceCoverage: `${chapters.length} 章 / ${paragraphCount} 段原文已映射到 ${scenes.length} 个场景。`,
+    strongestConflictSceneId: strongest?.id ?? scenes[0]?.id ?? "scene-01",
+    pacingSummary: `共 ${scenes.length} 场，平均冲突 ${(
+      scenes.reduce((sum, scene) => sum + scene.conflict.level, 0) / scenes.length
+    ).toFixed(2)}，高冲突场景 ${scenes.filter((scene) => scene.conflict.level >= 4).length} 场。`,
+    warnings
   };
 }
 
@@ -191,18 +282,18 @@ function isIgnoredCharacterCandidate(candidate: string): boolean {
   return ignored.has(candidate) || /从|灯|声|门而|边翻|重新|只有|忽然|举起/.test(candidate);
 }
 
-function pickChapterCharacters(chapter: ParsedChapter, characters: CharacterProfile[]) {
-  const inChapter = characters.filter((character) => chapter.text.includes(character.name));
+function pickChapterCharacters(text: string, characters: CharacterProfile[]) {
+  const inChapter = characters.filter((character) => text.includes(character.name));
   return inChapter.length > 0 ? inChapter : characters.slice(0, 1);
 }
 
-function extractDialogue(chapter: ParsedChapter, characters: CharacterProfile[]): DialogueBeat[] {
+function extractDialogue(chapter: ParsedChapter, characters: CharacterProfile[], sceneText: string): DialogueBeat[] {
   const dialoguePattern = /[“"]([^”"]{2,80})[”"]/g;
   const beats: DialogueBeat[] = [];
   let match: RegExpExecArray | null;
 
-  while ((match = dialoguePattern.exec(chapter.text)) && beats.length < 4) {
-    const before = chapter.text.slice(Math.max(0, match.index - 40), match.index);
+  while ((match = dialoguePattern.exec(sceneText)) && beats.length < 4) {
+    const before = sceneText.slice(Math.max(0, match.index - 40), match.index);
     const speaker = inferDialogueSpeaker(before, characters.map((character) => character.name));
     beats.push({
       speaker,
@@ -283,19 +374,24 @@ function summarizeParagraphs(paragraphs: string[]): string {
   return text.length > 72 ? `${text.slice(0, 72)}...` : text || "本章原文较短，需在改编时补足动作和对白。";
 }
 
-function buildSceneTitle(chapter: ParsedChapter): string {
-  const firstParagraph = chapter.paragraphs[0] ?? chapter.heading;
+function buildSceneTitle(paragraphs: string[]): string {
+  const firstParagraph = paragraphs[0] ?? "场景";
   return firstParagraph.replace(/[“”"]/g, "").slice(0, 18);
 }
 
-function buildSceneGoal(chapter: ParsedChapter, style: AdaptationStyle): string {
+function buildSceneGoal(chapter: ParsedChapter, beatType: Scene["beatType"], style: AdaptationStyle): string {
   const styleGoal: Record<AdaptationStyle, string> = {
     balanced: "保留原文关键事件，并转化为可拍摄的场面目标。",
     cinematic: "突出画面调度、人物动作和悬念递进。",
     stage: "强化空间关系、台词节奏和舞台调度。",
     short_drama: "压缩信息密度，让冲突在短场景内快速爆发。"
   };
-  return `${styleGoal[style]} 本场承接“${chapter.title}”。`;
+  const beatGoal: Record<Scene["beatType"], string> = {
+    setup: "建立本章人物关系和空间压力。",
+    turning_point: "让信息或行动发生转向。",
+    payoff: "收束本章事件并留下下一场钩子。"
+  };
+  return `${styleGoal[style]} ${beatGoal[beatType]} 本场承接“${chapter.title}”。`;
 }
 
 function inferLocation(text: string): string {
@@ -324,22 +420,55 @@ function inferIntent(line: string): string {
   return "表达态度";
 }
 
-function buildActionBeats(chapter: ParsedChapter): string[] {
-  const paragraphs = chapter.paragraphs.length > 0 ? chapter.paragraphs : [chapter.text];
-  return paragraphs.slice(0, 3).map((paragraph, index) => {
+function buildActionBeats(paragraphs: string[]): string[] {
+  const source = paragraphs.length > 0 ? paragraphs : ["本场需要补写动作。"];
+  return source.slice(0, 3).map((paragraph, index) => {
     const cleaned = paragraph.replace(/[“”"][^“”"]+[“”"]/g, "人物对白").slice(0, 64);
     return `${index + 1}. ${cleaned}`;
   });
 }
 
-function buildTransition(index: number, style: AdaptationStyle): string {
+function buildTransition(draft: SceneDraft, style: AdaptationStyle): string {
   if (style === "short_drama") {
-    return `短切到第 ${index + 1} 个冲突点，保留悬念钩子。`;
+    return `短切到第 ${draft.chapter.index}-${draft.beatIndex + 1} 个冲突点，保留悬念钩子。`;
   }
   if (style === "stage") {
     return "灯光收束，人物关系在下一场继续发酵。";
   }
-  return "以原文关键意象转场，进入下一段行动。";
+  return draft.beatIndex === 1 ? "以原文关键意象转入本章后半场。" : "以场尾动作或问题转入下一章。";
+}
+
+function inferBeatType(draft: SceneDraft): Scene["beatType"] {
+  if (draft.beatIndex === 1) return "setup";
+  if (draft.paragraphs.some((paragraph) => /秘密|失火|证据|拔刀|锁死|第十一声/.test(paragraph))) {
+    return "payoff";
+  }
+  return "turning_point";
+}
+
+function inferPacing(
+  conflictLevel: Scene["conflict"]["level"],
+  beatType: Scene["beatType"],
+  dialogueCount: number
+): Scene["pacing"] {
+  if (beatType === "payoff" && conflictLevel >= 4) return "cliffhanger";
+  if (conflictLevel >= 4) return "tense";
+  if (dialogueCount > 0 || conflictLevel >= 3) return "steady";
+  return "quiet";
+}
+
+function buildRevisionNotes(
+  beatType: Scene["beatType"],
+  conflictLevel: Scene["conflict"]["level"],
+  dialogueCount: number
+): string[] {
+  const notes = [
+    beatType === "setup" ? "确认开场是否快速交代人物处境。" : "确认这一场是否推动了信息或行动变化。",
+    conflictLevel < 3 ? "冲突偏弱，可增加阻碍、误会或时间压力。" : "保留冲突来源，后续可强化场尾动作。",
+    dialogueCount === 0 ? "当前没有对白，可补一句人物选择或旁白钩子。" : "对白已抽取，建议继续打磨潜台词。"
+  ];
+
+  return notes;
 }
 
 function estimateConflict(text: string, dialogueCount: number, style: AdaptationStyle): 1 | 2 | 3 | 4 | 5 {
