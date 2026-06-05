@@ -15,6 +15,7 @@
 - 支持复制和下载 YAML。
 - 内置三章示例小说《雾港来信》，无 API key 也能演示。
 - 可填写 Base URL、API Key 和 Model，调用兼容 `/v1/chat/completions` 的模型生成剧本。
+- 可选本地 API proxy：API key 放在环境变量里，前端只请求 `http://127.0.0.1:8787/v1`。
 - 创新点：场景级工作台编辑、章节到场景映射、冲突曲线、质量检查、角色关系摘要、原文追溯、改编风格选择、节奏统计、改编计划。
 
 ## 技术栈
@@ -33,6 +34,16 @@ npm run dev
 
 浏览器打开 Vite 输出的本地地址后，可以直接使用内置示例生成 YAML。
 
+如需通过本地 proxy 调用真实模型：
+
+```bash
+$env:JUJIANG_API_KEY="你的 API Key"
+$env:JUJIANG_API_BASE_URL="https://api.openai.com/v1"
+npm run proxy
+```
+
+然后在页面里勾选“使用 API 生成”和“使用本地 proxy”。前端会请求 `http://127.0.0.1:8787/v1/chat/completions`，真实 key 不会填进浏览器表单。
+
 ## 验证命令
 
 ```bash
@@ -44,7 +55,7 @@ npm run build
 当前已验证结果：
 
 - `npm audit`：found 0 vulnerabilities。
-- `npm test`：2 个测试文件、8 个测试用例通过。
+- `npm test`：3 个测试文件、10 个测试用例通过。
 - `npm run build`：TypeScript 检查和 Vite 生产构建通过。
 
 ## 架构
@@ -62,6 +73,8 @@ src/
     sampleNovel.ts         # 三章示例小说
     types.ts               # 剧本数据结构
     __tests__/             # 核心测试
+scripts/
+  api-proxy.mjs             # 本地 OpenAI-compatible API proxy
 docs/
   yaml-schema.md           # YAML Schema 说明
   reference-analysis.md    # 参考项目分析与 no copied code 说明
@@ -73,7 +86,7 @@ docs/
 1. 运行 `npm run dev`。
 2. 打开本地页面，确认左侧已有三章示例小说。
 3. 切换改编风格，例如“影视感”或“短剧”。
-4. 如需真实 AI 生成，勾选“使用 API 生成”，填写 Base URL、API Key 和 Model；不填 key 则自动使用 fallback。
+4. 如需真实 AI 生成，可直接填写 Base URL、API Key 和 Model；也可以先运行 `npm run proxy`，再勾选“使用本地 proxy”。
 5. 点击“生成结构化剧本 YAML”。
 6. 在右侧查看并编辑 YAML，确认校验状态实时变化。
 7. 查看页面底部作者审稿台：改编计划、故事诊断、角色关系和节奏指标。

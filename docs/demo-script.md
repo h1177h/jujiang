@@ -31,7 +31,14 @@ npm run build
 
 切换一次改编风格，例如从“影视感”切到“短剧”，说明风格会影响场景目标和转场表达。
 
-如果现场有 API key，勾选“使用 API 生成”，填写 Base URL、API Key 和 Model；如果没有 key，保持 fallback，说明离线兜底不会影响演示闭环。
+如果现场有 API key，优先展示本地 proxy 模式：
+
+```bash
+$env:JUJIANG_API_KEY="..."
+npm run proxy
+```
+
+然后在页面勾选“使用 API 生成”和“使用本地 proxy”。如果没有 key，保持 fallback，说明离线兜底不会影响演示闭环。前端直连模式也保留给临时测试，但公开部署不建议把 key 填在浏览器里。
 
 ### 3. 生成 YAML
 
