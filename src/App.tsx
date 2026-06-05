@@ -5,6 +5,7 @@ import {
   Download,
   FileInput,
   KeyRound,
+  PencilLine,
   RefreshCw,
   Sparkles,
   TriangleAlert
@@ -15,6 +16,13 @@ import type { ScreenplayYaml } from "./core/types";
 import { generateScreenplayWithApi } from "./core/aiProvider";
 import { sampleNovel } from "./core/sampleNovel";
 import { validateScreenplay } from "./core/schema";
+import {
+  parseDialogueInput,
+  parseListInput,
+  serializeDialogueInput,
+  updateScreenplaySceneYaml,
+  type ScenePatch
+} from "./core/sceneEditor";
 import { generateScreenplayYaml, screenplayToYaml, validateScreenplayYaml } from "./core/yaml";
 
 const styles: { value: AdaptationStyle; label: string }[] = [
@@ -104,6 +112,16 @@ export default function App() {
     if (!file) return;
     const text = await file.text();
     setNovelText(text);
+  }
+
+  function handleScenePatch(sceneId: string, patch: ScenePatch) {
+    try {
+      setYamlText((current) => updateScreenplaySceneYaml(current, sceneId, patch));
+      setGenerationStatus(`已同步 ${sceneId} 到 YAML`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "场景同步失败";
+      setGenerationStatus(message);
+    }
   }
 
   return (
@@ -255,12 +273,18 @@ export default function App() {
         </article>
       </section>
 
-      <ScreenplayPreview screenplay={preview} />
+      <ScreenplayPreview screenplay={preview} onScenePatch={handleScenePatch} />
     </main>
   );
 }
 
-function ScreenplayPreview({ screenplay }: { screenplay: ScreenplayYaml | null }) {
+function ScreenplayPreview({
+  screenplay,
+  onScenePatch
+}: {
+  screenplay: ScreenplayYaml | null;
+  onScenePatch: (sceneId: string, patch: ScenePatch) => void;
+}) {
   const [selectedSceneId, setSelectedSceneId] = useState<string | null>(null);
 
   if (!screenplay) {
@@ -276,6 +300,7 @@ function ScreenplayPreview({ screenplay }: { screenplay: ScreenplayYaml | null }
 
   const selectedScene =
     screenplay.scenes.find((scene) => scene.id === selectedSceneId) ?? screenplay.scenes[0];
+  const applyPatch = (patch: ScenePatch) => onScenePatch(selectedScene.id, patch);
 
   return (
     <section className="structured-preview" aria-label="作者审稿台">
@@ -363,24 +388,141 @@ function ScreenplayPreview({ screenplay }: { screenplay: ScreenplayYaml | null }
               <span>{selectedScene.id}</span>
               <strong>{selectedScene.pacing}</strong>
             </div>
-            <h3>{selectedScene.title}</h3>
-            <p>{selectedScene.conflict.reason}</p>
-            <h4>对白</h4>
-            {selectedScene.dialogue.length > 0 ? (
-              selectedScene.dialogue.map((dialogue) => (
-                <p key={`${dialogue.speaker}-${dialogue.line}`} className="dialogue-line">
-                  <b>{dialogue.speaker}</b>：{dialogue.line}
-                </p>
-              ))
-            ) : (
-              <p className="muted">这一场以动作和悬念为主，下一轮可补一句场尾钩子。</p>
-            )}
-            <h4>修订建议</h4>
-            <ul>
-              {selectedScene.revisionNotes.map((note) => (
-                <li key={note}>{note}</li>
-              ))}
-            </ul>
+            <div className="editor-heading">
+              <PencilLine size={18} />
+              <h3>场景编辑器</h3>
+            </div>
+            <p className="sync-note">修改会立即同步到右侧 YAML，并触发 Schema 校验。</p>
+
+            <label>
+              场景标题
+              <input
+                value={selectedScene.title}
+                onChange={(event) => applyPatch({ title: event.target.value })}
+              />
+            </label>
+            <label>
+              场景目标
+              <textarea
+                className="compact-editor"
+                value={selectedScene.goal}
+                onChange={(event) => applyPatch({ goal: event.target.value })}
+              />
+            </label>
+            <div className="inspector-grid">
+              <label>
+                地点
+                <input
+                  value={selectedScene.location}
+                  onChange={(event) => applyPatch({ location: event.target.value })}
+                />
+              </label>
+              <label>
+                时间
+                <input
+                  value={selectedScene.time}
+                  onChange={(event) => applyPatch({ time: event.target.value })}
+                />
+              </label>
+            </div>
+            <div className="inspector-grid">
+              <label>
+                冲突等级
+                <select
+                  value={selectedScene.conflict.level}
+                  onChange={(event) =>
+                    applyPatch({
+                      conflict: {
+                        ...selectedScene.conflict,
+                        level: Number(event.target.value) as 1 | 2 | 3 | 4 | 5
+                      }
+                    })
+                  }
+                >
+                  {[1, 2, 3, 4, 5].map((level) => (
+                    <option key={level} value={level}>
+                      {level}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                节奏
+                <select
+                  value={selectedScene.pacing}
+                  onChange={(event) => applyPatch({ pacing: event.target.value as ScenePatch["pacing"] })}
+                >
+                  <option value="quiet">quiet</option>
+                  <option value="steady">steady</option>
+                  <option value="tense">tense</option>
+                  <option value="cliffhanger">cliffhanger</option>
+                </select>
+              </label>
+            </div>
+            <label>
+              冲突说明
+              <textarea
+                className="compact-editor"
+                value={selectedScene.conflict.reason}
+                onChange={(event) =>
+                  applyPatch({
+                    conflict: {
+                      ...selectedScene.conflict,
+                      reason: event.target.value
+                    }
+                  })
+                }
+              />
+            </label>
+            <label>
+              出场人物
+              <textarea
+                className="compact-editor"
+                value={selectedScene.characters.join("\n")}
+                onChange={(event) => applyPatch({ characters: parseListInput(event.target.value) })}
+              />
+            </label>
+            <label>
+              动作描写
+              <textarea
+                className="compact-editor tall"
+                value={selectedScene.action.join("\n")}
+                onChange={(event) => applyPatch({ action: parseListInput(event.target.value) })}
+              />
+            </label>
+            <label>
+              对白
+              <textarea
+                className="compact-editor tall"
+                value={serializeDialogueInput(selectedScene.dialogue)}
+                onChange={(event) =>
+                  applyPatch({ dialogue: parseDialogueInput(event.target.value, selectedScene) })
+                }
+              />
+            </label>
+            <label>
+              旁白 / 转场
+              <textarea
+                className="compact-editor"
+                value={selectedScene.narrationOrTransition}
+                onChange={(event) => applyPatch({ narrationOrTransition: event.target.value })}
+              />
+            </label>
+            <label>
+              情绪
+              <input
+                value={selectedScene.emotion}
+                onChange={(event) => applyPatch({ emotion: event.target.value })}
+              />
+            </label>
+            <label>
+              修订建议
+              <textarea
+                className="compact-editor tall"
+                value={selectedScene.revisionNotes.join("\n")}
+                onChange={(event) => applyPatch({ revisionNotes: parseListInput(event.target.value) })}
+              />
+            </label>
             <h4>原文依据</h4>
             <p className="source-note">
               第 {selectedScene.source.chapterIndex} 章，段落 {selectedScene.source.paragraphIndexes.join("、")}，

@@ -579,6 +579,38 @@ select:focus {
   color: #b7c9c2;
 }
 
+.scene-inspector label {
+  color: #d6e8e0;
+  display: grid;
+  font-size: 12px;
+  font-weight: 800;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.scene-inspector input,
+.scene-inspector select,
+.scene-inspector textarea {
+  background: #162123;
+  border-color: #2f4243;
+  color: #edf8f1;
+  margin-top: 0;
+}
+
+.scene-inspector input,
+.scene-inspector select {
+  height: 36px;
+}
+
+.scene-inspector textarea {
+  min-height: 74px;
+  padding: 9px 10px;
+}
+
+.scene-inspector .compact-editor.tall {
+  min-height: 112px;
+}
+
 .scene-inspector .scene-card-top strong {
   background: #203b3b;
   color: #bff1df;
@@ -587,13 +619,33 @@ select:focus {
 .scene-inspector h3 {
   color: #ffffff;
   font-size: 17px;
-  margin: 12px 0 10px;
+  margin: 0;
 }
 
 .scene-inspector h4 {
   color: #ffffff;
   font-size: 13px;
   margin: 16px 0 8px;
+}
+
+.editor-heading {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  margin: 14px 0 6px;
+}
+
+.sync-note {
+  border-bottom: 1px solid #2f4243;
+  font-size: 12px;
+  line-height: 1.45;
+  padding-bottom: 12px;
+}
+
+.inspector-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: 1fr 1fr;
 }
 
 .dialogue-line {

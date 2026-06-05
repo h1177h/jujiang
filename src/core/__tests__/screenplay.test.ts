@@ -3,6 +3,7 @@ import { parse } from "yaml";
 import { parseChapters } from "../chapters";
 import { generateScreenplayYamlModel } from "../generator";
 import { sampleNovel } from "../sampleNovel";
+import { updateScreenplaySceneYaml } from "../sceneEditor";
 import { validateScreenplay } from "../schema";
 import { generateScreenplayYaml, validateScreenplayYaml } from "../yaml";
 
@@ -56,5 +57,38 @@ describe("fallback screenplay generation", () => {
 
     expect(result.ok).toBe(false);
     expect(result.errors.join("\n")).toContain("Required");
+  });
+
+  it("syncs scene editor changes back into valid YAML", () => {
+    const yamlText = generateScreenplayYaml(sampleNovel, { title: "雾港来信" });
+    const updatedYaml = updateScreenplaySceneYaml(yamlText, "scene-01", {
+      goal: "让林砚在开场主动发现账册异常，并把选择压力推到台面上。",
+      location: "雾港码头外景",
+      characters: ["林砚", "沈知夏"],
+      dialogue: [
+        {
+          speaker: "林砚",
+          line: "这本账册不是给掌柜看的，是给凶手看的。",
+          intent: "抛出判断",
+          emotion: "警觉",
+          source: generateScreenplayYamlModel(sampleNovel).scenes[0].source
+        }
+      ],
+      conflict: {
+        level: 5,
+        reason: "主角直接指出账册异常，外部危险和信息压力同时抬升。"
+      }
+    });
+
+    const parsed = parse(updatedYaml);
+    const validation = validateScreenplay(parsed);
+
+    expect(validation.success).toBe(true);
+    if (!validation.success) return;
+    expect(validation.data.scenes[0].goal).toContain("账册异常");
+    expect(validation.data.scenes[0].location).toBe("雾港码头外景");
+    expect(validation.data.scenes[0].dialogue[0].speaker).toBe("林砚");
+    expect(validation.data.rhythmStats.highConflictSceneIds).toContain("scene-01");
+    expect(validateScreenplayYaml(updatedYaml)).toEqual({ ok: true, errors: [] });
   });
 });
