@@ -1,0 +1,231 @@
+﻿work:
+  title: 雾港来信
+  adaptationStyle: cinematic
+  logline: 围绕“迟到的渡船”开启的事件一路推进到“雾中的钟声”，人物在连续冲突中完成选择。
+  sourceChapterCount: 3
+  generatedBy: jujiang-fallback-engine
+characters:
+  - id: char-1
+    name: 沈知夏
+    role: protagonist
+    traits:
+      - 推动情节
+      - 承载视角
+    firstSeenChapter: 1
+    relationshipSummary: 主要视角人物，与其他角色共同推动章节目标。
+  - id: char-2
+    name: 黑伞男人
+    role: supporting
+    traits:
+      - 制造关系张力
+    firstSeenChapter: 1
+    relationshipSummary: 与沈知夏形成行动或情绪上的牵引关系。
+  - id: char-3
+    name: 林砚
+    role: supporting
+    traits:
+      - 制造关系张力
+    firstSeenChapter: 1
+    relationshipSummary: 与沈知夏形成行动或情绪上的牵引关系。
+  - id: char-4
+    name: 许掌柜
+    role: supporting
+    traits:
+      - 制造关系张力
+    firstSeenChapter: 2
+    relationshipSummary: 与沈知夏形成行动或情绪上的牵引关系。
+chapterMappings:
+  - chapterIndex: 1
+    novelTitle: 迟到的渡船
+    sceneIds:
+      - scene-01
+    summary: 夜色压在雾港的石桥上，林砚抱着旧皮箱，听见钟楼敲过十下。 沈知夏从灯下走来，低声说：“你不该回来。” 林砚看着她身后的黑伞男人，问：“我父亲的信...
+    sourceLines:
+      - 3
+      - 8
+  - chapterIndex: 2
+    novelTitle: 被撕掉的账册
+    sceneIds:
+      - scene-02
+    summary: 清晨，茶楼二层只剩一盏冷灯。许掌柜把账册推到桌边，手指微微发抖。 沈知夏说：“账册少了三页，少的正是码头失火那天。” 黑伞男人忽然推门而入，笑道...
+    sourceLines:
+      - 9
+      - 14
+  - chapterIndex: 3
+    novelTitle: 雾中的钟声
+    sceneIds:
+      - scene-03
+    summary: 大雾重新漫上河面，钟楼的门被人从里面锁死。 林砚在齿轮间找到父亲留下的暗格，里面只有一句话：别相信第十一声钟。 沈知夏举起火把，声音发紧：“如果...
+    sourceLines:
+      - 15
+      - 19
+scenes:
+  - id: scene-01
+    chapterIndex: 1
+    title: 迟到的渡船：夜色压在雾港的石桥上，林砚抱着旧皮箱
+    goal: 突出画面调度、人物动作和悬念递进。 本场承接“迟到的渡船”。
+    location: 原文提示地点：桥
+    time: 夜
+    characters:
+      - 沈知夏
+      - 黑伞男人
+      - 林砚
+    action:
+      - 1. 夜色压在雾港的石桥上，林砚抱着旧皮箱，听见钟楼敲过十下。
+      - 2. 沈知夏从灯下走来，低声说：人物对白
+      - 3. 林砚看着她身后的黑伞男人，问：人物对白
+    dialogue:
+      - speaker: 沈知夏
+        line: 你不该回来。
+        intent: 阻止对方
+        emotion: 克制推进
+        source:
+          chapterIndex: 1
+          chapterTitle: 迟到的渡船
+          paragraphIndexes:
+            - 1
+          lineStart: 3
+          lineEnd: 8
+          excerpt: 沈知夏从灯下走来，低声说：“你不该回来。”
+      - speaker: 林砚
+        line: 我父亲的信，到底是谁寄出的？
+        intent: 追问信息
+        emotion: 克制推进
+        source:
+          chapterIndex: 1
+          chapterTitle: 迟到的渡船
+          paragraphIndexes:
+            - 2
+          lineStart: 3
+          lineEnd: 8
+          excerpt: 林砚看着她身后的黑伞男人，问：“我父亲的信，到底是谁寄出的？”
+    narrationOrTransition: 以原文关键意象转场，进入下一段行动。
+    emotion: 克制推进
+    conflict:
+      level: 5
+      reason: 原文出现强动作、质问或危险词，适合改编为高冲突场景。
+    source:
+      chapterIndex: 1
+      chapterTitle: 迟到的渡船
+      paragraphIndexes:
+        - 0
+        - 1
+        - 2
+        - 3
+      lineStart: 3
+      lineEnd: 8
+      excerpt: 夜色压在雾港的石桥上，林砚抱着旧皮箱，听见钟楼敲过十下。 沈知夏从灯下走来，低声说：“你不该回来。” 林砚看着她身后的黑伞男人，问：“我父亲的信，到底是谁寄出的？”
+        风把码头的告示吹落，露出被火烧过的半枚印章。
+  - id: scene-02
+    chapterIndex: 2
+    title: 被撕掉的账册：清晨，茶楼二层只剩一盏冷灯。许掌柜把
+    goal: 突出画面调度、人物动作和悬念递进。 本场承接“被撕掉的账册”。
+    location: 原文提示地点：门
+    time: 夜
+    characters:
+      - 沈知夏
+      - 黑伞男人
+      - 林砚
+      - 许掌柜
+    action:
+      - 1. 清晨，茶楼二层只剩一盏冷灯。许掌柜把账册推到桌边，手指微微发抖。
+      - 2. 沈知夏说：人物对白
+      - 3. 黑伞男人忽然推门而入，笑道：人物对白
+    dialogue:
+      - speaker: 沈知夏
+        line: 账册少了三页，少的正是码头失火那天。
+        intent: 表达态度
+        emotion: 克制推进
+        source:
+          chapterIndex: 2
+          chapterTitle: 被撕掉的账册
+          paragraphIndexes:
+            - 1
+          lineStart: 9
+          lineEnd: 14
+          excerpt: 沈知夏说：“账册少了三页，少的正是码头失火那天。”
+      - speaker: 黑伞男人
+        line: 有些秘密，知道的人越少越好。
+        intent: 表达态度
+        emotion: 克制推进
+        source:
+          chapterIndex: 2
+          chapterTitle: 被撕掉的账册
+          paragraphIndexes:
+            - 2
+          lineStart: 9
+          lineEnd: 14
+          excerpt: 黑伞男人忽然推门而入，笑道：“有些秘密，知道的人越少越好。”
+    narrationOrTransition: 以原文关键意象转场，进入下一段行动。
+    emotion: 短暂松弛
+    conflict:
+      level: 5
+      reason: 原文出现强动作、质问或危险词，适合改编为高冲突场景。
+    source:
+      chapterIndex: 2
+      chapterTitle: 被撕掉的账册
+      paragraphIndexes:
+        - 0
+        - 1
+        - 2
+        - 3
+      lineStart: 9
+      lineEnd: 14
+      excerpt: 清晨，茶楼二层只剩一盏冷灯。许掌柜把账册推到桌边，手指微微发抖。 沈知夏说：“账册少了三页，少的正是码头失火那天。” 黑伞男人忽然推门而入，笑道：“有些秘密，知道的人越少越好。”
+        林砚夺过账册，从窗边翻身跃下，街上的巡丁已经围了过来。
+  - id: scene-03
+    chapterIndex: 3
+    title: 雾中的钟声：大雾重新漫上河面，钟楼的门被人从里面
+    goal: 突出画面调度、人物动作和悬念递进。 本场承接“雾中的钟声”。
+    location: 原文提示地点：门
+    time: 时间未明
+    characters:
+      - 沈知夏
+      - 黑伞男人
+      - 林砚
+    action:
+      - 1. 大雾重新漫上河面，钟楼的门被人从里面锁死。
+      - 2. 林砚在齿轮间找到父亲留下的暗格，里面只有一句话：别相信第十一声钟。
+      - 3. 沈知夏举起火把，声音发紧：人物对白
+    dialogue:
+      - speaker: 沈知夏
+        line: 如果钟声响完，整座码头都会成为证据的坟场。
+        intent: 表达态度
+        emotion: 克制推进
+        source:
+          chapterIndex: 3
+          chapterTitle: 雾中的钟声
+          paragraphIndexes:
+            - 2
+          lineStart: 15
+          lineEnd: 19
+          excerpt: 沈知夏举起火把，声音发紧：“如果钟声响完，整座码头都会成为证据的坟场。”
+    narrationOrTransition: 以原文关键意象转场，进入下一段行动。
+    emotion: 克制推进
+    conflict:
+      level: 4
+      reason: 原文出现强动作、质问或危险词，适合改编为高冲突场景。
+    source:
+      chapterIndex: 3
+      chapterTitle: 雾中的钟声
+      paragraphIndexes:
+        - 0
+        - 1
+        - 2
+        - 3
+      lineStart: 15
+      lineEnd: 19
+      excerpt: 大雾重新漫上河面，钟楼的门被人从里面锁死。 林砚在齿轮间找到父亲留下的暗格，里面只有一句话：别相信第十一声钟。
+        沈知夏举起火把，声音发紧：“如果钟声响完，整座码头都会成为证据的坟场。” 第十一声钟响起前，黑伞男人拔刀拦在楼梯口。
+rhythmStats:
+  sceneCount: 3
+  dialogueCount: 5
+  averageConflict: 4.67
+  highConflictSceneIds:
+    - scene-01
+    - scene-02
+    - scene-03
+validationHints:
+  - 可在左侧继续替换三章以上小说文本，右侧 YAML 会重新生成。
+  - 每个 scene.source 保留章节、段落和行号，便于回到原文继续改编。
+  - conflict.level 与 rhythmStats 可帮助作者判断节奏起伏。

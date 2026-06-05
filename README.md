@@ -80,6 +80,12 @@ docs/
 - [YAML Schema 设计](docs/yaml-schema.md)
 - [参考项目分析](docs/reference-analysis.md)
 - [Demo 脚本](docs/demo-script.md)
+- [最终提交说明](docs/final-submission.md)
+
+示例文件：
+
+- [示例小说输入](examples/sample-novel.md)
+- [示例 YAML 输出](examples/sample-output.yaml)
 
 ## 开发原则
 
