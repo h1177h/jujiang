@@ -25,6 +25,12 @@ describe("fallback screenplay generation", () => {
 
     expect(screenplay.work.sourceChapterCount).toBe(3);
     expect(screenplay.characters.length).toBeGreaterThan(0);
+    expect(screenplay.characters.map((character) => character.name)).toEqual(
+      expect.arrayContaining(["林砚", "沈知夏"])
+    );
+    expect(screenplay.characters.map((character) => character.name)).not.toEqual(
+      expect.arrayContaining(["忽然", "举起火", "低声", "夜色压"])
+    );
     expect(screenplay.chapterMappings).toHaveLength(3);
     expect(screenplay.scenes).toHaveLength(3);
     expect(screenplay.scenes[0].source.excerpt).toContain("雾港");
