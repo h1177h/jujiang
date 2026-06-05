@@ -17,6 +17,13 @@ export const screenplaySchema = z.object({
     sourceChapterCount: z.number().int().min(3),
     generatedBy: z.literal("jujiang-fallback-engine")
   }),
+  adaptationPlan: z.object({
+    premise: z.string().min(1),
+    tone: z.string().min(1),
+    targetAudience: z.string().min(1),
+    structure: z.array(z.string()).min(3),
+    nextRevisionFocus: z.array(z.string()).min(1)
+  }),
   characters: z
     .array(
       z.object({
@@ -45,6 +52,8 @@ export const screenplaySchema = z.object({
       z.object({
         id: z.string().min(1),
         chapterIndex: z.number().int().positive(),
+        beatIndex: z.number().int().positive(),
+        beatType: z.enum(["setup", "turning_point", "payoff"]),
         title: z.string().min(1),
         goal: z.string().min(1),
         location: z.string().min(1),
@@ -62,6 +71,7 @@ export const screenplaySchema = z.object({
         ),
         narrationOrTransition: z.string().min(1),
         emotion: z.string().min(1),
+        pacing: z.enum(["quiet", "steady", "tense", "cliffhanger"]),
         conflict: z.object({
           level: z.union([
             z.literal(1),
@@ -72,6 +82,7 @@ export const screenplaySchema = z.object({
           ]),
           reason: z.string().min(1)
         }),
+        revisionNotes: z.array(z.string()).min(1),
         source: sourceLocatorSchema
       })
     )
@@ -81,6 +92,13 @@ export const screenplaySchema = z.object({
     dialogueCount: z.number().int().nonnegative(),
     averageConflict: z.number().min(1).max(5),
     highConflictSceneIds: z.array(z.string())
+  }),
+  storyDiagnostics: z.object({
+    paragraphCount: z.number().int().positive(),
+    sourceCoverage: z.string().min(1),
+    strongestConflictSceneId: z.string().min(1),
+    pacingSummary: z.string().min(1),
+    warnings: z.array(z.string())
   }),
   validationHints: z.array(z.string())
 });

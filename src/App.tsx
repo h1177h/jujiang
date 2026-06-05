@@ -45,6 +45,7 @@ export default function App() {
     const matches = novelText.match(/(^|\n)\s*(第\s*[0-9一二三四五六七八九十百千万]+\s*[章节回幕]|chapter\s+\d+)/gi);
     return matches?.length ?? 0;
   }, [novelText]);
+  const sceneCount = preview?.scenes.length ?? 0;
 
   function handleGenerate() {
     try {
@@ -89,10 +90,18 @@ export default function App() {
         </div>
         <div className="status-strip">
           <span>{chapterCount} 章识别</span>
+          <span>{sceneCount} 场剧本</span>
           <span className={validation.ok ? "valid" : "invalid"}>
             {validation.ok ? "YAML 校验通过" : "YAML 待修正"}
           </span>
         </div>
+      </section>
+
+      <section className="product-flow" aria-label="创作流程">
+        <span className="active">1. 原文解析</span>
+        <span className={sceneCount > 0 ? "active" : ""}>2. 分场改编</span>
+        <span className={preview ? "active" : ""}>3. 作者审稿</span>
+        <span className={validation.ok ? "active" : ""}>4. YAML 交付</span>
       </section>
 
       <section className="workspace">
@@ -197,29 +206,55 @@ export default function App() {
 }
 
 function ScreenplayPreview({ screenplay }: { screenplay: ScreenplayYaml | null }) {
+  const [selectedSceneId, setSelectedSceneId] = useState<string | null>(null);
+
   if (!screenplay) {
     return (
       <section className="structured-preview empty">
         <div>
-          <h2>结构化预览</h2>
-          <p>YAML 校验通过后，这里会显示角色、节奏和分场卡片。</p>
+          <h2>作者审稿台</h2>
+          <p>YAML 校验通过后，这里会显示改编计划、故事诊断和分场审稿卡。</p>
         </div>
       </section>
     );
   }
 
+  const selectedScene =
+    screenplay.scenes.find((scene) => scene.id === selectedSceneId) ?? screenplay.scenes[0];
+
   return (
-    <section className="structured-preview" aria-label="结构化剧本预览">
+    <section className="structured-preview" aria-label="作者审稿台">
       <div className="preview-heading">
         <div>
-          <p className="eyebrow">Preview</p>
-          <h2>{screenplay.work.title}</h2>
+          <p className="eyebrow">Author Review</p>
+          <h2>{screenplay.work.title} 审稿台</h2>
         </div>
         <div className="metric-grid">
           <Metric label="场景" value={screenplay.rhythmStats.sceneCount} />
           <Metric label="对白" value={screenplay.rhythmStats.dialogueCount} />
           <Metric label="平均冲突" value={screenplay.rhythmStats.averageConflict} />
         </div>
+      </div>
+
+      <div className="brief-grid">
+        <article className="brief-card">
+          <span>改编方向</span>
+          <h3>{screenplay.adaptationPlan.tone}</h3>
+          <p>{screenplay.adaptationPlan.premise}</p>
+        </article>
+        <article className="brief-card">
+          <span>来源覆盖</span>
+          <h3>{screenplay.storyDiagnostics.sourceCoverage}</h3>
+          <p>{screenplay.storyDiagnostics.pacingSummary}</p>
+        </article>
+        <article className="brief-card">
+          <span>下一轮修订</span>
+          <ul>
+            {screenplay.adaptationPlan.nextRevisionFocus.map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
+        </article>
       </div>
 
       <div className="preview-columns">
@@ -234,11 +269,17 @@ function ScreenplayPreview({ screenplay }: { screenplay: ScreenplayYaml | null }
           ))}
         </aside>
 
-        <div className="scene-grid">
-          {screenplay.scenes.map((scene) => (
-            <article key={scene.id} className="scene-card">
+        <div className="scene-review-layout">
+          <div className="scene-grid">
+            {screenplay.scenes.map((scene) => (
+              <button
+                key={scene.id}
+                className={scene.id === selectedScene.id ? "scene-card selected" : "scene-card"}
+                type="button"
+                onClick={() => setSelectedSceneId(scene.id)}
+              >
               <div className="scene-card-top">
-                <span>{scene.id}</span>
+                <span>{scene.id} / {scene.beatType}</span>
                 <strong>冲突 {scene.conflict.level}/5</strong>
               </div>
               <h3>{scene.title}</h3>
@@ -258,8 +299,39 @@ function ScreenplayPreview({ screenplay }: { screenplay: ScreenplayYaml | null }
                 </div>
               </dl>
               <blockquote>{scene.source.excerpt}</blockquote>
-            </article>
-          ))}
+              </button>
+            ))}
+          </div>
+
+          <aside className="scene-inspector">
+            <div className="scene-card-top">
+              <span>{selectedScene.id}</span>
+              <strong>{selectedScene.pacing}</strong>
+            </div>
+            <h3>{selectedScene.title}</h3>
+            <p>{selectedScene.conflict.reason}</p>
+            <h4>对白</h4>
+            {selectedScene.dialogue.length > 0 ? (
+              selectedScene.dialogue.map((dialogue) => (
+                <p key={`${dialogue.speaker}-${dialogue.line}`} className="dialogue-line">
+                  <b>{dialogue.speaker}</b>：{dialogue.line}
+                </p>
+              ))
+            ) : (
+              <p className="muted">这一场以动作和悬念为主，下一轮可补一句场尾钩子。</p>
+            )}
+            <h4>修订建议</h4>
+            <ul>
+              {selectedScene.revisionNotes.map((note) => (
+                <li key={note}>{note}</li>
+              ))}
+            </ul>
+            <h4>原文依据</h4>
+            <p className="source-note">
+              第 {selectedScene.source.chapterIndex} 章，段落 {selectedScene.source.paragraphIndexes.join("、")}，
+              行 {selectedScene.source.lineStart}-{selectedScene.source.lineEnd}
+            </p>
+          </aside>
         </div>
       </div>
     </section>

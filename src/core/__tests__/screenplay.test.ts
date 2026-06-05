@@ -32,11 +32,15 @@ describe("fallback screenplay generation", () => {
       expect.arrayContaining(["忽然", "举起火", "低声", "夜色压"])
     );
     expect(screenplay.chapterMappings).toHaveLength(3);
-    expect(screenplay.scenes).toHaveLength(3);
+    expect(screenplay.chapterMappings[0].sceneIds).toHaveLength(2);
+    expect(screenplay.scenes).toHaveLength(6);
     expect(screenplay.scenes[0].source.excerpt).toContain("雾港");
-    expect(screenplay.scenes[0].dialogue[1].speaker).toBe("林砚");
-    expect(screenplay.scenes[1].dialogue[1].speaker).toBe("黑伞男人");
-    expect(screenplay.rhythmStats.sceneCount).toBe(3);
+    expect(screenplay.scenes[1].dialogue[0].speaker).toBe("林砚");
+    expect(screenplay.scenes[3].dialogue[0].speaker).toBe("黑伞男人");
+    expect(screenplay.scenes[3].beatType).toBe("payoff");
+    expect(screenplay.adaptationPlan.structure).toHaveLength(3);
+    expect(screenplay.storyDiagnostics.sourceCoverage).toContain("6 个场景");
+    expect(screenplay.rhythmStats.sceneCount).toBe(6);
   });
 
   it("serializes to valid YAML that passes the schema", () => {

@@ -39,6 +39,8 @@ export interface DialogueBeat {
 export interface Scene {
   id: string;
   chapterIndex: number;
+  beatIndex: number;
+  beatType: "setup" | "turning_point" | "payoff";
   title: string;
   goal: string;
   location: string;
@@ -48,10 +50,12 @@ export interface Scene {
   dialogue: DialogueBeat[];
   narrationOrTransition: string;
   emotion: string;
+  pacing: "quiet" | "steady" | "tense" | "cliffhanger";
   conflict: {
     level: 1 | 2 | 3 | 4 | 5;
     reason: string;
   };
+  revisionNotes: string[];
   source: SourceLocator;
 }
 
@@ -71,6 +75,13 @@ export interface ScreenplayYaml {
     sourceChapterCount: number;
     generatedBy: "jujiang-fallback-engine";
   };
+  adaptationPlan: {
+    premise: string;
+    tone: string;
+    targetAudience: string;
+    structure: string[];
+    nextRevisionFocus: string[];
+  };
   characters: CharacterProfile[];
   chapterMappings: ChapterMapping[];
   scenes: Scene[];
@@ -79,6 +90,13 @@ export interface ScreenplayYaml {
     dialogueCount: number;
     averageConflict: number;
     highConflictSceneIds: string[];
+  };
+  storyDiagnostics: {
+    paragraphCount: number;
+    sourceCoverage: string;
+    strongestConflictSceneId: string;
+    pacingSummary: string;
+    warnings: string[];
   };
   validationHints: string[];
 }

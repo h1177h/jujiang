@@ -12,9 +12,11 @@ work:
   sourceChapterCount: 3
   generatedBy: jujiang-fallback-engine
 characters: []
+adaptationPlan: {}
 chapterMappings: []
 scenes: []
 rhythmStats: {}
+storyDiagnostics: {}
 validationHints: []
 ```
 
@@ -22,9 +24,11 @@ validationHints: []
 
 - `work`：作品元信息。
 - `characters`：角色表。
+- `adaptationPlan`：改编计划。
 - `chapterMappings`：小说章节到剧本场景的映射。
 - `scenes`：场景列表。
 - `rhythmStats`：节奏统计。
+- `storyDiagnostics`：故事诊断。
 - `validationHints`：给作者的校验和改写提示。
 
 ## work
@@ -38,6 +42,18 @@ validationHints: []
 | `generatedBy` | 是 | literal | 当前固定为 `jujiang-fallback-engine`，便于区分后续 AI provider。 |
 
 设计原因：作品元信息必须能解释这份 YAML 的来源、风格和输入规模。`generatedBy` 保留生成来源，后续接入真实 AI 时可以追踪版本。
+
+## adaptationPlan
+
+| 字段 | 必填 | 类型 | 说明 |
+| --- | --- | --- | --- |
+| `premise` | 是 | string | 改编前提或一句话故事。 |
+| `tone` | 是 | string | 当前风格形成的整体语气。 |
+| `targetAudience` | 是 | string | 适合的使用者或观看对象。 |
+| `structure` | 是 | string[] | 每章拆成多少场，以及本章改编目标。 |
+| `nextRevisionFocus` | 是 | string[] | 下一轮人工修订建议。 |
+
+设计原因：只给 YAML 不像创作产品。`adaptationPlan` 让作者先知道这版改编想怎么拍，再进入场景细节。
 
 ## characters
 
@@ -94,6 +110,8 @@ chapterMappings:
 scenes:
   - id: scene-01
     chapterIndex: 1
+    beatIndex: 1
+    beatType: setup
     title: 迟到的渡船：夜色压在雾港的石桥上
     goal: 突出画面调度、人物动作和悬念递进。本场承接“迟到的渡船”。
     location: 原文提示地点：桥
@@ -117,9 +135,12 @@ scenes:
           excerpt: 沈知夏从灯下走来，低声说：“你不该回来。”
     narrationOrTransition: 以原文关键意象转场，进入下一段行动。
     emotion: 紧张对峙
+    pacing: tense
     conflict:
       level: 4
       reason: 原文出现强动作、质问或危险词，适合改编为高冲突场景。
+    revisionNotes:
+      - 确认开场是否快速交代人物处境。
     source:
       chapterIndex: 1
       chapterTitle: 迟到的渡船
@@ -135,6 +156,8 @@ scenes:
 | --- | --- | --- | --- |
 | `id` | 是 | string | 场景 ID。 |
 | `chapterIndex` | 是 | number | 来源章节。 |
+| `beatIndex` | 是 | number | 在当前章节中的 beat 序号。 |
+| `beatType` | 是 | enum | `setup`、`turning_point`、`payoff`。 |
 | `title` | 是 | string | 场景标题。 |
 | `goal` | 是 | string | 本场戏的改编目标。 |
 | `location` | 是 | string | 地点。 |
@@ -144,11 +167,13 @@ scenes:
 | `dialogue` | 是 | object[] | 对白列表，可以为空数组但结构固定。 |
 | `narrationOrTransition` | 是 | string | 旁白或转场。 |
 | `emotion` | 是 | string | 情绪状态。 |
+| `pacing` | 是 | enum | `quiet`、`steady`、`tense`、`cliffhanger`。 |
 | `conflict.level` | 是 | 1-5 | 冲突强度。 |
 | `conflict.reason` | 是 | string | 冲突强度判断原因。 |
+| `revisionNotes` | 是 | string[] | 本场给作者的修订建议。 |
 | `source` | 是 | object | 原文来源定位。 |
 
-设计原因：场景是最适合编辑和演示的单位，因此字段既覆盖传统剧本要素，也加入 `goal`、`emotion`、`conflict`、`source` 等辅助改稿字段。
+设计原因：场景是最适合编辑和演示的单位，因此字段既覆盖传统剧本要素，也加入 `goal`、`beatType`、`pacing`、`emotion`、`conflict`、`revisionNotes`、`source` 等辅助改稿字段。
 
 ## source
 
@@ -169,7 +194,7 @@ scenes:
 
 ```yaml
 rhythmStats:
-  sceneCount: 3
+  sceneCount: 6
   dialogueCount: 6
   averageConflict: 3.67
   highConflictSceneIds:
@@ -186,6 +211,18 @@ rhythmStats:
 
 设计原因：节奏统计是剧匠的展示型创新点之一。它不替代作者判断，但能帮助快速发现三章改编是否平铺直叙。
 
+## storyDiagnostics
+
+| 字段 | 必填 | 类型 | 说明 |
+| --- | --- | --- | --- |
+| `paragraphCount` | 是 | number | 原文段落数量。 |
+| `sourceCoverage` | 是 | string | 原文映射到场景的覆盖说明。 |
+| `strongestConflictSceneId` | 是 | string | 冲突最高的场景。 |
+| `pacingSummary` | 是 | string | 节奏概览。 |
+| `warnings` | 是 | string[] | 可能需要人工修订的风险。 |
+
+设计原因：作者需要先知道这份初稿哪里强、哪里弱。`storyDiagnostics` 把机器生成结果变成可审稿的产品状态。
+
 ## 校验规则
 
 当前实现使用 `src/core/schema.ts` 中的 Zod Schema 校验：
@@ -194,7 +231,7 @@ rhythmStats:
 - `characters` 至少 1 个角色。
 - `chapterMappings` 至少 3 个章节映射。
 - `scenes` 至少 3 个场景。
-- 每个 scene 必须有目标、地点、时间、人物、动作、情绪、冲突和来源定位。
+- 每个 scene 必须有目标、beat 类型、节奏、地点、时间、人物、动作、情绪、冲突、修订建议和来源定位。
 - `conflict.level` 必须为 1 到 5 的整数。
 
 ## 后续扩展
