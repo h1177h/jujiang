@@ -11,11 +11,12 @@
 3. 打开 Vite 本地地址。
 4. 使用内置三章示例，或上传 `examples/sample-novel.md`。
 5. 点击“生成结构化剧本 YAML”。
-6. 查看右侧 YAML，手动编辑并观察 Schema 校验提示。
-7. 查看页面底部作者审稿台：改编计划、故事诊断、角色关系、节奏指标、分场卡片和修订建议。
-8. 点击复制或下载 YAML。
-9. 对照 `docs/yaml-schema.md` 讲字段设计。
-10. 对照 `docs/reference-analysis.md` 讲参考项目借鉴和独立改写。
+6. 查看页面底部作者审稿台：改编计划、故事诊断、角色关系、节奏指标和分场卡片。
+7. 选中一个场景，在场景编辑器里修改目标、地点、对白、冲突等级或修订建议，确认 YAML 同步更新。
+8. 手动编辑右侧 YAML，观察 Schema 校验提示。
+9. 点击复制或下载 YAML。
+10. 对照 `docs/yaml-schema.md` 讲字段设计。
+11. 对照 `docs/reference-analysis.md` 讲参考项目借鉴和独立改写。
 
 ## 评分点对应
 
@@ -25,16 +26,17 @@
 - 自动章节识别和文本清洗。
 - 生成剧本 YAML，字段覆盖作品、角色、章节映射、场景、动作、对白、转场、情绪、冲突和原文来源。
 - YAML 可编辑、可校验、可复制、可下载。
+- 非 YAML 场景编辑器可直接修改场景内容，并同步回结构化 YAML。
 - 无 API key fallback demo。
 - OpenAI-compatible API 接入，可配置 Base URL、API Key 和 Model。
-- 展示型创新点：角色关系摘要、冲突强度、原文追溯、改编风格选择、节奏统计、改编计划、故事诊断、作者审稿台。
+- 可操作创新点：场景级工作台编辑、角色关系摘要、冲突强度、原文追溯、改编风格选择、节奏统计、改编计划、故事诊断。
 
 40% 开发过程与质量：
 
 - Vite + React + TypeScript + Zod + YAML，结构轻，方便评审阅读。
 - 核心逻辑放在 `src/core/`，UI 和转换逻辑分开。
 - Zod Schema 和 `docs/yaml-schema.md` 对齐。
-- 测试覆盖章节解析、YAML 生成结构、Schema 校验，以及角色抽取误判回归。
+- 测试覆盖章节解析、YAML 生成结构、Schema 校验、API provider、场景编辑同步，以及角色抽取误判回归。
 - 通过多个小 PR 分阶段推进，没有直推 main。
 
 20% 演示与表达：
@@ -53,6 +55,7 @@
 - PR #5 `fix(parser): infer dialogue speakers from speech cues`：修复对白归属。
 - PR #6 `docs(submission): add final package summary`：最终提交说明和示例文件。
 - PR #7 `feat(workspace): build author review workflow`：多场景拆分、改编计划、故事诊断和作者审稿台。
+- PR #8 `feat(api): add openai compatible generation`：OpenAI-compatible API 配置、调用和失败回退。
 
 ## 已运行验证
 
@@ -63,7 +66,7 @@
 
 ## 剩余风险
 
-- 当前 fallback 引擎是启发式规则，适合稳定 demo。真实 AI provider 可以后续接入。
+- 当前 fallback 引擎是启发式规则，适合稳定 demo；真实质量主要依赖已接入的 OpenAI-compatible provider。
 - API key 目前只放在浏览器页面状态里，适合本地 demo；如果要部署给多人使用，应改成后端代理，避免前端暴露 key。
-- 当前已支持一章多场，但复杂小说仍需要作者在审稿台里继续调整分场边界。
+- 当前已支持一章多场和场景级内容编辑，但复杂小说仍需要作者继续调整分场边界。
 - 角色抽取已经为示例做了回归，但面对更复杂小说仍可能需要 AI 或更强 NLP 补充。
