@@ -31,6 +31,8 @@ npm run build
 
 切换一次改编风格，例如从“影视感”切到“短剧”，说明风格会影响场景目标和转场表达。
 
+如果现场有 API key，勾选“使用 API 生成”，填写 Base URL、API Key 和 Model；如果没有 key，保持 fallback，说明离线兜底不会影响演示闭环。
+
 ### 3. 生成 YAML
 
 点击“生成结构化剧本 YAML”。
@@ -92,4 +94,4 @@ npm run build
 
 ## 备用说明
 
-如果网络或 API key 不可用，仍然使用 fallback 引擎完成演示。真实 AI provider 是后续扩展点，不影响当前比赛闭环。
+如果网络或 API key 不可用，仍然使用 fallback 引擎完成演示。API 接入已经做成 OpenAI-compatible provider，fallback 只是兜底。

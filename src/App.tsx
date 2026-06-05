@@ -4,6 +4,7 @@ import {
   Clipboard,
   Download,
   FileInput,
+  KeyRound,
   RefreshCw,
   Sparkles,
   TriangleAlert
@@ -11,9 +12,10 @@ import {
 import { parse } from "yaml";
 import type { AdaptationStyle } from "./core/types";
 import type { ScreenplayYaml } from "./core/types";
+import { generateScreenplayWithApi } from "./core/aiProvider";
 import { sampleNovel } from "./core/sampleNovel";
 import { validateScreenplay } from "./core/schema";
-import { generateScreenplayYaml, validateScreenplayYaml } from "./core/yaml";
+import { generateScreenplayYaml, screenplayToYaml, validateScreenplayYaml } from "./core/yaml";
 
 const styles: { value: AdaptationStyle; label: string }[] = [
   { value: "balanced", label: "均衡" },
@@ -26,6 +28,11 @@ export default function App() {
   const [novelText, setNovelText] = useState(sampleNovel);
   const [title, setTitle] = useState("雾港来信");
   const [style, setStyle] = useState<AdaptationStyle>("cinematic");
+  const [useApi, setUseApi] = useState(false);
+  const [apiBaseUrl, setApiBaseUrl] = useState("https://api.openai.com/v1");
+  const [apiModel, setApiModel] = useState("gpt-4.1-mini");
+  const [apiKey, setApiKey] = useState("");
+  const [generationStatus, setGenerationStatus] = useState("fallback 本地生成就绪");
   const [yamlText, setYamlText] = useState(() =>
     generateScreenplayYaml(sampleNovel, { title: "雾港来信", style: "cinematic" })
   );
@@ -47,15 +54,33 @@ export default function App() {
   }, [novelText]);
   const sceneCount = preview?.scenes.length ?? 0;
 
-  function handleGenerate() {
+  async function handleGenerate() {
     try {
+      if (useApi && apiKey.trim()) {
+        setGenerationStatus(`正在调用 ${apiModel}...`);
+        const screenplay = await generateScreenplayWithApi(
+          {
+            baseUrl: apiBaseUrl,
+            apiKey,
+            model: apiModel
+          },
+          {
+            title,
+            style,
+            novelText
+          }
+        );
+        setYamlText(screenplayToYaml(screenplay));
+        setGenerationStatus(`API 生成完成：${apiModel}`);
+        return;
+      }
+
       setYamlText(generateScreenplayYaml(novelText, { title, style }));
+      setGenerationStatus(useApi ? "未填写 API key，已使用 fallback 生成" : "fallback 本地生成完成");
     } catch (error) {
-      setYamlText(
-        `validation_error:\n  message: ${JSON.stringify(
-          error instanceof Error ? error.message : "生成失败"
-        )}\n`
-      );
+      const message = error instanceof Error ? error.message : "生成失败";
+      setYamlText(generateScreenplayYaml(novelText, { title, style }));
+      setGenerationStatus(`API 失败，已回退 fallback：${message}`);
     }
   }
 
@@ -109,7 +134,7 @@ export default function App() {
           <div className="panel-header">
             <div>
               <h2>小说输入</h2>
-              <p>粘贴或上传三章以上文本，fallback 引擎会保留原文追溯。</p>
+              <p>粘贴或上传三章以上文本，可调用 API，也可离线 fallback。</p>
             </div>
             <label className="icon-button file-button" title="上传文本文件">
               <FileInput size={18} />
@@ -134,6 +159,36 @@ export default function App() {
             </label>
           </div>
 
+          <div className="api-box">
+            <label className="toggle-line">
+              <input type="checkbox" checked={useApi} onChange={(event) => setUseApi(event.target.checked)} />
+              <span>使用 API 生成</span>
+            </label>
+            <div className="api-grid">
+              <label>
+                Base URL
+                <input value={apiBaseUrl} onChange={(event) => setApiBaseUrl(event.target.value)} />
+              </label>
+              <label>
+                Model
+                <input value={apiModel} onChange={(event) => setApiModel(event.target.value)} />
+              </label>
+            </div>
+            <label>
+              API Key
+              <div className="secret-field">
+                <KeyRound size={16} />
+                <input
+                  type="password"
+                  value={apiKey}
+                  onChange={(event) => setApiKey(event.target.value)}
+                  placeholder="只保存在当前浏览器页面状态"
+                />
+              </div>
+            </label>
+            <p className="status-note">{generationStatus}</p>
+          </div>
+
           <textarea
             className="novel-editor"
             value={novelText}
@@ -143,7 +198,7 @@ export default function App() {
 
           <button className="primary-action" type="button" onClick={handleGenerate}>
             <Sparkles size={18} />
-            生成结构化剧本 YAML
+            {useApi ? "调用 API 生成剧本 YAML" : "生成结构化剧本 YAML"}
           </button>
         </section>
 

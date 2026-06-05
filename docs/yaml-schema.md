@@ -39,9 +39,9 @@ validationHints: []
 | `adaptationStyle` | 是 | enum | `balanced`、`cinematic`、`stage`、`short_drama`。 |
 | `logline` | 是 | string | 一句话概括核心推进。 |
 | `sourceChapterCount` | 是 | number | 原文识别出的章节数量，比赛要求至少为 3。 |
-| `generatedBy` | 是 | literal | 当前固定为 `jujiang-fallback-engine`，便于区分后续 AI provider。 |
+| `generatedBy` | 是 | string | 生成来源，例如 `jujiang-fallback-engine` 或 `api:gpt-4.1-mini`。 |
 
-设计原因：作品元信息必须能解释这份 YAML 的来源、风格和输入规模。`generatedBy` 保留生成来源，后续接入真实 AI 时可以追踪版本。
+设计原因：作品元信息必须能解释这份 YAML 的来源、风格和输入规模。`generatedBy` 保留生成来源，便于区分 API 输出和 fallback 输出。
 
 ## adaptationPlan
 
@@ -236,6 +236,6 @@ rhythmStats:
 
 ## 后续扩展
 
-- 增加真实 AI provider 后，可将 `generatedBy` 扩展为 provider/version。
+- API provider 可继续扩展为更多供应商，也可以迁移到后端代理。
 - 增加多场景拆分后，`chapterMappings.sceneIds` 可以映射到多个 scene。
 - 增加视觉分镜能力后，可在 scene 下追加 `shots` 字段，但不影响现有 YAML 的兼容性。
