@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { parse } from "yaml";
 import { parseChapters } from "../chapters";
-import { generateScreenplayYamlModel } from "../generator";
 import { sampleNovel } from "../sampleNovel";
 import { updateScreenplaySceneYaml } from "../sceneEditor";
 import { validateScreenplay } from "../schema";
 import { analyzeScreenplay } from "../storyAnalysis";
-import { generateScreenplayYaml, validateScreenplayYaml } from "../yaml";
+import { validateScreenplayYaml } from "../yaml";
+import sampleOutputYaml from "../../../examples/sample-output.yaml?raw";
 
 describe("chapter parsing", () => {
   it("detects at least three Chinese chapter headings", () => {
@@ -16,72 +16,42 @@ describe("chapter parsing", () => {
     expect(chapters[0].title).toBe("迟到的渡船");
     expect(chapters[2].paragraphs.join(" ")).toContain("第十一声钟");
   });
+
+  it("merges duplicated heading lines from scraped novel text", () => {
+    const chapters = parseChapters(
+      [
+        "第一章 他叫白小纯",
+        "第一章",
+        "白小纯离开村子。",
+        "第二章 火灶房",
+        "第二章",
+        "灵溪宗火灶房里，众人看着白小纯。",
+        "第三章 六句真言",
+        "第三章",
+        "白小纯开始背诵六句真言。"
+      ].join("\n")
+    );
+
+    expect(chapters.map((chapter) => chapter.title)).toEqual(["他叫白小纯", "火灶房", "六句真言"]);
+    expect(chapters).toHaveLength(3);
+    expect(chapters[1].paragraphs.join(" ")).toContain("火灶房里");
+  });
 });
 
-describe("local draft screenplay generation", () => {
-  it("generates a draft from a single chapter", () => {
-    const yamlText = generateScreenplayYaml(
-      "第一章 雨夜\n林砚推开旧书店的门，说：“我来取那封信。”\n柜台后的老人没有抬头，只把油灯往账册边推了推。",
-      { title: "雨夜来信" }
-    );
-    const parsed = parse(yamlText);
-    const validation = validateScreenplay(parsed);
+describe("screenplay schema and review helpers", () => {
+  it("accepts the checked-in sample screenplay YAML", () => {
+    const screenplay = parse(sampleOutputYaml);
+    const validation = validateScreenplay(screenplay);
 
     expect(validation.success).toBe(true);
     if (!validation.success) return;
-    expect(validation.data.work.sourceChapterCount).toBe(1);
-    expect(validation.data.chapterMappings).toHaveLength(1);
-    expect(validation.data.scenes.length).toBeGreaterThanOrEqual(1);
-    expect(validateScreenplayYaml(yamlText)).toEqual({ ok: true, errors: [] });
-  });
-
-  it("treats untitled prose as a draft source instead of blocking generation", () => {
-    const screenplay = generateScreenplayYamlModel(
-      "雨落在码头仓库外。沈知夏把湿透的账册递给林砚。\n\n林砚翻到最后一页，发现父亲的签名被人用刀刮掉。",
-      { title: "码头短篇" }
-    );
-
-    expect(screenplay.work.sourceChapterCount).toBe(1);
-    expect(screenplay.chapterMappings[0].novelTitle).toBe("正文");
-    expect(screenplay.scenes[0].source.excerpt).toContain("码头仓库");
-  });
-
-  it("rejects empty source text with a product-facing message", () => {
-    expect(() => generateScreenplayYaml("   \n\n  ")).toThrow("请先输入小说正文");
-  });
-
-  it("generates required screenplay sections from three chapters", () => {
-    const screenplay = generateScreenplayYamlModel(sampleNovel, {
-      title: "雾港来信",
-      style: "cinematic"
-    });
-
+    expect(validation.data.work.title).toBe("雾港来信");
+    expect(validation.data.work.sourceChapterCount).toBe(3);
     expect(screenplay.work.sourceChapterCount).toBe(3);
     expect(screenplay.characters.length).toBeGreaterThan(0);
-    expect(screenplay.characters.map((character) => character.name)).toEqual(
-      expect.arrayContaining(["林砚", "沈知夏"])
-    );
-    expect(screenplay.characters.map((character) => character.name)).not.toEqual(
-      expect.arrayContaining(["忽然", "举起火", "低声", "夜色压"])
-    );
     expect(screenplay.chapterMappings).toHaveLength(3);
-    expect(screenplay.chapterMappings[0].sceneIds).toHaveLength(2);
     expect(screenplay.scenes).toHaveLength(6);
-    expect(screenplay.scenes[0].source.excerpt).toContain("雾港");
-    expect(screenplay.scenes[1].dialogue[0].speaker).toBe("林砚");
-    expect(screenplay.scenes[3].dialogue[0].speaker).toBe("黑伞男人");
-    expect(screenplay.scenes[3].beatType).toBe("payoff");
-    expect(screenplay.adaptationPlan.structure).toHaveLength(3);
-    expect(screenplay.storyDiagnostics.sourceCoverage).toContain("6 个场景");
     expect(screenplay.rhythmStats.sceneCount).toBe(6);
-  });
-
-  it("serializes to valid YAML that passes the schema", () => {
-    const yamlText = generateScreenplayYaml(sampleNovel, { title: "雾港来信" });
-    const parsed = parse(yamlText);
-
-    expect(validateScreenplay(parsed).success).toBe(true);
-    expect(validateScreenplayYaml(yamlText)).toEqual({ ok: true, errors: [] });
   });
 
   it("reports schema validation errors for incomplete YAML", () => {
@@ -92,8 +62,11 @@ describe("local draft screenplay generation", () => {
   });
 
   it("syncs scene editor changes back into valid YAML", () => {
-    const yamlText = generateScreenplayYaml(sampleNovel, { title: "雾港来信" });
-    const updatedYaml = updateScreenplaySceneYaml(yamlText, "scene-01", {
+    const sourceScreenplay = validateScreenplay(parse(sampleOutputYaml));
+    expect(sourceScreenplay.success).toBe(true);
+    if (!sourceScreenplay.success) return;
+
+    const updatedYaml = updateScreenplaySceneYaml(sampleOutputYaml, "scene-01", {
       goal: "让林砚在开场主动发现账册异常，并把选择压力推到台面上。",
       location: "雾港码头外景",
       characters: ["林砚", "沈知夏"],
@@ -103,7 +76,7 @@ describe("local draft screenplay generation", () => {
           line: "这本账册不是给掌柜看的，是给凶手看的。",
           intent: "抛出判断",
           emotion: "警觉",
-          source: generateScreenplayYamlModel(sampleNovel).scenes[0].source
+          source: sourceScreenplay.data.scenes[0].source
         }
       ],
       conflict: {
@@ -125,10 +98,11 @@ describe("local draft screenplay generation", () => {
   });
 
   it("builds actionable story analysis from the screenplay", () => {
-    const screenplay = generateScreenplayYamlModel(sampleNovel, {
-      title: "雾港来信",
-      style: "cinematic"
-    });
+    const validation = validateScreenplay(parse(sampleOutputYaml));
+    expect(validation.success).toBe(true);
+    if (!validation.success) return;
+
+    const screenplay = validation.data;
     const analysis = analyzeScreenplay(screenplay);
 
     expect(analysis.sourceCoveragePercent).toBe(100);

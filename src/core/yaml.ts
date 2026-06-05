@@ -1,12 +1,7 @@
 import { parse } from "yaml";
 import { stringify } from "yaml";
-import { generateScreenplayYamlModel, type GenerateScreenplayOptions } from "./generator";
 import { validateScreenplay } from "./schema";
 import type { ScreenplayYaml } from "./types";
-
-export function generateScreenplayYaml(input: string, options?: GenerateScreenplayOptions): string {
-  return screenplayToYaml(generateScreenplayYamlModel(input, options));
-}
 
 export function screenplayToYaml(screenplay: ScreenplayYaml): string {
   return stringify(screenplay, {

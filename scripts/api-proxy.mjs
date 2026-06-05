@@ -1,5 +1,6 @@
 import { createServer } from "node:http";
 import { fileURLToPath } from "node:url";
+import { ProxyAgent, fetch as undiciFetch } from "undici";
 
 const DEFAULT_TARGET_BASE_URL = "https://api.openai.com/v1";
 const DEFAULT_PORT = 8787;
@@ -19,8 +20,13 @@ export function getProxyConfig(env = process.env) {
     targetBaseUrl: normalizeTargetBaseUrl(
       env.JUJIANG_API_BASE_URL || env.OPENAI_BASE_URL || DEFAULT_TARGET_BASE_URL
     ),
-    apiKey: env.JUJIANG_API_KEY || env.OPENAI_API_KEY || ""
+    apiKey: env.JUJIANG_API_KEY || env.OPENAI_API_KEY || "",
+    networkProxyUrl: getNetworkProxyUrl(env)
   };
+}
+
+export function getNetworkProxyUrl(env = process.env) {
+  return env.JUJIANG_NETWORK_PROXY || env.HTTPS_PROXY || env.https_proxy || env.HTTP_PROXY || env.http_proxy || "";
 }
 
 export function createApiProxyServer(config = getProxyConfig()) {
@@ -37,7 +43,8 @@ export function createApiProxyServer(config = getProxyConfig()) {
       writeJson(response, 200, {
         ok: true,
         targetBaseUrl: config.targetBaseUrl,
-        hasApiKey: Boolean(config.apiKey)
+        hasApiKey: Boolean(config.apiKey),
+        networkProxy: config.networkProxyUrl || ""
       });
       return;
     }
@@ -58,14 +65,7 @@ export function createApiProxyServer(config = getProxyConfig()) {
 
     try {
       const body = await readBody(request);
-      const upstream = await fetch(`${config.targetBaseUrl}/chat/completions`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${config.apiKey}`
-        },
-        body
-      });
+      const upstream = await requestUpstreamChatCompletions(config, body);
       const text = await upstream.text();
 
       response.writeHead(upstream.status, {
@@ -77,6 +77,20 @@ export function createApiProxyServer(config = getProxyConfig()) {
         error: error instanceof Error ? error.message : "本地 proxy 请求失败。"
       });
     }
+  });
+}
+
+export function requestUpstreamChatCompletions(config, body) {
+  const dispatcher = config.networkProxyUrl ? new ProxyAgent(config.networkProxyUrl) : undefined;
+
+  return undiciFetch(`${config.targetBaseUrl}/chat/completions`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${config.apiKey}`
+        },
+        body,
+        dispatcher
   });
 }
 
@@ -117,6 +131,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   server.listen(config.port, "127.0.0.1", () => {
     console.log(`Jujiang API proxy listening on http://127.0.0.1:${config.port}/v1`);
     console.log(`Upstream: ${config.targetBaseUrl}`);
+    console.log(`Network proxy: ${config.networkProxyUrl || "none"}`);
     console.log(`API key: ${config.apiKey ? "loaded from env" : "missing"}`);
   });
 }

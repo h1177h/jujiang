@@ -10,7 +10,7 @@ work:
   adaptationStyle: cinematic
   logline: 围绕“迟到的渡船”开启的事件一路推进到“雾中的钟声”，人物在连续冲突中完成选择。
   sourceChapterCount: 3
-  generatedBy: jujiang-local-draft-engine
+  generatedBy: api:gpt-4.1-mini
 characters: []
 adaptationPlan: {}
 chapterMappings: []
@@ -39,9 +39,9 @@ validationHints: []
 | `adaptationStyle` | 是 | enum | `balanced`、`cinematic`、`stage`、`short_drama`。 |
 | `logline` | 是 | string | 一句话概括核心推进。 |
 | `sourceChapterCount` | 是 | number | 原文识别出的章节或结构单元数量，短篇片段会作为 1 个结构单元处理。 |
-| `generatedBy` | 是 | string | 生成来源，例如 `jujiang-local-draft-engine` 或 `api:gpt-4.1-mini`。 |
+| `generatedBy` | 是 | string | 生成来源，例如 `api:gpt-4.1-mini`。 |
 
-设计原因：作品元信息必须能解释这份 YAML 的来源、风格和输入规模。`generatedBy` 保留生成来源，便于区分 AI 输出和本地草稿输出。
+设计原因：作品元信息必须能解释这份 YAML 的来源、风格和输入规模。剧匠不再用本地规则生成剧情，因此 `generatedBy` 应指向真实 AI provider 或人工导入来源。
 
 ## adaptationPlan
 

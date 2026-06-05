@@ -20,7 +20,18 @@ describe("api proxy config", () => {
     expect(config).toEqual({
       port: 8989,
       targetBaseUrl: "https://proxy.example.com/v1",
-      apiKey: "jujiang-key"
+      apiKey: "jujiang-key",
+      networkProxyUrl: ""
     });
+  });
+
+  it("reads HTTPS proxy settings for Node upstream requests", () => {
+    const config = getProxyConfig({
+      JUJIANG_API_KEY: "key",
+      HTTPS_PROXY: "http://127.0.0.1:7897",
+      HTTP_PROXY: "http://127.0.0.1:7898"
+    });
+
+    expect(config.networkProxyUrl).toBe("http://127.0.0.1:7897");
   });
 });

@@ -24,7 +24,8 @@ import {
   type ScenePatch
 } from "./core/sceneEditor";
 import { analyzeScreenplay, type StoryAnalysis } from "./core/storyAnalysis";
-import { generateScreenplayYaml, screenplayToYaml, validateScreenplayYaml } from "./core/yaml";
+import { screenplayToYaml, validateScreenplayYaml } from "./core/yaml";
+import sampleOutputYaml from "../examples/sample-output.yaml?raw";
 
 const styles: { value: AdaptationStyle; label: string }[] = [
   { value: "balanced", label: "均衡" },
@@ -44,10 +45,8 @@ export default function App() {
   const [apiBaseUrl, setApiBaseUrl] = useState(directApiBaseUrl);
   const [apiModel, setApiModel] = useState("gpt-4.1-mini");
   const [apiKey, setApiKey] = useState("");
-  const [generationStatus, setGenerationStatus] = useState("本地草稿引擎就绪");
-  const [yamlText, setYamlText] = useState(() =>
-    generateScreenplayYaml(sampleNovel, { title: "雾港来信", style: "cinematic" })
-  );
+  const [generationStatus, setGenerationStatus] = useState("请配置 AI 后生成剧本");
+  const [yamlText, setYamlText] = useState(sampleOutputYaml);
   const [copyLabel, setCopyLabel] = useState("复制");
   const [selectedSceneId, setSelectedSceneId] = useState<string | null>(null);
 
@@ -70,9 +69,9 @@ export default function App() {
     preview?.scenes.find((scene) => scene.id === selectedSceneId) ?? preview?.scenes[0] ?? null;
 
   async function handleGenerate() {
-    const apiKeyForRequest = useLocalProxy ? "jujiang-local-proxy" : apiKey.trim();
+    const apiKeyForRequest = useLocalProxy ? "proxy-managed-key" : apiKey.trim();
     const apiReady = Boolean(apiKeyForRequest);
-    setGenerationStatus(useApi && apiReady ? `正在调用 ${apiModel}...` : "正在生成本地草稿...");
+    setGenerationStatus(useApi && apiReady ? `正在调用 ${apiModel}...` : "等待 AI 配置...");
 
     const result = await generateWorkspaceDraft(
       {
@@ -253,7 +252,7 @@ export default function App() {
 
             <button className="primary-action" type="button" onClick={handleGenerate}>
               <Sparkles size={18} />
-              {useApi ? "调用 AI 生成剧本" : "生成结构化剧本"}
+              {useApi ? "调用 AI 生成剧本" : "配置 AI 后生成"}
             </button>
           </section>
         </aside>
