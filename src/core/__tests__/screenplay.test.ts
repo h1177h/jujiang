@@ -5,6 +5,7 @@ import { generateScreenplayYamlModel } from "../generator";
 import { sampleNovel } from "../sampleNovel";
 import { updateScreenplaySceneYaml } from "../sceneEditor";
 import { validateScreenplay } from "../schema";
+import { analyzeScreenplay } from "../storyAnalysis";
 import { generateScreenplayYaml, validateScreenplayYaml } from "../yaml";
 
 describe("chapter parsing", () => {
@@ -90,5 +91,23 @@ describe("fallback screenplay generation", () => {
     expect(validation.data.scenes[0].dialogue[0].speaker).toBe("林砚");
     expect(validation.data.rhythmStats.highConflictSceneIds).toContain("scene-01");
     expect(validateScreenplayYaml(updatedYaml)).toEqual({ ok: true, errors: [] });
+  });
+
+  it("builds actionable story analysis from the screenplay", () => {
+    const screenplay = generateScreenplayYamlModel(sampleNovel, {
+      title: "雾港来信",
+      style: "cinematic"
+    });
+    const analysis = analyzeScreenplay(screenplay);
+
+    expect(analysis.sourceCoveragePercent).toBe(100);
+    expect(analysis.chapterCoverage).toHaveLength(3);
+    expect(analysis.chapterCoverage[0].sceneIds).toEqual(["scene-01", "scene-02"]);
+    expect(analysis.conflictCurve.map((point) => point.sceneId)).toEqual(
+      screenplay.scenes.map((scene) => scene.id)
+    );
+    expect(analysis.qualityIssues.map((issue) => issue.label)).toEqual(
+      expect.arrayContaining(["缺少对白", "人物关系弱"])
+    );
   });
 });

@@ -11,12 +11,13 @@
 3. 打开 Vite 本地地址。
 4. 使用内置三章示例，或上传 `examples/sample-novel.md`。
 5. 点击“生成结构化剧本 YAML”。
-6. 查看页面底部作者审稿台：改编计划、故事诊断、角色关系、节奏指标和分场卡片。
-7. 选中一个场景，在场景编辑器里修改目标、地点、对白、冲突等级或修订建议，确认 YAML 同步更新。
-8. 手动编辑右侧 YAML，观察 Schema 校验提示。
-9. 点击复制或下载 YAML。
-10. 对照 `docs/yaml-schema.md` 讲字段设计。
-11. 对照 `docs/reference-analysis.md` 讲参考项目借鉴和独立改写。
+6. 查看页面底部作者审稿台：改编计划、故事诊断、角色关系、节奏指标、章节映射、冲突曲线和质量检查。
+7. 点击章节映射、冲突柱或质量检查项，定位到对应场景。
+8. 在场景编辑器里修改目标、地点、对白、冲突等级或修订建议，确认 YAML 同步更新。
+9. 手动编辑右侧 YAML，观察 Schema 校验提示。
+10. 点击复制或下载 YAML。
+11. 对照 `docs/yaml-schema.md` 讲字段设计。
+12. 对照 `docs/reference-analysis.md` 讲参考项目借鉴和独立改写。
 
 ## 评分点对应
 
@@ -27,16 +28,17 @@
 - 生成剧本 YAML，字段覆盖作品、角色、章节映射、场景、动作、对白、转场、情绪、冲突和原文来源。
 - YAML 可编辑、可校验、可复制、可下载。
 - 非 YAML 场景编辑器可直接修改场景内容，并同步回结构化 YAML。
+- 故事分析区支持章节到场景映射、冲突曲线和质量检查，点击即可定位场景。
 - 无 API key fallback demo。
 - OpenAI-compatible API 接入，可配置 Base URL、API Key 和 Model。
-- 可操作创新点：场景级工作台编辑、角色关系摘要、冲突强度、原文追溯、改编风格选择、节奏统计、改编计划、故事诊断。
+- 可操作创新点：场景级工作台编辑、章节到场景映射、冲突曲线、质量检查、角色关系摘要、原文追溯、改编风格选择、节奏统计。
 
 40% 开发过程与质量：
 
 - Vite + React + TypeScript + Zod + YAML，结构轻，方便评审阅读。
 - 核心逻辑放在 `src/core/`，UI 和转换逻辑分开。
 - Zod Schema 和 `docs/yaml-schema.md` 对齐。
-- 测试覆盖章节解析、YAML 生成结构、Schema 校验、API provider、场景编辑同步，以及角色抽取误判回归。
+- 测试覆盖章节解析、YAML 生成结构、Schema 校验、API provider、场景编辑同步、故事分析，以及角色抽取误判回归。
 - 通过多个小 PR 分阶段推进，没有直推 main。
 
 20% 演示与表达：
@@ -56,6 +58,7 @@
 - PR #6 `docs(submission): add final package summary`：最终提交说明和示例文件。
 - PR #7 `feat(workspace): build author review workflow`：多场景拆分、改编计划、故事诊断和作者审稿台。
 - PR #8 `feat(api): add openai compatible generation`：OpenAI-compatible API 配置、调用和失败回退。
+- PR #9 `feat(workspace): add scene editor sync`：非 YAML 场景编辑和 YAML 同步。
 
 ## 已运行验证
 
