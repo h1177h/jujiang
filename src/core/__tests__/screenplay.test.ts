@@ -18,7 +18,38 @@ describe("chapter parsing", () => {
   });
 });
 
-describe("fallback screenplay generation", () => {
+describe("local draft screenplay generation", () => {
+  it("generates a draft from a single chapter", () => {
+    const yamlText = generateScreenplayYaml(
+      "第一章 雨夜\n林砚推开旧书店的门，说：“我来取那封信。”\n柜台后的老人没有抬头，只把油灯往账册边推了推。",
+      { title: "雨夜来信" }
+    );
+    const parsed = parse(yamlText);
+    const validation = validateScreenplay(parsed);
+
+    expect(validation.success).toBe(true);
+    if (!validation.success) return;
+    expect(validation.data.work.sourceChapterCount).toBe(1);
+    expect(validation.data.chapterMappings).toHaveLength(1);
+    expect(validation.data.scenes.length).toBeGreaterThanOrEqual(1);
+    expect(validateScreenplayYaml(yamlText)).toEqual({ ok: true, errors: [] });
+  });
+
+  it("treats untitled prose as a draft source instead of blocking generation", () => {
+    const screenplay = generateScreenplayYamlModel(
+      "雨落在码头仓库外。沈知夏把湿透的账册递给林砚。\n\n林砚翻到最后一页，发现父亲的签名被人用刀刮掉。",
+      { title: "码头短篇" }
+    );
+
+    expect(screenplay.work.sourceChapterCount).toBe(1);
+    expect(screenplay.chapterMappings[0].novelTitle).toBe("正文");
+    expect(screenplay.scenes[0].source.excerpt).toContain("码头仓库");
+  });
+
+  it("rejects empty source text with a product-facing message", () => {
+    expect(() => generateScreenplayYaml("   \n\n  ")).toThrow("请先输入小说正文");
+  });
+
   it("generates required screenplay sections from three chapters", () => {
     const screenplay = generateScreenplayYamlModel(sampleNovel, {
       title: "雾港来信",

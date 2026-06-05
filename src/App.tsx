@@ -13,6 +13,7 @@ import {
 import { parse } from "yaml";
 import type { AdaptationStyle, Scene, ScreenplayYaml } from "./core/types";
 import { generateScreenplayWithApi } from "./core/aiProvider";
+import { generateWorkspaceDraft } from "./core/generationWorkflow";
 import { sampleNovel } from "./core/sampleNovel";
 import { validateScreenplay } from "./core/schema";
 import {
@@ -43,7 +44,7 @@ export default function App() {
   const [apiBaseUrl, setApiBaseUrl] = useState(directApiBaseUrl);
   const [apiModel, setApiModel] = useState("gpt-4.1-mini");
   const [apiKey, setApiKey] = useState("");
-  const [generationStatus, setGenerationStatus] = useState("fallback 本地生成就绪");
+  const [generationStatus, setGenerationStatus] = useState("本地草稿引擎就绪");
   const [yamlText, setYamlText] = useState(() =>
     generateScreenplayYaml(sampleNovel, { title: "雾港来信", style: "cinematic" })
   );
@@ -69,11 +70,21 @@ export default function App() {
     preview?.scenes.find((scene) => scene.id === selectedSceneId) ?? preview?.scenes[0] ?? null;
 
   async function handleGenerate() {
-    try {
-      const apiKeyForRequest = useLocalProxy ? "jujiang-local-proxy" : apiKey.trim();
-      if (useApi && apiKeyForRequest) {
-        setGenerationStatus(`正在调用 ${apiModel}...`);
-        const screenplay = await generateScreenplayWithApi(
+    const apiKeyForRequest = useLocalProxy ? "jujiang-local-proxy" : apiKey.trim();
+    const apiReady = Boolean(apiKeyForRequest);
+    setGenerationStatus(useApi && apiReady ? `正在调用 ${apiModel}...` : "正在生成本地草稿...");
+
+    const result = await generateWorkspaceDraft(
+      {
+        title,
+        style,
+        novelText,
+        useApi,
+        apiReady,
+        model: apiModel
+      },
+      () =>
+        generateScreenplayWithApi(
           {
             baseUrl: apiBaseUrl,
             apiKey: apiKeyForRequest,
@@ -84,23 +95,14 @@ export default function App() {
             style,
             novelText
           }
-        );
-        setYamlText(screenplayToYaml(screenplay));
-        setSelectedSceneId(screenplay.scenes[0]?.id ?? null);
-        setGenerationStatus(`API 生成完成：${apiModel}`);
-        return;
-      }
+        )
+    );
 
-      const fallbackYaml = generateScreenplayYaml(novelText, { title, style });
-      setYamlText(fallbackYaml);
-      setSelectedSceneId(null);
-      setGenerationStatus(useApi ? "未填写 API key，已使用 fallback 生成" : "fallback 本地生成完成");
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "生成失败";
-      setYamlText(generateScreenplayYaml(novelText, { title, style }));
-      setSelectedSceneId(null);
-      setGenerationStatus(`API 失败，已回退 fallback：${message}`);
+    if (result.screenplay) {
+      setYamlText(screenplayToYaml(result.screenplay));
+      setSelectedSceneId(result.screenplay.scenes[0]?.id ?? null);
     }
+    setGenerationStatus(result.status);
   }
 
   async function handleCopy() {
@@ -200,7 +202,7 @@ export default function App() {
               <div className="switch-row">
                 <label className="toggle-line">
                   <input type="checkbox" checked={useApi} onChange={(event) => setUseApi(event.target.checked)} />
-                  <span>API 生成</span>
+                  <span>AI 生成</span>
                 </label>
                 <label className="toggle-line">
                   <input
@@ -251,7 +253,7 @@ export default function App() {
 
             <button className="primary-action" type="button" onClick={handleGenerate}>
               <Sparkles size={18} />
-              {useApi ? "调用 API 生成剧本" : "生成结构化剧本"}
+              {useApi ? "调用 AI 生成剧本" : "生成结构化剧本"}
             </button>
           </section>
         </aside>

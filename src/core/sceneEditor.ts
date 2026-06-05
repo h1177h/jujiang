@@ -62,23 +62,23 @@ export function serializeDialogueInput(dialogue: DialogueBeat[]): string {
   return dialogue.map((item) => `${item.speaker}：${item.line}`).join("\n");
 }
 
-export function parseDialogueInput(value: string, fallbackScene: Scene): DialogueBeat[] {
+export function parseDialogueInput(value: string, sourceScene: Scene): DialogueBeat[] {
   return value
     .split(/\r?\n/)
     .map((line) => line.trim())
     .filter(Boolean)
     .map((line, index) => {
       const separatorIndex = findDialogueSeparator(line);
-      const speaker = separatorIndex >= 0 ? line.slice(0, separatorIndex).trim() : fallbackScene.characters[0] ?? "角色";
+      const speaker = separatorIndex >= 0 ? line.slice(0, separatorIndex).trim() : sourceScene.characters[0] ?? "角色";
       const content = separatorIndex >= 0 ? line.slice(separatorIndex + 1).trim() : line;
-      const previous = fallbackScene.dialogue[index];
+      const previous = sourceScene.dialogue[index];
 
       return {
         speaker: speaker || "角色",
         line: content || "待补写对白",
         intent: previous?.intent ?? "表达态度",
-        emotion: previous?.emotion ?? fallbackScene.emotion,
-        source: previous?.source ?? fallbackScene.source
+        emotion: previous?.emotion ?? sourceScene.emotion,
+        source: previous?.source ?? sourceScene.source
       };
     });
 }

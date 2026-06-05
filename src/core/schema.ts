@@ -14,14 +14,14 @@ export const screenplaySchema = z.object({
     title: z.string().min(1),
     adaptationStyle: z.enum(["balanced", "cinematic", "stage", "short_drama"]),
     logline: z.string().min(1),
-    sourceChapterCount: z.number().int().min(3),
+    sourceChapterCount: z.number().int().min(1),
     generatedBy: z.string().min(1)
   }),
   adaptationPlan: z.object({
     premise: z.string().min(1),
     tone: z.string().min(1),
     targetAudience: z.string().min(1),
-    structure: z.array(z.string()).min(3),
+    structure: z.array(z.string()).min(1),
     nextRevisionFocus: z.array(z.string()).min(1)
   }),
   characters: z
@@ -46,7 +46,7 @@ export const screenplaySchema = z.object({
         sourceLines: z.tuple([z.number().int().positive(), z.number().int().positive()])
       })
     )
-    .min(3),
+    .min(1),
   scenes: z
     .array(
       z.object({
@@ -86,9 +86,9 @@ export const screenplaySchema = z.object({
         source: sourceLocatorSchema
       })
     )
-    .min(3),
+    .min(1),
   rhythmStats: z.object({
-    sceneCount: z.number().int().min(3),
+    sceneCount: z.number().int().min(1),
     dialogueCount: z.number().int().nonnegative(),
     averageConflict: z.number().min(1).max(5),
     highConflictSceneIds: z.array(z.string())

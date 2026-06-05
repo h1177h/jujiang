@@ -30,8 +30,8 @@ export function generateScreenplayYamlModel(
   options: GenerateScreenplayOptions = {}
 ): ScreenplayYaml {
   const chapters = parseChapters(input);
-  if (chapters.length < 3) {
-    throw new Error("至少需要 3 个章节，才能生成符合比赛要求的结构化剧本 YAML。");
+  if (chapters.length === 0) {
+    throw new Error("请先输入小说正文，再生成剧本草稿。");
   }
 
   const characters = extractCharacters(chapters);
@@ -53,7 +53,7 @@ export function generateScreenplayYamlModel(
       adaptationStyle: options.style ?? "balanced",
       logline: buildLogline(chapters),
       sourceChapterCount: chapters.length,
-      generatedBy: "jujiang-fallback-engine"
+      generatedBy: "jujiang-local-draft-engine"
     },
     adaptationPlan: buildAdaptationPlan(chapters, scenes, options.style ?? "balanced"),
     characters,
@@ -73,7 +73,7 @@ export function generateScreenplayYamlModel(
     },
     storyDiagnostics: buildStoryDiagnostics(chapters, scenes),
     validationHints: [
-      "可在左侧继续替换三章以上小说文本，右侧 YAML 会重新生成。",
+      "可以先从短篇片段开始生成草稿，也可以继续补充正文让结构更完整。",
       "每个 scene.source 保留章节、段落和行号，便于回到原文继续改编。",
       "conflict.level、pacing 与 rhythmStats 可帮助作者判断节奏起伏。"
     ]
@@ -182,6 +182,7 @@ function buildStoryDiagnostics(chapters: ParsedChapter[], scenes: Scene[]) {
   const strongest = [...scenes].sort((a, b) => b.conflict.level - a.conflict.level)[0];
   const quietScenes = scenes.filter((scene) => scene.pacing === "quiet").length;
   const warnings = [
+    chapters.length === 1 ? "当前素材较短，已生成短篇草稿；继续补充正文后可获得更完整的结构判断。" : "",
     quietScenes > scenes.length / 2 ? "低冲突场景偏多，建议增加选择压力或明确阻碍。" : "",
     scenes.some((scene) => scene.dialogue.length === 0) ? "部分场景没有对白，录屏时可展示为动作场。" : ""
   ].filter(Boolean);

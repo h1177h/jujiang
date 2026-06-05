@@ -3,7 +3,7 @@
   adaptationStyle: cinematic
   logline: 围绕“迟到的渡船”开启的事件一路推进到“雾中的钟声”，人物在连续冲突中完成选择。
   sourceChapterCount: 3
-  generatedBy: jujiang-fallback-engine
+  generatedBy: jujiang-local-draft-engine
 adaptationPlan:
   premise: 围绕“迟到的渡船”开启的事件一路推进到“雾中的钟声”，人物在连续冲突中完成选择。
   tone: 偏影视化悬疑，重画面、动作和钩子
@@ -356,6 +356,6 @@ storyDiagnostics:
   warnings:
     - 部分场景没有对白，录屏时可展示为动作场。
 validationHints:
-  - 可在左侧继续替换三章以上小说文本，右侧 YAML 会重新生成。
+  - 可以先从短篇片段开始生成草稿，也可以继续补充正文让结构更完整。
   - 每个 scene.source 保留章节、段落和行号，便于回到原文继续改编。
   - conflict.level、pacing 与 rhythmStats 可帮助作者判断节奏起伏。

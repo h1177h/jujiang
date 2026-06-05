@@ -10,7 +10,7 @@ work:
   adaptationStyle: cinematic
   logline: 围绕“迟到的渡船”开启的事件一路推进到“雾中的钟声”，人物在连续冲突中完成选择。
   sourceChapterCount: 3
-  generatedBy: jujiang-fallback-engine
+  generatedBy: jujiang-local-draft-engine
 characters: []
 adaptationPlan: {}
 chapterMappings: []
@@ -38,10 +38,10 @@ validationHints: []
 | `title` | 是 | string | 改编作品名。 |
 | `adaptationStyle` | 是 | enum | `balanced`、`cinematic`、`stage`、`short_drama`。 |
 | `logline` | 是 | string | 一句话概括核心推进。 |
-| `sourceChapterCount` | 是 | number | 原文识别出的章节数量，比赛要求至少为 3。 |
-| `generatedBy` | 是 | string | 生成来源，例如 `jujiang-fallback-engine` 或 `api:gpt-4.1-mini`。 |
+| `sourceChapterCount` | 是 | number | 原文识别出的章节或结构单元数量，短篇片段会作为 1 个结构单元处理。 |
+| `generatedBy` | 是 | string | 生成来源，例如 `jujiang-local-draft-engine` 或 `api:gpt-4.1-mini`。 |
 
-设计原因：作品元信息必须能解释这份 YAML 的来源、风格和输入规模。`generatedBy` 保留生成来源，便于区分 API 输出和 fallback 输出。
+设计原因：作品元信息必须能解释这份 YAML 的来源、风格和输入规模。`generatedBy` 保留生成来源，便于区分 AI 输出和本地草稿输出。
 
 ## adaptationPlan
 
@@ -102,7 +102,7 @@ chapterMappings:
 | `summary` | 是 | string | 章节摘要。 |
 | `sourceLines` | 是 | tuple | 原文起止行。 |
 
-设计原因：章节映射是“小说 -> 剧本”的桥，能让评审清楚看到三章以上输入如何被转成场景。
+设计原因：章节映射是“小说 -> 剧本”的桥。即使输入没有明确章节标题，剧匠也会把正文作为一个结构单元，让作者先得到可编辑草稿。
 
 ## scenes
 
@@ -209,7 +209,7 @@ rhythmStats:
 | `averageConflict` | 是 | number | 平均冲突强度。 |
 | `highConflictSceneIds` | 是 | string[] | 高冲突场景 ID。 |
 
-设计原因：节奏统计是剧匠的展示型创新点之一。它不替代作者判断，但能帮助快速发现三章改编是否平铺直叙。
+设计原因：节奏统计是剧匠的展示型创新点之一。它不替代作者判断，但能帮助快速发现当前草稿是否平铺直叙。
 
 ## storyDiagnostics
 
@@ -227,10 +227,10 @@ rhythmStats:
 
 当前实现使用 `src/core/schema.ts` 中的 Zod Schema 校验：
 
-- `work.sourceChapterCount` 至少为 3。
+- `work.sourceChapterCount` 至少为 1。
 - `characters` 至少 1 个角色。
-- `chapterMappings` 至少 3 个章节映射。
-- `scenes` 至少 3 个场景。
+- `chapterMappings` 至少 1 个结构映射。
+- `scenes` 至少 1 个场景。
 - 每个 scene 必须有目标、beat 类型、节奏、地点、时间、人物、动作、情绪、冲突、修订建议和来源定位。
 - `conflict.level` 必须为 1 到 5 的整数。
 
