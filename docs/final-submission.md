@@ -72,7 +72,7 @@
 ## 已运行验证
 
 - `npm audit`：found 0 vulnerabilities。
-- `npm test`：4 个测试文件、14 个测试用例通过。
+- `npm test`：4 个测试文件、16 个测试用例通过。
 - `npm run build`：通过。
 - proxy health check：`http://127.0.0.1:8787/health` 返回 `ok:true`，可显示 target 和 key 加载状态。
 - 本地浏览器 QA：1440px 和 390px 视口检查过，场景编辑器、故事分析区和 YAML 区没有横向溢出。

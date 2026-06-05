@@ -62,7 +62,7 @@ npm run build
 当前已验证结果：
 
 - `npm audit`：found 0 vulnerabilities。
-- `npm test`：4 个测试文件、14 个测试用例通过。
+- `npm test`：4 个测试文件、16 个测试用例通过。
 - `npm run build`：TypeScript 检查和 Vite 生产构建通过。
 
 ## 架构
