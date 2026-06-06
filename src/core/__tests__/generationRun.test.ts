@@ -49,6 +49,35 @@ describe("generation run tracking", () => {
     });
   });
 
+  it("attaches stage artifacts to the active generation stage", () => {
+    const run = createGenerationRun({
+      title: "雾港来信",
+      model: "gpt-4.1-mini",
+      chapterCount: 3,
+      date: new Date("2026-06-06T00:00:00.000Z")
+    });
+
+    const next = updateGenerationRunStage(run, {
+      stage: "event_extract",
+      message: "故事蓝图已生成",
+      artifact: {
+        kind: "story_blueprint",
+        summary: "3 个章节事件组",
+        detail: "角色 2 个，风险控制 2 条"
+      },
+      date: new Date("2026-06-06T00:00:03.000Z")
+    });
+
+    expect(next.stages.find((stage) => stage.id === "event_extract")?.artifacts).toEqual([
+      {
+        kind: "story_blueprint",
+        summary: "3 个章节事件组",
+        detail: "角色 2 个，风险控制 2 条",
+        createdAt: "2026-06-06T00:00:03.000Z"
+      }
+    ]);
+  });
+
   it("records failure on the active stage without losing prior context", () => {
     const run = updateGenerationRunStage(
       createGenerationRun({
@@ -70,6 +99,31 @@ describe("generation run tracking", () => {
     expect(failed.error).toBe("API 生成失败");
     expect(failed.completedAt).toBe("2026-06-06T00:00:05.000Z");
     expect(failed.stages.find((stage) => stage.id === "screenplay_generate")?.status).toBe("failed");
+  });
+
+  it("marks retryable failures with a recovery hint", () => {
+    const run = updateGenerationRunStage(
+      createGenerationRun({
+        title: "雾港来信",
+        model: "gpt-4.1-mini",
+        chapterCount: 3,
+        date: new Date("2026-06-06T00:00:00.000Z")
+      }),
+      {
+        stage: "screenplay_generate",
+        message: "正在生成剧本",
+        date: new Date("2026-06-06T00:00:02.000Z")
+      }
+    );
+
+    const failed = failGenerationRun(
+      run,
+      "screenplay_generate 阶段请求超时：HTTP 504。可重试。",
+      new Date("2026-06-06T00:00:05.000Z")
+    );
+
+    expect(failed.canRetry).toBe(true);
+    expect(failed.recoveryHint).toBe("可以保留当前原文、AI 配置和已保存的阶段记录后重试。");
   });
 
   it("completes the run and marks all stages done", () => {

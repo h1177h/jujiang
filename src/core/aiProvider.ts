@@ -30,6 +30,13 @@ export interface AiGenerationProgress {
   message: string;
   current?: number;
   total?: number;
+  artifact?: AiGenerationArtifact;
+}
+
+export interface AiGenerationArtifact {
+  kind: "chapter_events" | "story_blueprint" | "screenplay" | "repair";
+  summary: string;
+  detail?: string;
 }
 
 export interface SceneRegenerationOptions {
@@ -41,6 +48,7 @@ export interface SceneRegenerationOptions {
 
 interface ChatCompletionResponse {
   choices?: Array<{
+    finish_reason?: string;
     message?: {
       content?: string;
     };
@@ -77,9 +85,15 @@ export async function generateScreenplayWithApi(
         content: buildBlueprintUserPrompt(options, sourceChapters)
       }
     ],
-    signal: options.signal
+    signal: options.signal,
+    stage: "event_extract"
   });
   const blueprint = normalizeStoryBlueprint(parseJsonObject(blueprintContent));
+  options.onProgress?.({
+    stage: "event_extract",
+    message: "故事蓝图已生成",
+    artifact: describeStoryBlueprintArtifact(blueprint)
+  });
 
   options.onProgress?.({
     stage: "screenplay_generate",
@@ -97,7 +111,8 @@ export async function generateScreenplayWithApi(
         content: buildScreenplayUserPrompt(options, sourceChapters, blueprint)
       }
     ],
-    signal: options.signal
+    signal: options.signal,
+    stage: "screenplay_generate"
   });
 
   const parsed = parseJsonObject(screenplayContent);
@@ -130,7 +145,8 @@ export async function regenerateSceneWithApi(
         })
       }
     ],
-    signal: options.signal
+    signal: options.signal,
+    stage: "scene_regenerate"
   });
 
   return normalizeRegeneratedScene(parseJsonObject(content), scene);
@@ -163,9 +179,18 @@ async function generateLongFormScreenplay(
           content: buildChapterEventUserPrompt(options, sourceChapter, sourceChapters.length)
         }
       ],
-      signal: options.signal
+      signal: options.signal,
+      stage: "chapter_event_extract"
     });
-    chapterEvents.push(...normalizeChapterEventGroups(parseJsonObject(content)));
+    const eventGroups = normalizeChapterEventGroups(parseJsonObject(content));
+    chapterEvents.push(...eventGroups);
+    options.onProgress?.({
+      stage: "chapter_event_extract",
+      message: `第 ${sourceChapter.chapterIndex} 章事件已保存`,
+      current: index + 1,
+      total: sourceChapters.length,
+      artifact: describeChapterEventsArtifact(eventGroups, sourceChapter.chapterIndex)
+    });
   }
 
   options.onProgress?.({
@@ -184,9 +209,15 @@ async function generateLongFormScreenplay(
         content: buildBlueprintMergeUserPrompt(options, sourceChapters, chapterEvents)
       }
     ],
-    signal: options.signal
+    signal: options.signal,
+    stage: "story_bible_generate"
   });
   const blueprint = normalizeStoryBlueprint(parseJsonObject(blueprintContent));
+  options.onProgress?.({
+    stage: "story_bible_generate",
+    message: "故事圣经和改编策略已合并",
+    artifact: describeStoryBlueprintArtifact(blueprint)
+  });
 
   options.onProgress?.({
     stage: "screenplay_generate",
@@ -204,7 +235,8 @@ async function generateLongFormScreenplay(
         content: buildLongFormScreenplayUserPrompt(options, sourceChapters, blueprint)
       }
     ],
-    signal: options.signal
+    signal: options.signal,
+    stage: "screenplay_generate"
   });
 
   return validateOrRepairScreenplay(
@@ -224,6 +256,7 @@ async function requestChatCompletion(
     temperature: number;
     messages: Array<{ role: "system" | "user"; content: string }>;
     signal?: AbortSignal;
+    stage: AiGenerationProgress["stage"] | "scene_regenerate";
   }
 ): Promise<string> {
   let response: Response;
@@ -246,14 +279,14 @@ async function requestChatCompletion(
     throw new Error(classifyFetchFailure(error, baseUrl));
   }
 
-  const payload = (await response.json().catch(() => ({}))) as ChatCompletionResponse;
+  const payload = await readChatCompletionResponse(response, request.stage);
   if (!response.ok) {
-    throw new Error(payload.error?.message || `API 请求失败：HTTP ${response.status}`);
+    throw new Error(formatHttpFailure(request.stage, response.status, payload));
   }
 
   const content = payload.choices?.[0]?.message?.content;
   if (!content) {
-    throw new Error("API 没有返回可解析的剧本内容。");
+    throw new Error(formatEmptyContentFailure(request.stage, payload));
   }
 
   return content;
@@ -623,6 +656,11 @@ async function validateOrRepairScreenplay(
   const normalized = normalizeApiScreenplay(screenplayDraft, settings.model, blueprint);
   const result = validateScreenplay(normalized);
   if (result.success) {
+    options.onProgress?.({
+      stage: "screenplay_generate",
+      message: "剧本结构已通过 Schema",
+      artifact: describeScreenplayArtifact(result.data)
+    });
     return result.data;
   }
 
@@ -643,7 +681,8 @@ async function validateOrRepairScreenplay(
         content: buildRepairUserPrompt(options, sourceChapters, blueprint, normalized, validationIssues)
       }
     ],
-    signal: options.signal
+    signal: options.signal,
+    stage: "schema_repair"
   });
 
   const repaired = normalizeApiScreenplay(parseJsonObject(repairedContent), settings.model, blueprint);
@@ -651,5 +690,157 @@ async function validateOrRepairScreenplay(
   if (!repairedResult.success) {
     throw new Error(`API 返回结构未通过 Schema：${repairedResult.error.issues.map((issue) => issue.path.join(".")).join(", ")}`);
   }
+  options.onProgress?.({
+    stage: "screenplay_generate",
+    message: "修复后的剧本结构已通过 Schema",
+    artifact: describeScreenplayArtifact(repairedResult.data)
+  });
+  options.onProgress?.({
+    stage: "schema_repair",
+    message: "结构修复已通过 Schema",
+    artifact: {
+      kind: "repair",
+      summary: `${repairedResult.data.scenes.length} 场剧本已修复`,
+      detail: `修复字段：${validationIssues.slice(0, 4).join(", ") || "结构字段"}`
+    }
+  });
   return repairedResult.data;
+}
+
+async function readChatCompletionResponse(
+  response: Response,
+  stage: AiGenerationProgress["stage"] | "scene_regenerate"
+): Promise<ChatCompletionResponse & { rawText?: string }> {
+  const contentType = response.headers?.get("content-type") || "";
+  if (contentType.includes("text/event-stream")) {
+    const rawText = await readResponseText(response);
+    return {
+      choices: [
+        {
+          message: {
+            content: parseSseChatContent(rawText)
+          }
+        }
+      ],
+      rawText
+    };
+  }
+
+  const rawText = await readResponseText(response);
+  if (rawText) {
+    try {
+      return {
+        ...(JSON.parse(rawText) as ChatCompletionResponse),
+        rawText
+      };
+    } catch {
+      return {
+        rawText,
+        error: { message: rawText }
+      };
+    }
+  }
+
+  try {
+    return ((await response.json()) as ChatCompletionResponse) || {};
+  } catch {
+    return {
+      rawText,
+      error: { message: `${labelProviderStage(stage)} 阶段返回了非 JSON 响应` }
+    };
+  }
+}
+
+async function readResponseText(response: Response): Promise<string> {
+  const textReader = (response as { text?: () => Promise<string> }).text;
+  if (typeof textReader !== "function") {
+    return "";
+  }
+  return textReader.call(response).catch(() => "");
+}
+
+function parseSseChatContent(rawText: string): string {
+  return rawText
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.startsWith("data:"))
+    .map((line) => line.slice(5).trim())
+    .filter((line) => line && line !== "[DONE]")
+    .map((line) => {
+      try {
+        const payload = JSON.parse(line) as {
+          choices?: Array<{
+            delta?: { content?: string };
+            message?: { content?: string };
+          }>;
+        };
+        return payload.choices?.[0]?.delta?.content || payload.choices?.[0]?.message?.content || "";
+      } catch {
+        return "";
+      }
+    })
+    .join("");
+}
+
+function formatHttpFailure(
+  stage: AiGenerationProgress["stage"] | "scene_regenerate",
+  status: number,
+  payload: ChatCompletionResponse & { rawText?: string }
+): string {
+  const providerMessage = payload.error?.message || payload.rawText || "";
+  const base = isTimeoutStatus(status)
+    ? `${labelProviderStage(stage)} 阶段请求超时：HTTP ${status}。可重试。`
+    : `${labelProviderStage(stage)} 阶段请求失败：HTTP ${status}。`;
+  return providerMessage ? `${base}Provider 返回：${truncateDiagnostic(providerMessage)}` : base;
+}
+
+function formatEmptyContentFailure(
+  stage: AiGenerationProgress["stage"] | "scene_regenerate",
+  payload: ChatCompletionResponse
+): string {
+  const finishReason = payload.choices?.[0]?.finish_reason;
+  const suffix = finishReason ? `finish_reason=${finishReason}` : "choices[0].message.content 为空";
+  return `${labelProviderStage(stage)} 阶段返回空内容。${suffix}`;
+}
+
+function isTimeoutStatus(status: number): boolean {
+  return status === 408 || status === 504 || status === 524;
+}
+
+function labelProviderStage(stage: AiGenerationProgress["stage"] | "scene_regenerate"): string {
+  return stage;
+}
+
+function truncateDiagnostic(value: string): string {
+  const normalized = value.replace(/\s+/g, " ").trim();
+  return normalized.length > 500 ? `${normalized.slice(0, 500)}...` : normalized;
+}
+
+function describeChapterEventsArtifact(
+  chapterEvents: StoryBlueprint["chapterEvents"],
+  chapterIndex?: number
+): AiGenerationArtifact {
+  const eventCount = chapterEvents.reduce((sum, group) => sum + group.events.length, 0);
+  return {
+    kind: "chapter_events",
+    summary: chapterIndex ? `第 ${chapterIndex} 章 ${eventCount} 个事件` : `${chapterEvents.length} 个章节事件组`,
+    detail: `覆盖章节：${chapterEvents.map((group) => group.chapterIndex).join(", ")}`
+  };
+}
+
+function describeStoryBlueprintArtifact(blueprint: StoryBlueprint): AiGenerationArtifact {
+  const eventCount = blueprint.chapterEvents.reduce((sum, group) => sum + group.events.length, 0);
+  return {
+    kind: "story_blueprint",
+    summary: `${blueprint.chapterEvents.length} 个章节事件组`,
+    detail: `${eventCount} 个事件，${blueprint.storyBible.characterArcs.length} 条角色弧光`
+  };
+}
+
+function describeScreenplayArtifact(screenplay: ScreenplayYaml): AiGenerationArtifact {
+  return {
+    kind: "screenplay",
+    summary: `${screenplay.scenes.length} 场剧本`,
+    detail: `${screenplay.characters.length} 个角色，${screenplay.rhythmStats.dialogueCount} 条对白`
+  };
 }

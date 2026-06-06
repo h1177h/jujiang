@@ -128,6 +128,192 @@ describe("AI provider", () => {
     expect(secondPayload.storyBlueprint.chapterEvents[0].events[0].id).toBe("event-01-01");
   });
 
+  it("records stage artifacts when provider stages return usable structured content", async () => {
+    const validation = validateScreenplay(parse(sampleOutputYaml));
+    expect(validation.success).toBe(true);
+    if (!validation.success) return;
+
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        headers: new Headers({ "content-type": "application/json" }),
+        json: async () => ({
+          choices: [
+            {
+              message: {
+                content: JSON.stringify({
+                  chapterEvents: validation.data.chapterEvents,
+                  storyBible: validation.data.storyBible,
+                  adaptationStrategy: validation.data.adaptationStrategy
+                })
+              }
+            }
+          ]
+        })
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        headers: new Headers({ "content-type": "application/json" }),
+        json: async () => ({
+          choices: [
+            {
+              message: {
+                content: JSON.stringify(validation.data)
+              }
+            }
+          ]
+        })
+      });
+    vi.stubGlobal("fetch", fetchMock);
+    const artifacts: string[] = [];
+
+    await generateScreenplayWithApi(
+      {
+        baseUrl: "https://api.example.com",
+        apiKey: "test-key",
+        model: "test-model"
+      },
+      {
+        title: "雾港来信",
+        style: "cinematic",
+        novelText: sampleNovel,
+        onProgress: (event) => {
+          if (event.artifact) artifacts.push(`${event.stage}:${event.artifact.summary}`);
+        }
+      }
+    );
+
+    expect(artifacts).toEqual(
+      expect.arrayContaining([
+        "event_extract:3 个章节事件组",
+        "screenplay_generate:6 场剧本"
+      ])
+    );
+  });
+
+  it("reads OpenAI-compatible SSE chat completion streams as JSON content", async () => {
+    const validation = validateScreenplay(parse(sampleOutputYaml));
+    expect(validation.success).toBe(true);
+    if (!validation.success) return;
+    const blueprint = {
+      chapterEvents: validation.data.chapterEvents,
+      storyBible: validation.data.storyBible,
+      adaptationStrategy: validation.data.adaptationStrategy
+    };
+
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        headers: new Headers({ "content-type": "text/event-stream" }),
+        json: async () => {
+          throw new Error("stream body");
+        },
+        text: async () =>
+          [
+            `data: ${JSON.stringify({ choices: [{ delta: { content: JSON.stringify(blueprint).slice(0, 40) } }] })}`,
+            `data: ${JSON.stringify({ choices: [{ delta: { content: JSON.stringify(blueprint).slice(40) } }] })}`,
+            "data: [DONE]"
+          ].join("\n\n")
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        headers: new Headers({ "content-type": "application/json" }),
+        json: async () => ({
+          choices: [
+            {
+              message: {
+                content: JSON.stringify(validation.data)
+              }
+            }
+          ]
+        })
+      });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await generateScreenplayWithApi(
+      {
+        baseUrl: "https://api.example.com",
+        apiKey: "test-key",
+        model: "test-model"
+      },
+      {
+        title: "雾港来信",
+        style: "cinematic",
+        novelText: sampleNovel
+      }
+    );
+
+    expect(result.scenes).toHaveLength(6);
+  });
+
+  it("reports stage, HTTP 504, and retryability when the provider times out", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({
+        ok: false,
+        status: 504,
+        headers: new Headers({ "content-type": "text/plain" }),
+        json: async () => {
+          throw new Error("not json");
+        },
+        text: async () => "Gateway Timeout"
+      }))
+    );
+
+    await expect(
+      generateScreenplayWithApi(
+        {
+          baseUrl: "https://api.example.com",
+          apiKey: "test-key",
+          model: "test-model"
+        },
+        {
+          title: "雾港来信",
+          style: "cinematic",
+          novelText: sampleNovel
+        }
+      )
+    ).rejects.toThrow("event_extract 阶段请求超时：HTTP 504。可重试。Provider 返回：Gateway Timeout");
+  });
+
+  it("reports the stage and raw finish reason when the provider returns empty content", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({
+        ok: true,
+        status: 200,
+        headers: new Headers({ "content-type": "application/json" }),
+        json: async () => ({
+          choices: [
+            {
+              finish_reason: "length",
+              message: {
+                content: ""
+              }
+            }
+          ]
+        })
+      }))
+    );
+
+    await expect(
+      generateScreenplayWithApi(
+        {
+          baseUrl: "https://api.example.com",
+          apiKey: "test-key",
+          model: "test-model"
+        },
+        {
+          title: "雾港来信",
+          style: "cinematic",
+          novelText: sampleNovel
+        }
+      )
+    ).rejects.toThrow("event_extract 阶段返回空内容。finish_reason=length");
+  });
+
   it("sends structured chapter context instead of an undifferentiated novel blob", async () => {
     const validation = validateScreenplay(parse(sampleOutputYaml));
     expect(validation.success).toBe(true);
