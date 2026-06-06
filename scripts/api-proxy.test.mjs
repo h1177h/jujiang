@@ -299,6 +299,74 @@ describe("api proxy config", () => {
     expect(task.requestId).toMatch(/^jj-/);
   });
 
+  it("marks provider SSE responses without message content as failed", async () => {
+    const upstream = createServer((request, response) => {
+      response.writeHead(200, { "Content-Type": "text/event-stream" });
+      response.end(
+        'data: {"id":"","object":"chat.completion.chunk","choices":[],"usage":{"completion_tokens":0}}\n\n' +
+          "data: [DONE]\n\n"
+      );
+    });
+    const upstreamBaseUrl = await listen(upstream);
+    const proxy = createApiProxyServer({
+      port: 0,
+      targetBaseUrl: `${upstreamBaseUrl}/v1`,
+      apiKey: "",
+      networkProxyUrl: ""
+    });
+    const proxyBaseUrl = await listen(proxy);
+
+    const createResponse = await fetch(`${proxyBaseUrl}/v1/generation-tasks`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: "Bearer browser-key"
+      },
+      body: JSON.stringify({ model: "test-model", messages: [] })
+    });
+    const created = await createResponse.json();
+    const task = await waitForTask(proxyBaseUrl, created.task.id);
+
+    expect(task.status).toBe("failed");
+    expect(task.error.message).toContain("没有返回可用正文");
+    expect(task.error.upstreamStatus).toBe(200);
+    expect(task.error.providerSummary).toContain("choices=0");
+  });
+
+  it("converts provider SSE content chunks into a normal task response", async () => {
+    const upstream = createServer((request, response) => {
+      response.writeHead(200, { "Content-Type": "text/event-stream" });
+      response.end(
+        'data: {"choices":[{"delta":{"content":"{\\"ok\\":"}}]}\n\n' +
+          'data: {"choices":[{"delta":{"content":"true}"}}],"usage":{"completion_tokens":2}}\n\n' +
+          "data: [DONE]\n\n"
+      );
+    });
+    const upstreamBaseUrl = await listen(upstream);
+    const proxy = createApiProxyServer({
+      port: 0,
+      targetBaseUrl: `${upstreamBaseUrl}/v1`,
+      apiKey: "",
+      networkProxyUrl: ""
+    });
+    const proxyBaseUrl = await listen(proxy);
+
+    const createResponse = await fetch(`${proxyBaseUrl}/v1/generation-tasks`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: "Bearer browser-key"
+      },
+      body: JSON.stringify({ model: "test-model", messages: [] })
+    });
+    const created = await createResponse.json();
+    const task = await waitForTask(proxyBaseUrl, created.task.id);
+
+    expect(task.status).toBe("completed");
+    expect(task.response.choices[0].message.content).toBe('{"ok":true}');
+    expect(task.response.usage.completion_tokens).toBe(2);
+  });
+
   it("cancels a queued or running generation task", async () => {
     const upstream = createServer((request, response) => {
       setTimeout(() => {

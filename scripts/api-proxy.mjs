@@ -110,6 +110,21 @@ export function createApiProxyServer(config = getProxyConfig()) {
         return;
       }
 
+      if (upstream.ok) {
+        const normalized = normalizeSuccessfulProviderResponse(
+          text,
+          upstream.headers.get("content-type") || "",
+          requestId,
+          targetBaseUrl
+        );
+        if (!normalized.ok) {
+          writeJson(response, 502, { error: normalized.error });
+          return;
+        }
+        writeJson(response, upstream.status, normalized.response);
+        return;
+      }
+
       response.writeHead(upstream.status, {
         "Content-Type": upstream.headers.get("content-type") || "application/json"
       });
@@ -266,9 +281,23 @@ async function runGenerationTask(config, task, body, apiKey) {
       return;
     }
 
+    const normalized = normalizeSuccessfulProviderResponse(
+      text,
+      upstream.headers.get("content-type") || "",
+      task.requestId,
+      task.targetBaseUrl
+    );
+    if (!normalized.ok) {
+      updateTask(task, {
+        status: "failed",
+        error: normalized.error
+      });
+      return;
+    }
+
     updateTask(task, {
       status: "completed",
-      response: parseJsonOrText(text)
+      response: normalized.response
     });
   } catch (error) {
     if (task.status === "cancelled") return;
@@ -319,12 +348,170 @@ function buildUpstreamTaskError(text, status, requestId, targetBaseUrl) {
   }
 }
 
-function parseJsonOrText(text) {
-  try {
-    return JSON.parse(text);
-  } catch {
-    return { text };
+function normalizeSuccessfulProviderResponse(text, contentType, requestId, targetBaseUrl) {
+  const response = parseProviderResponseText(text, contentType);
+  if (!response.ok) {
+    return {
+      ok: false,
+      error: {
+        message: response.message,
+        requestId,
+        upstreamStatus: 200,
+        targetBaseUrl,
+        providerSummary: response.providerSummary
+      }
+    };
   }
+  return {
+    ok: true,
+    response: response.payload
+  };
+}
+
+function parseProviderResponseText(text, contentType = "") {
+  if (looksLikeSse(text, contentType)) {
+    return parseSseChatCompletion(text);
+  }
+
+  try {
+    const payload = JSON.parse(text);
+    const content = extractChatMessageContent(payload);
+    if (content) {
+      return { ok: true, payload };
+    }
+
+    return {
+      ok: false,
+      message: "上游 AI 服务没有返回可用正文，请更换可用模型或检查该 provider 的响应格式。",
+      providerSummary: summarizeProviderPayload(payload, contentType)
+    };
+  } catch {
+    return {
+      ok: false,
+      message: "上游 AI 服务返回了非 JSON 内容，剧匠无法读取生成结果。",
+      providerSummary: summarizeProviderText(text, contentType)
+    };
+  }
+}
+
+function looksLikeSse(text, contentType) {
+  return /text\/event-stream/i.test(contentType) || /^\s*data:\s*/m.test(text);
+}
+
+function parseSseChatCompletion(text) {
+  const chunks = [];
+  let usage = null;
+  let lastPayload = null;
+  let parsedEventCount = 0;
+  let choiceCount = 0;
+  const finishReasons = new Set();
+  const errors = [];
+
+  for (const line of text.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed.startsWith("data:")) continue;
+    const data = trimmed.slice(5).trim();
+    if (!data || data === "[DONE]") continue;
+
+    try {
+      const payload = JSON.parse(data);
+      parsedEventCount += 1;
+      lastPayload = payload;
+      if (payload?.error?.message || payload?.message) {
+        errors.push(payload.error?.message || payload.message);
+      }
+      if (payload?.usage) {
+        usage = payload.usage;
+      }
+      const choices = Array.isArray(payload?.choices) ? payload.choices : [];
+      choiceCount += choices.length;
+      for (const choice of choices) {
+        if (choice?.finish_reason) {
+          finishReasons.add(choice.finish_reason);
+        }
+        const content =
+          stringOrEmpty(choice?.delta?.content) ||
+          stringOrEmpty(choice?.message?.content) ||
+          stringOrEmpty(choice?.text);
+        if (content) {
+          chunks.push(content);
+        }
+      }
+    } catch {
+      errors.push("SSE 数据片段不是有效 JSON");
+    }
+  }
+
+  const content = chunks.join("");
+  if (content.trim()) {
+    return {
+      ok: true,
+      payload: {
+        choices: [
+          {
+            message: {
+              content
+            },
+            finish_reason: Array.from(finishReasons).at(-1) || undefined
+          }
+        ],
+        ...(usage ? { usage } : {})
+      }
+    };
+  }
+
+  const providerSummary = [
+    `contentType=${contentTypeOrUnknown("text/event-stream")}`,
+    `events=${parsedEventCount}`,
+    `choices=${choiceCount}`,
+    usage?.completion_tokens !== undefined ? `completion_tokens=${usage.completion_tokens}` : null,
+    finishReasons.size ? `finish_reason=${Array.from(finishReasons).join(",")}` : null,
+    lastPayload ? `lastKeys=${Object.keys(lastPayload).slice(0, 8).join(",")}` : null,
+    errors.length ? `errors=${errors.slice(0, 2).join(" / ")}` : null
+  ]
+    .filter(Boolean)
+    .join("; ");
+
+  return {
+    ok: false,
+    message: errors[0] || "上游 AI 服务没有返回可用正文，请更换可用模型或检查该 provider 的响应格式。",
+    providerSummary
+  };
+}
+
+function extractChatMessageContent(payload) {
+  const content = payload?.choices?.[0]?.message?.content;
+  return typeof content === "string" ? content.trim() : "";
+}
+
+function summarizeProviderPayload(payload, contentType) {
+  const choices = Array.isArray(payload?.choices) ? payload.choices : [];
+  const firstChoice = choices[0] || {};
+  const message = firstChoice.message || {};
+  const usage = payload?.usage || {};
+  return [
+    `contentType=${contentTypeOrUnknown(contentType)}`,
+    `choices=${choices.length}`,
+    firstChoice.finish_reason ? `finish_reason=${firstChoice.finish_reason}` : null,
+    usage.completion_tokens !== undefined ? `completion_tokens=${usage.completion_tokens}` : null,
+    `topKeys=${Object.keys(payload || {}).slice(0, 8).join(",") || "none"}`,
+    `messageKeys=${Object.keys(message).slice(0, 8).join(",") || "none"}`
+  ]
+    .filter(Boolean)
+    .join("; ");
+}
+
+function summarizeProviderText(text, contentType) {
+  const compact = text.replace(/\s+/g, " ").trim().slice(0, 160);
+  return [`contentType=${contentTypeOrUnknown(contentType)}`, compact ? `body=${compact}` : "body=empty"].join("; ");
+}
+
+function stringOrEmpty(value) {
+  return typeof value === "string" ? value : "";
+}
+
+function contentTypeOrUnknown(value) {
+  return value || "unknown";
 }
 
 function createTaskId() {

@@ -47,6 +47,7 @@ export interface AiGenerationTaskSnapshot {
   updatedAt?: string;
   upstreamStatus?: number;
   message?: string;
+  providerSummary?: string;
 }
 
 interface GenerationTaskListPayload {
@@ -71,6 +72,7 @@ interface ChatCompletionResponse {
   }>;
   error?: {
     message?: string;
+    providerSummary?: string;
   };
 }
 
@@ -86,6 +88,7 @@ interface GenerationTaskPayload {
     error?: {
       message?: string;
       upstreamStatus?: number;
+      providerSummary?: string;
     };
   };
   error?: string;
@@ -204,7 +207,8 @@ export async function listLocalGenerationTasks(baseUrl: string): Promise<AiGener
     createdAt: task.createdAt,
     updatedAt: task.updatedAt,
     upstreamStatus: task.error?.upstreamStatus,
-    message: task.error?.message
+    message: task.error?.message,
+    providerSummary: task.error?.providerSummary
   }));
 }
 
@@ -334,7 +338,7 @@ async function requestChatCompletion(
     }
 
     if (!completionAttempt.ok) {
-      const message = completionAttempt.payload.error?.message || `HTTP ${completionAttempt.status}`;
+      const message = buildProviderErrorMessage(completionAttempt.payload, completionAttempt.status);
       if (attempt < maxTransientAttempts && transientHttpStatuses.has(completionAttempt.status)) {
         lastErrorMessage = message;
         continue;
@@ -460,7 +464,8 @@ async function requestChatCompletionTask(
           status: task.error?.upstreamStatus || (task.status === "cancelled" ? 499 : 500),
           payload: {
             error: {
-              message: task.error?.message || (task.status === "cancelled" ? "生成任务已取消" : "生成任务失败")
+              message: task.error?.message || (task.status === "cancelled" ? "生成任务已取消" : "生成任务失败"),
+              providerSummary: task.error?.providerSummary
             }
           }
         };
@@ -490,7 +495,8 @@ function emitTaskSnapshot(
     createdAt: task.createdAt,
     updatedAt: task.updatedAt,
     upstreamStatus: task.error?.upstreamStatus,
-    message: task.error?.message
+    message: task.error?.message,
+    providerSummary: task.error?.providerSummary
   });
 }
 
@@ -517,6 +523,11 @@ export function normalizeBaseUrl(baseUrl: string): string {
 
 function isTransientNetworkMessage(message: string): boolean {
   return /timeout|timed out|econnreset|econnrefused|socket|network|fetch failed|failed to fetch/i.test(message);
+}
+
+function buildProviderErrorMessage(payload: ChatCompletionResponse, status: number): string {
+  const message = payload.error?.message || `HTTP ${status}`;
+  return payload.error?.providerSummary ? `${message}（${payload.error.providerSummary}）` : message;
 }
 
 function formatAiStageError(

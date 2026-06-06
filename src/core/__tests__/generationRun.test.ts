@@ -197,7 +197,8 @@ describe("generation run tracking", () => {
             status: "failed",
             updatedAt: "2026-06-06T00:00:05.000Z",
             upstreamStatus: 504,
-            message: "上游 AI 服务返回 HTTP 504"
+            message: "上游 AI 服务返回 HTTP 504",
+            providerSummary: "contentType=text/event-stream; choices=0"
           }
         ]
       },
@@ -209,6 +210,7 @@ describe("generation run tracking", () => {
 
     expect(diagnostic).toContain("Local tasks:");
     expect(diagnostic).toContain("task-abc / jj-abc / failed / HTTP 504 / 上游 AI 服务返回 HTTP 504");
+    expect(diagnostic).toContain("Provider: contentType=text/event-stream; choices=0");
   });
 
   it("merges recovered local task status back into saved generation runs", () => {

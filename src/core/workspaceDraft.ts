@@ -130,7 +130,8 @@ function isGenerationRunTask(value: unknown): boolean {
     (task.createdAt === undefined || typeof task.createdAt === "string") &&
     (task.updatedAt === undefined || typeof task.updatedAt === "string") &&
     (task.upstreamStatus === undefined || typeof task.upstreamStatus === "number") &&
-    (task.message === undefined || typeof task.message === "string")
+    (task.message === undefined || typeof task.message === "string") &&
+    (task.providerSummary === undefined || typeof task.providerSummary === "string")
   );
 }
 
