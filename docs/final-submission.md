@@ -88,7 +88,7 @@
 - PR #22 `feat(ai): add longform generation pipeline`：把 AI 生成升级为长篇逐章事件流水线，并加入 Schema 修复回合。
 - PR #23 `feat(workspace): add scene regeneration history`：补单场 AI 补强和轻量版本历史。
 - PR #24 `feat(workspace): persist local drafts`：补工作区草稿自动保存、恢复和重置。
-- 本轮产品打磨：参考成熟项目的任务队列和状态反馈，把 AI 生成过程改成可见的任务面板。
+- PR #25 `feat(ai): add generation run panel`：参考成熟项目的任务队列和状态反馈，把 AI 生成过程改成可见的任务面板。
 
 ## 已运行验证
 
