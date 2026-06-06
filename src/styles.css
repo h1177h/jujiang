@@ -420,6 +420,28 @@ select:focus,
   padding: 3px 8px;
 }
 
+.generation-run-actions {
+  align-items: center;
+  display: inline-flex;
+  flex: none;
+  gap: 6px;
+}
+
+.generation-run-actions button {
+  align-items: center;
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  border-radius: 8px;
+  color: #9a3412;
+  cursor: pointer;
+  display: inline-flex;
+  font-size: 11px;
+  font-weight: 850;
+  gap: 5px;
+  min-height: 26px;
+  padding: 0 8px;
+}
+
 .generation-run.completed .generation-run-head em {
   background: #dcfce7;
   color: #166534;
@@ -473,6 +495,100 @@ select:focus,
 .generation-error {
   color: #9a3412;
   font-weight: 750;
+}
+
+.generation-history {
+  border-top: 1px solid #e2e8f0;
+  display: grid;
+  gap: 8px;
+  padding-top: 10px;
+}
+
+.generation-history-head {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+}
+
+.generation-history-head strong {
+  color: #0f172a;
+  font-size: 12px;
+}
+
+.generation-history-head span {
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.generation-history-list {
+  display: grid;
+  gap: 6px;
+}
+
+.generation-history-list button {
+  align-items: center;
+  background: #f8fafc;
+  border: 1px solid #dbe4f0;
+  border-radius: 8px;
+  color: #334155;
+  cursor: pointer;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: 8px minmax(0, 1fr) auto;
+  min-height: 42px;
+  padding: 7px 9px;
+  text-align: left;
+}
+
+.generation-history-list button.selected {
+  background: #eef6ff;
+  border-color: #93c5fd;
+}
+
+.history-status {
+  background: #94a3b8;
+  border-radius: 999px;
+  height: 8px;
+  width: 8px;
+}
+
+.history-status.completed {
+  background: #16a34a;
+}
+
+.history-status.failed {
+  background: #f97316;
+}
+
+.history-status.running {
+  background: #2563eb;
+  box-shadow: 0 0 0 4px rgb(37 99 235 / 10%);
+}
+
+.generation-history-list strong,
+.generation-history-list span,
+.generation-history-list em {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.generation-history-list strong {
+  color: #0f172a;
+  font-size: 12px;
+}
+
+.generation-history-list span,
+.generation-history-list em {
+  color: #64748b;
+  font-size: 11px;
+}
+
+.generation-history-list em {
+  font-style: normal;
+  font-weight: 850;
 }
 
 .novel-editor {

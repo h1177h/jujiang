@@ -145,6 +145,14 @@ export function failGenerationRun(run: GenerationRun, error: string, date = new 
   };
 }
 
+export function pushGenerationRunHistory(
+  history: GenerationRun[],
+  run: GenerationRun,
+  limit = 8
+): GenerationRun[] {
+  return [run, ...history.filter((item) => item.id !== run.id)].slice(0, limit);
+}
+
 function createStage(
   id: GenerationRunStageId,
   label: string,

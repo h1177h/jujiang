@@ -35,6 +35,27 @@ describe("workspace draft persistence", () => {
             yamlText: "work:\n  title: 雾港来信\n",
             createdAt: "2026-06-06T00:00:00.000Z"
           }
+        ],
+        generationRuns: [
+          {
+            id: "run-1",
+            title: "雾港来信",
+            model: "gpt-4.1-mini",
+            chapterCount: 3,
+            status: "failed",
+            startedAt: "2026-06-06T00:03:00.000Z",
+            completedAt: "2026-06-06T00:03:12.000Z",
+            error: "AI 生成失败",
+            stages: [
+              {
+                id: "connection_check",
+                label: "连接 AI",
+                status: "failed",
+                message: "AI 生成失败",
+                updatedAt: "2026-06-06T00:03:12.000Z"
+              }
+            ]
+          }
         ]
       },
       storage,
@@ -53,8 +74,29 @@ describe("workspace draft persistence", () => {
           label: "手动保存",
           yamlText: "work:\n  title: 雾港来信\n",
           createdAt: "2026-06-06T00:00:00.000Z"
-        }
-      ],
+          }
+        ],
+        generationRuns: [
+          {
+            id: "run-1",
+            title: "雾港来信",
+            model: "gpt-4.1-mini",
+            chapterCount: 3,
+            status: "failed",
+            startedAt: "2026-06-06T00:03:00.000Z",
+            completedAt: "2026-06-06T00:03:12.000Z",
+            error: "AI 生成失败",
+            stages: [
+              {
+                id: "connection_check",
+                label: "连接 AI",
+                status: "failed",
+                message: "AI 生成失败",
+                updatedAt: "2026-06-06T00:03:12.000Z"
+              }
+            ]
+          }
+        ],
       updatedAt: "2026-06-06T00:05:00.000Z"
     });
   });
@@ -75,7 +117,8 @@ describe("workspace draft persistence", () => {
         novelText: "正文",
         yamlText: "work: {}",
         selectedSceneId: null,
-        revisionHistory: []
+        revisionHistory: [],
+        generationRuns: []
       },
       storage
     );
@@ -102,7 +145,8 @@ describe("workspace draft persistence", () => {
           novelText: "正文".repeat(1000),
           yamlText: "work: {}",
           selectedSceneId: null,
-          revisionHistory: []
+          revisionHistory: [],
+          generationRuns: []
         },
         storage
       )

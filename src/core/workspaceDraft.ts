@@ -1,6 +1,7 @@
 import type { AiSettingsStorage } from "./apiSettings";
 import type { AdaptationStyle } from "./types";
 import type { ScreenplayRevision } from "./revisionHistory";
+import type { GenerationRun, GenerationRunStage } from "./generationRun";
 
 export interface SavedWorkspaceDraft {
   title: string;
@@ -9,6 +10,7 @@ export interface SavedWorkspaceDraft {
   yamlText: string;
   selectedSceneId: string | null;
   revisionHistory: ScreenplayRevision[];
+  generationRuns: GenerationRun[];
   updatedAt: string;
 }
 
@@ -29,6 +31,7 @@ export function loadSavedWorkspaceDraft(storage: AiSettingsStorage | null): Save
       typeof parsed.yamlText !== "string" ||
       !isNullableString(parsed.selectedSceneId) ||
       !Array.isArray(parsed.revisionHistory) ||
+      (parsed.generationRuns !== undefined && !Array.isArray(parsed.generationRuns)) ||
       typeof parsed.updatedAt !== "string" ||
       Number.isNaN(Date.parse(parsed.updatedAt))
     ) {
@@ -36,6 +39,7 @@ export function loadSavedWorkspaceDraft(storage: AiSettingsStorage | null): Save
     }
 
     const revisionHistory = parsed.revisionHistory.filter(isScreenplayRevision).slice(0, 8);
+    const generationRuns = (parsed.generationRuns ?? []).filter(isGenerationRun).slice(0, 8);
 
     return {
       title: parsed.title,
@@ -44,6 +48,7 @@ export function loadSavedWorkspaceDraft(storage: AiSettingsStorage | null): Save
       yamlText: parsed.yamlText,
       selectedSceneId: parsed.selectedSceneId,
       revisionHistory,
+      generationRuns,
       updatedAt: parsed.updatedAt
     };
   } catch {
@@ -63,6 +68,7 @@ export function saveWorkspaceDraft(
       JSON.stringify({
         ...draft,
         revisionHistory: draft.revisionHistory.slice(0, 8),
+        generationRuns: draft.generationRuns.slice(0, 8),
         updatedAt: date.toISOString()
       })
     );
@@ -93,4 +99,43 @@ function isScreenplayRevision(value: unknown): value is ScreenplayRevision {
     typeof revision.yamlText === "string" &&
     typeof revision.createdAt === "string"
   );
+}
+
+function isGenerationRun(value: unknown): value is GenerationRun {
+  if (!value || typeof value !== "object") return false;
+  const run = value as Partial<GenerationRun>;
+  return (
+    typeof run.id === "string" &&
+    typeof run.title === "string" &&
+    typeof run.model === "string" &&
+    typeof run.chapterCount === "number" &&
+    isGenerationRunStatus(run.status) &&
+    typeof run.startedAt === "string" &&
+    (run.completedAt === undefined || typeof run.completedAt === "string") &&
+    (run.error === undefined || typeof run.error === "string") &&
+    Array.isArray(run.stages) &&
+    run.stages.every(isGenerationRunStage)
+  );
+}
+
+function isGenerationRunStage(value: unknown): value is GenerationRunStage {
+  if (!value || typeof value !== "object") return false;
+  const stage = value as Partial<GenerationRunStage>;
+  return (
+    typeof stage.id === "string" &&
+    typeof stage.label === "string" &&
+    isGenerationRunStageStatus(stage.status) &&
+    typeof stage.message === "string" &&
+    (stage.current === undefined || typeof stage.current === "number") &&
+    (stage.total === undefined || typeof stage.total === "number") &&
+    typeof stage.updatedAt === "string"
+  );
+}
+
+function isGenerationRunStatus(value: unknown): value is GenerationRun["status"] {
+  return value === "idle" || value === "running" || value === "completed" || value === "failed";
+}
+
+function isGenerationRunStageStatus(value: unknown): value is GenerationRunStage["status"] {
+  return value === "pending" || value === "running" || value === "done" || value === "failed";
 }

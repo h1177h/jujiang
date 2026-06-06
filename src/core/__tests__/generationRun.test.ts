@@ -3,6 +3,7 @@ import {
   completeGenerationRun,
   createGenerationRun,
   failGenerationRun,
+  pushGenerationRunHistory,
   updateGenerationRunStage
 } from "../generationRun";
 
@@ -94,5 +95,32 @@ describe("generation run tracking", () => {
       status: "done"
     });
     expect(done.stages.every((stage) => stage.status === "done")).toBe(true);
+  });
+
+  it("keeps recent generation runs without duplicating the same run", () => {
+    const first = completeGenerationRun(
+      createGenerationRun({
+        title: "雾港来信",
+        model: "gpt-4.1-mini",
+        chapterCount: 3,
+        date: new Date("2026-06-06T00:00:00.000Z")
+      }),
+      new Date("2026-06-06T00:00:05.000Z")
+    );
+    const second = failGenerationRun(
+      createGenerationRun({
+        title: "长篇测试",
+        model: "gpt-4.1",
+        chapterCount: 8,
+        date: new Date("2026-06-06T00:10:00.000Z")
+      }),
+      "AI 生成失败",
+      new Date("2026-06-06T00:10:12.000Z")
+    );
+
+    const history = pushGenerationRunHistory(pushGenerationRunHistory([first], second), first, 2);
+
+    expect(history.map((run) => run.id)).toEqual([first.id, second.id]);
+    expect(history).toHaveLength(2);
   });
 });
