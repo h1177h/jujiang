@@ -1,15 +1,12 @@
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import {
-  CheckCircle2,
-  Clipboard,
   Clock3,
-  Download,
   FileInput,
   KeyRound,
   RefreshCw,
   Sparkles,
+  TriangleAlert,
   Trash2,
-  TriangleAlert
 } from "lucide-react";
 import { parse } from "yaml";
 import {
@@ -32,13 +29,7 @@ import {
   type AiGenerationProgress
 } from "./core/aiProvider";
 import { generateWorkspaceDraft } from "./core/generationWorkflow";
-import {
-  compareRevisionToCurrent,
-  createRevision,
-  pushRevision,
-  type RevisionDiffItem,
-  type ScreenplayRevision
-} from "./core/revisionHistory";
+import { createRevision, pushRevision, type ScreenplayRevision } from "./core/revisionHistory";
 import {
   clearSavedWorkspaceDraft,
   loadSavedWorkspaceDraft,
@@ -62,11 +53,13 @@ import {
   type ScenePatch
 } from "./core/sceneEditor";
 import {
+  editorIssueFromYamlDiagnostic,
   patchTouchesEditorIssueField,
   type ActiveEditorIssue
 } from "./core/editorIssues";
 import { analyzeScreenplay, type SceneQualityIssue, type StoryAnalysis } from "./core/storyAnalysis";
 import { screenplayToYaml, validateScreenplayYaml, type ScreenplayYamlDiagnostic } from "./core/yaml";
+import { DeliveryPanel } from "./components/DeliveryPanel";
 import sampleOutputYaml from "../examples/sample-output.yaml?raw";
 
 const styles: { value: AdaptationStyle; label: string }[] = [
@@ -313,17 +306,11 @@ export default function App() {
   }
 
   function handleSelectYamlIssue(issue: ScreenplayYamlDiagnostic) {
-    if (!issue.sceneId || !issue.targetField) return;
+    const editorIssue = editorIssueFromYamlDiagnostic(issue);
+    if (!editorIssue) return;
 
-    setSelectedSceneId(issue.sceneId);
-    setActiveEditorIssue({
-      sceneId: issue.sceneId,
-      label: issue.fieldLabel,
-      detail: issue.suggestion,
-      severity: "error",
-      targetField: issue.targetField,
-      actionHint: issue.actionHint
-    });
+    setSelectedSceneId(editorIssue.sceneId);
+    setActiveEditorIssue(editorIssue);
   }
 
   function handleSaveRevision() {
@@ -634,71 +621,19 @@ export default function App() {
         </section>
 
         <aside className="delivery-rail" aria-label="交付与场景编辑">
-          <section className="panel output-panel">
-            <div className="panel-header">
-              <div>
-                <p className="section-kicker">Delivery</p>
-                <h2>YAML 交付</h2>
-              </div>
-              <div className="toolbar">
-                <button className="icon-button" type="button" onClick={handleGenerate} title="重新生成">
-                  <RefreshCw size={18} />
-                </button>
-                <button className="icon-button text-button" type="button" onClick={handleCopy} title="复制 YAML">
-                  <Clipboard size={18} />
-                  {copyLabel}
-                </button>
-                <button className="icon-button text-button" type="button" onClick={handleDownload} title="下载 YAML">
-                  <Download size={18} />
-                  下载
-                </button>
-                <button className="icon-button text-button" type="button" onClick={handleSaveRevision} title="保存当前版本">
-                  保存
-                </button>
-              </div>
-            </div>
-
-            <textarea
-              className="yaml-editor"
-              value={yamlText}
-              onChange={(event) => setYamlText(event.target.value)}
-              spellCheck={false}
-            />
-
-            <div className={validation.ok ? "validation-box ok" : "validation-box error"}>
-              {validation.ok ? <CheckCircle2 size={18} /> : <TriangleAlert size={18} />}
-              <div>
-                <strong>{validation.ok ? "Schema 校验通过" : "Schema 校验失败"}</strong>
-                {validation.ok ? (
-                  <p>当前 YAML 可复制、下载和继续改写。</p>
-                ) : validation.issues?.length ? (
-                  <ul className="validation-issue-list">
-                    {validation.issues.slice(0, 3).map((issue) => (
-                      <li key={`${issue.path}-${issue.message}`}>
-                        {issue.sceneId && issue.targetField ? (
-                          <button type="button" onClick={() => handleSelectYamlIssue(issue)}>
-                            {issue.sceneId} / {issue.fieldLabel}
-                          </button>
-                        ) : (
-                          <span>{issue.sceneId ? `${issue.sceneId} / ` : ""}{issue.fieldLabel}</span>
-                        )}
-                        <p>{issue.suggestion}</p>
-                        <small>{issue.actionHint}</small>
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p>{validation.errors.slice(0, 3).join("；")}</p>
-                )}
-              </div>
-            </div>
-
-            <RevisionHistoryPanel
-              currentYaml={yamlText}
-              history={revisionHistory}
-              onRestore={handleRestoreRevision}
-            />
-          </section>
+          <DeliveryPanel
+            copyLabel={copyLabel}
+            revisionHistory={revisionHistory}
+            validation={validation}
+            yamlText={yamlText}
+            onCopy={handleCopy}
+            onDownload={handleDownload}
+            onGenerate={handleGenerate}
+            onRestoreRevision={handleRestoreRevision}
+            onSaveRevision={handleSaveRevision}
+            onSelectYamlIssue={handleSelectYamlIssue}
+            onYamlChange={setYamlText}
+          />
 
           {selectedScene ? (
             <SceneInspector
@@ -875,82 +810,6 @@ function sceneToPatch(scene: Scene): ScenePatch {
     conflict: scene.conflict,
     revisionNotes: scene.revisionNotes
   };
-}
-
-function RevisionHistoryPanel({
-  currentYaml,
-  history,
-  onRestore
-}: {
-  currentYaml: string;
-  history: ScreenplayRevision[];
-  onRestore: (revision: ScreenplayRevision) => void;
-}) {
-  const [selectedRevisionId, setSelectedRevisionId] = useState(history[0]?.id ?? "");
-  const selectedRevision = history.find((revision) => revision.id === selectedRevisionId) ?? history[0] ?? null;
-  useEffect(() => {
-    if (history.length && !history.some((revision) => revision.id === selectedRevisionId)) {
-      setSelectedRevisionId(history[0].id);
-    }
-  }, [history, selectedRevisionId]);
-  const diff = useMemo(
-    () => (selectedRevision ? compareRevisionToCurrent(selectedRevision, currentYaml) : null),
-    [currentYaml, selectedRevision]
-  );
-  const visibleDiffItems = diff?.items.filter((item) => item.kind !== "unchanged").slice(0, 6) ?? [];
-
-  return (
-    <div className="revision-history">
-      <div className="analysis-card-head">
-        <h3>版本历史</h3>
-        <span>{history.length} 个版本</span>
-      </div>
-      <div className="revision-list">
-        {history.map((revision) => (
-          <article className={revision.id === selectedRevision?.id ? "selected" : ""} key={revision.id}>
-            <button type="button" onClick={() => setSelectedRevisionId(revision.id)}>
-              <strong>{revision.label}</strong>
-              <span>{new Date(revision.createdAt).toLocaleString()}</span>
-            </button>
-            <button className="restore-revision" type="button" onClick={() => onRestore(revision)}>
-              恢复
-            </button>
-          </article>
-        ))}
-      </div>
-      {diff ? (
-        <div className="revision-diff">
-          <div className="revision-diff-head">
-            <strong>与当前 YAML 对比</strong>
-            <span>
-              +{diff.summary.added} / -{diff.summary.removed} / 改 {diff.summary.changed}
-            </span>
-          </div>
-          {visibleDiffItems.length ? (
-            <div className="revision-diff-list">
-              {visibleDiffItems.map((item, index) => (
-                <RevisionDiffRow item={item} key={`${item.kind}-${item.lineNumber}-${index}`} />
-              ))}
-            </div>
-          ) : (
-            <p className="revision-diff-empty">当前 YAML 和这个版本没有内容差异。</p>
-          )}
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-function RevisionDiffRow({ item }: { item: RevisionDiffItem }) {
-  const label = item.kind === "added" ? "新增" : item.kind === "removed" ? "删除" : "变更";
-
-  return (
-    <div className={`revision-diff-row ${item.kind}`}>
-      <span>{label}</span>
-      <code>{item.kind === "added" ? item.after : item.kind === "removed" ? item.before : item.after}</code>
-      {item.kind === "changed" ? <small>原：{item.before}</small> : null}
-    </div>
-  );
 }
 
 function ScreenplayReview({

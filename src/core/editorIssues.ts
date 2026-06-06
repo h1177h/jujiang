@@ -19,3 +19,18 @@ export function patchTouchesEditorIssueField(
   if (targetField === "source") return false;
   return Object.prototype.hasOwnProperty.call(patch, targetField);
 }
+
+export function editorIssueFromYamlDiagnostic(
+  issue: ScreenplayYamlDiagnostic
+): ActiveEditorIssue | null {
+  if (!issue.sceneId || !issue.targetField) return null;
+
+  return {
+    sceneId: issue.sceneId,
+    label: issue.fieldLabel,
+    detail: issue.suggestion,
+    severity: "error",
+    targetField: issue.targetField,
+    actionHint: issue.actionHint
+  };
+}
