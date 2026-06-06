@@ -54,7 +54,11 @@ import {
   updateGenerationRunStage,
   type GenerationRun
 } from "./core/generationRun";
-import { sampleNovel } from "./core/sampleNovel";
+import {
+  createBlankWorkspaceState,
+  createInitialWorkspaceState,
+  hasWorkspaceContent
+} from "./core/initialWorkspace";
 import { validateScreenplay } from "./core/schema";
 import {
   parseDialogueInput,
@@ -64,8 +68,8 @@ import {
   type ScenePatch
 } from "./core/sceneEditor";
 import { analyzeScreenplay, type StoryAnalysis } from "./core/storyAnalysis";
+import { getYamlPresentationState } from "./core/workspacePresentation";
 import { screenplayToYaml, validateScreenplayYaml } from "./core/yaml";
-import sampleOutputYaml from "../examples/sample-output.yaml?raw";
 
 const styles: { value: AdaptationStyle; label: string }[] = [
   { value: "balanced", label: "均衡" },
@@ -78,10 +82,11 @@ const localProxyBaseUrl = defaultLocalProxyBaseUrl;
 export default function App() {
   const [initialAiSettings] = useState(() => loadSavedAiSettings(getBrowserStorage()));
   const [initialWorkspaceDraft] = useState(() => loadSavedWorkspaceDraft(getBrowserStorage()));
+  const [initialWorkspace] = useState(() => createInitialWorkspaceState(initialWorkspaceDraft));
   const initialProvider = findApiProviderPreset(initialAiSettings?.providerId);
-  const [novelText, setNovelText] = useState(initialWorkspaceDraft?.novelText ?? sampleNovel);
-  const [title, setTitle] = useState(initialWorkspaceDraft?.title ?? "雾港来信");
-  const [style, setStyle] = useState<AdaptationStyle>(initialWorkspaceDraft?.style ?? "cinematic");
+  const [novelText, setNovelText] = useState(initialWorkspace.novelText);
+  const [title, setTitle] = useState(initialWorkspace.title);
+  const [style, setStyle] = useState<AdaptationStyle>(initialWorkspace.style);
   const [useApi, setUseApi] = useState(initialAiSettings?.useApi ?? true);
   const useLocalProxy = true;
   const [providerId, setProviderId] = useState(initialAiSettings?.providerId ?? initialProvider.id);
@@ -101,24 +106,26 @@ export default function App() {
         ? "已载入已保存的 AI 设置"
         : "请配置 AI 后生成剧本"
   );
-  const [yamlText, setYamlText] = useState(initialWorkspaceDraft?.yamlText ?? sampleOutputYaml);
+  const [yamlText, setYamlText] = useState(initialWorkspace.yamlText);
   const [revisionHistory, setRevisionHistory] = useState<ScreenplayRevision[]>(() => [
-    ...(initialWorkspaceDraft?.revisionHistory.length
-      ? initialWorkspaceDraft.revisionHistory
-      : [createRevision("示例 YAML", sampleOutputYaml)])
+    ...initialWorkspace.revisionHistory
   ]);
   const [copyLabel, setCopyLabel] = useState("复制");
   const [selectedSceneId, setSelectedSceneId] = useState<string | null>(
-    initialWorkspaceDraft?.selectedSceneId ?? null
+    initialWorkspace.selectedSceneId
   );
   const [generationRunHistory, setGenerationRunHistory] = useState<GenerationRun[]>(
-    initialWorkspaceDraft?.generationRuns ?? []
+    initialWorkspace.generationRuns
   );
   const [generationRun, setGenerationRun] = useState<GenerationRun | null>(
-    initialWorkspaceDraft?.generationRuns[0] ?? null
+    initialWorkspace.generationRuns[0] ?? null
   );
 
   const validation = useMemo(() => validateScreenplayYaml(yamlText), [yamlText]);
+  const yamlPresentation = useMemo(
+    () => getYamlPresentationState(yamlText, validation),
+    [validation, yamlText]
+  );
   const preview = useMemo(() => {
     try {
       const parsed = parse(yamlText);
@@ -132,6 +139,7 @@ export default function App() {
     return countChapters(novelText);
   }, [novelText]);
   const sceneCount = preview?.scenes.length ?? 0;
+  const hasYamlContent = Boolean(yamlText.trim());
   const selectedScene =
     preview?.scenes.find((scene) => scene.id === selectedSceneId) ?? preview?.scenes[0] ?? null;
 
@@ -154,16 +162,20 @@ export default function App() {
   }, [apiBaseUrl, apiKey, apiModel, providerBaseUrl, providerId, rememberApiKey, selectedProvider.name, useApi, useLocalProxy]);
 
   useEffect(() => {
+    const draft = {
+      title,
+      style,
+      novelText,
+      yamlText,
+      selectedSceneId,
+      revisionHistory,
+      generationRuns: generationRunHistory
+    };
+
+    if (!hasWorkspaceContent(draft)) return;
+
     saveWorkspaceDraft(
-      {
-        title,
-        style,
-        novelText,
-        yamlText,
-        selectedSceneId,
-        revisionHistory,
-        generationRuns: generationRunHistory
-      },
+      draft,
       getBrowserStorage()
     );
   }, [generationRunHistory, novelText, revisionHistory, selectedSceneId, style, title, yamlText]);
@@ -399,16 +411,16 @@ export default function App() {
   }
 
   function handleResetWorkspace() {
-    const nextHistory = [createRevision("示例 YAML", sampleOutputYaml)];
+    const blankWorkspace = createBlankWorkspaceState();
     clearSavedWorkspaceDraft(getBrowserStorage());
-    setNovelText(sampleNovel);
-    setTitle("雾港来信");
-    setStyle("cinematic");
-    setYamlText(sampleOutputYaml);
-    setRevisionHistory(nextHistory);
-    setSelectedSceneId(null);
+    setNovelText(blankWorkspace.novelText);
+    setTitle(blankWorkspace.title);
+    setStyle(blankWorkspace.style);
+    setYamlText(blankWorkspace.yamlText);
+    setRevisionHistory(blankWorkspace.revisionHistory);
+    setSelectedSceneId(blankWorkspace.selectedSceneId);
     setGenerationRun(null);
-    setGenerationRunHistory([]);
+    setGenerationRunHistory(blankWorkspace.generationRuns);
     setGenerationStatus("已重置工作区草稿");
   }
 
@@ -440,8 +452,8 @@ export default function App() {
         <div className="status-strip">
           <span>{chapterCount} 章识别</span>
           <span>{sceneCount} 场剧本</span>
-          <span className={validation.ok ? "valid" : "invalid"}>
-            {validation.ok ? "YAML 校验通过" : "YAML 待修正"}
+          <span className={yamlPresentation.tone === "ok" ? "valid" : yamlPresentation.tone === "error" ? "invalid" : ""}>
+            {yamlPresentation.label}
           </span>
         </div>
       </header>
@@ -472,7 +484,11 @@ export default function App() {
             <div className="field-row">
               <label>
                 作品名
-                <input value={title} onChange={(event) => setTitle(event.target.value)} />
+                <input
+                  value={title}
+                  onChange={(event) => setTitle(event.target.value)}
+                  placeholder="输入作品名"
+                />
               </label>
               <label>
                 改编风格
@@ -563,6 +579,7 @@ export default function App() {
               className="novel-editor"
               value={novelText}
               onChange={(event) => setNovelText(event.target.value)}
+              placeholder="粘贴小说正文，或上传 .txt / .md 文件后生成剧本"
               spellCheck={false}
             />
 
@@ -598,15 +615,33 @@ export default function App() {
                 <button className="icon-button" type="button" onClick={handleGenerate} title="重新生成">
                   <RefreshCw size={18} />
                 </button>
-                <button className="icon-button text-button" type="button" onClick={handleCopy} title="复制 YAML">
+                <button
+                  className="icon-button text-button"
+                  type="button"
+                  onClick={handleCopy}
+                  title="复制 YAML"
+                  disabled={!hasYamlContent}
+                >
                   <Clipboard size={18} />
                   {copyLabel}
                 </button>
-                <button className="icon-button text-button" type="button" onClick={handleDownload} title="下载 YAML">
+                <button
+                  className="icon-button text-button"
+                  type="button"
+                  onClick={handleDownload}
+                  title="下载 YAML"
+                  disabled={!hasYamlContent}
+                >
                   <Download size={18} />
                   下载
                 </button>
-                <button className="icon-button text-button" type="button" onClick={handleSaveRevision} title="保存当前版本">
+                <button
+                  className="icon-button text-button"
+                  type="button"
+                  onClick={handleSaveRevision}
+                  title="保存当前版本"
+                  disabled={!hasYamlContent}
+                >
                   保存
                 </button>
               </div>
@@ -619,11 +654,17 @@ export default function App() {
               spellCheck={false}
             />
 
-            <div className={validation.ok ? "validation-box ok" : "validation-box error"}>
-              {validation.ok ? <CheckCircle2 size={18} /> : <TriangleAlert size={18} />}
+            <div className={`validation-box ${yamlPresentation.tone}`}>
+              {yamlPresentation.tone === "ok" ? (
+                <CheckCircle2 size={18} />
+              ) : yamlPresentation.tone === "idle" ? (
+                <Clock3 size={18} />
+              ) : (
+                <TriangleAlert size={18} />
+              )}
               <div>
-                <strong>{validation.ok ? "Schema 校验通过" : "Schema 校验失败"}</strong>
-                <p>{validation.ok ? "当前 YAML 可复制、下载和继续改写。" : validation.errors.slice(0, 3).join("；")}</p>
+                <strong>{yamlPresentation.title}</strong>
+                <p>{yamlPresentation.message}</p>
               </div>
             </div>
 

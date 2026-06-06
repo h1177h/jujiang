@@ -125,6 +125,11 @@ h3 {
   color: #9a3412;
 }
 
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
 .studio-shell {
   display: grid;
   gap: 26px;
@@ -730,6 +735,11 @@ select:focus,
 .validation-box.ok {
   background: #ecfdf5;
   color: #166534;
+}
+
+.validation-box.idle {
+  background: #f8fafc;
+  color: #475569;
 }
 
 .validation-box.error {
