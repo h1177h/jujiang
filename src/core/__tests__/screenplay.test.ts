@@ -5,7 +5,7 @@ import { editorIssueFromYamlDiagnostic, patchTouchesEditorIssueField } from "../
 import { sampleNovel } from "../sampleNovel";
 import { isEditorReadyScene, updateScreenplaySceneYaml } from "../sceneEditor";
 import { validateScreenplay } from "../schema";
-import { analyzeScreenplay } from "../storyAnalysis";
+import { analyzeScreenplay, formatStoryAnalysisPanelLabels } from "../storyAnalysis";
 import { validateScreenplayYaml } from "../yaml";
 import sampleOutputYaml from "../../../examples/sample-output.yaml?raw";
 
@@ -229,5 +229,10 @@ describe("screenplay schema and review helpers", () => {
     expect(analysis.qualityIssues.map((issue) => issue.label)).toEqual(
       expect.arrayContaining(["缺少对白", "人物关系弱"])
     );
+    expect(formatStoryAnalysisPanelLabels(analysis)).toEqual({
+      sourceCoverage: "100% 覆盖",
+      readyScenes: "5 场可继续打磨",
+      qualityIssues: "3 项"
+    });
   });
 });

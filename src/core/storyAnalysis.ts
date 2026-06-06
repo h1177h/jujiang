@@ -89,6 +89,18 @@ export function analyzeScreenplay(screenplay: ScreenplayYaml): StoryAnalysis {
   };
 }
 
+export function formatStoryAnalysisPanelLabels(analysis: StoryAnalysis): {
+  sourceCoverage: string;
+  readyScenes: string;
+  qualityIssues: string;
+} {
+  return {
+    sourceCoverage: `${analysis.sourceCoveragePercent}% 覆盖`,
+    readyScenes: `${analysis.readySceneCount} 场可继续打磨`,
+    qualityIssues: `${analysis.qualityIssues.length} 项`
+  };
+}
+
 function buildSceneIssues(scene: Scene): SceneQualityIssue[] {
   const issues: SceneQualityIssue[] = [];
 
