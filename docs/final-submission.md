@@ -85,7 +85,7 @@
 - PR #21 `fix(api): add provider connection diagnostics`：把本地 proxy 调整为推荐 AI 调用链路，补连接测试和 `Failed to fetch` 分层诊断。
 - PR #22 `feat(ai): add longform generation pipeline`：把 AI 生成升级为长篇逐章事件流水线，并加入 Schema 修复回合。
 - PR #23 `feat(workspace): add scene regeneration history`：补单场 AI 补强和轻量版本历史。
-- 本轮产品打磨：补工作区草稿自动保存、恢复和重置。
+- PR #24 `feat(workspace): persist local drafts`：补工作区草稿自动保存、恢复和重置。
 
 ## 已运行验证
 
