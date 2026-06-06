@@ -5,6 +5,7 @@ import {
   completeGenerationRun,
   createGenerationRun,
   failGenerationRun,
+  mergeRecoveredGenerationTasks,
   pushGenerationRunHistory,
   updateGenerationRunStage
 } from "../generationRun";
@@ -178,5 +179,77 @@ describe("generation run tracking", () => {
     expect(buildGenerationRunDiagnostic(run)).toContain("Chapters: 3");
     expect(buildGenerationRunDiagnostic(run)).toContain("Failed stage: 逐章事件");
     expect(buildGenerationRunDiagnostic(run)).toContain("Error: chapter_event_extract 阶段请求失败：HTTP 504，已重试 2 次");
+  });
+
+  it("includes local task snapshots in diagnostics", () => {
+    const run = failGenerationRun(
+      {
+        ...createGenerationRun({
+          title: "任务恢复",
+          model: "gpt-4.1-mini",
+          chapterCount: 3,
+          date: new Date("2026-06-06T00:00:00.000Z")
+        }),
+        localTasks: [
+          {
+            taskId: "task-abc",
+            requestId: "jj-abc",
+            status: "failed",
+            updatedAt: "2026-06-06T00:00:05.000Z",
+            upstreamStatus: 504,
+            message: "上游 AI 服务返回 HTTP 504"
+          }
+        ]
+      },
+      "screenplay_generate 阶段请求失败：HTTP 504",
+      new Date("2026-06-06T00:00:06.000Z")
+    );
+
+    const diagnostic = buildGenerationRunDiagnostic(run);
+
+    expect(diagnostic).toContain("Local tasks:");
+    expect(diagnostic).toContain("task-abc / jj-abc / failed / HTTP 504 / 上游 AI 服务返回 HTTP 504");
+  });
+
+  it("merges recovered local task status back into saved generation runs", () => {
+    const run = {
+      ...createGenerationRun({
+        title: "恢复测试",
+        model: "gpt-4.1-mini",
+        chapterCount: 3,
+        date: new Date("2026-06-06T00:00:00.000Z")
+      }),
+      localTasks: [
+        {
+          taskId: "task-recover",
+          requestId: "jj-recover",
+          status: "running" as const,
+          updatedAt: "2026-06-06T00:00:03.000Z"
+        }
+      ]
+    };
+
+    const [recovered] = mergeRecoveredGenerationTasks(
+      [run],
+      [
+        {
+          taskId: "task-recover",
+          requestId: "jj-recover",
+          status: "failed",
+          upstreamStatus: 504,
+          message: "上游 AI 服务返回 HTTP 504",
+          updatedAt: "2026-06-06T00:00:10.000Z"
+        }
+      ],
+      new Date("2026-06-06T00:00:11.000Z")
+    );
+
+    expect(recovered.status).toBe("failed");
+    expect(recovered.error).toBe("本地生成任务恢复失败：上游 AI 服务返回 HTTP 504");
+    expect(recovered.localTasks?.[0]).toMatchObject({
+      taskId: "task-recover",
+      status: "failed",
+      upstreamStatus: 504
+    });
   });
 });

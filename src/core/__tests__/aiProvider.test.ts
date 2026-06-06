@@ -224,6 +224,118 @@ describe("AI provider", () => {
     expect(fetchMock.mock.calls[3][0]).toBe("http://127.0.0.1:18787/v1/generation-tasks/task-screenplay");
   });
 
+  it("reports local task snapshots while polling generation tasks", async () => {
+    const validation = validateScreenplay(parse(sampleOutputYaml));
+    expect(validation.success).toBe(true);
+    if (!validation.success) return;
+    const shortNovel = [
+      "第一章 雾港",
+      "沈知夏收到匿名信。",
+      "第二章 旧账",
+      "林砚发现账册被调包。"
+    ].join("\n");
+
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 202,
+        json: async () => ({
+          task: {
+            id: "task-blueprint",
+            requestId: "jj-blueprint",
+            status: "queued",
+            createdAt: "2026-06-06T00:00:00.000Z",
+            updatedAt: "2026-06-06T00:00:00.000Z"
+          }
+        })
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          task: {
+            id: "task-blueprint",
+            requestId: "jj-blueprint",
+            status: "completed",
+            response: {
+              choices: [
+                {
+                  message: {
+                    content: JSON.stringify({
+                      chapterEvents: validation.data.chapterEvents,
+                      storyBible: validation.data.storyBible,
+                      adaptationStrategy: validation.data.adaptationStrategy
+                    })
+                  }
+                }
+              ]
+            }
+          }
+        })
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 202,
+        json: async () => ({
+          task: {
+            id: "task-screenplay",
+            requestId: "jj-screenplay",
+            status: "queued",
+            createdAt: "2026-06-06T00:00:01.000Z",
+            updatedAt: "2026-06-06T00:00:01.000Z"
+          }
+        })
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          task: {
+            id: "task-screenplay",
+            requestId: "jj-screenplay",
+            status: "completed",
+            response: {
+              choices: [
+                {
+                  message: {
+                    content: JSON.stringify(validation.data)
+                  }
+                }
+              ]
+            }
+          }
+        })
+      });
+    vi.stubGlobal("fetch", fetchMock);
+    const taskUpdates: Array<{ taskId: string; requestId?: string; status: string }> = [];
+
+    await generateScreenplayWithApi(
+      {
+        baseUrl: "http://127.0.0.1:18787/v1",
+        apiKey: "test-key",
+        model: "test-model",
+        useGenerationTasks: true,
+        taskPollIntervalMs: 0
+      },
+      {
+        title: "雾港来信",
+        style: "cinematic",
+        novelText: shortNovel,
+        onTaskUpdate: (task) => taskUpdates.push(task)
+      }
+    );
+
+    expect(taskUpdates).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ taskId: "task-blueprint", requestId: "jj-blueprint", status: "queued" }),
+        expect.objectContaining({ taskId: "task-blueprint", requestId: "jj-blueprint", status: "completed" }),
+        expect.objectContaining({ taskId: "task-screenplay", requestId: "jj-screenplay", status: "queued" }),
+        expect.objectContaining({ taskId: "task-screenplay", requestId: "jj-screenplay", status: "completed" })
+      ])
+    );
+  });
+
   it("cancels the active generation task when the request is aborted", async () => {
     const controller = new AbortController();
     const shortNovel = [

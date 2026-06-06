@@ -114,7 +114,23 @@ function isGenerationRun(value: unknown): value is GenerationRun {
     (run.completedAt === undefined || typeof run.completedAt === "string") &&
     (run.error === undefined || typeof run.error === "string") &&
     Array.isArray(run.stages) &&
-    run.stages.every(isGenerationRunStage)
+    run.stages.every(isGenerationRunStage) &&
+    (run.localTasks === undefined || (Array.isArray(run.localTasks) && run.localTasks.every(isGenerationRunTask)))
+  );
+}
+
+function isGenerationRunTask(value: unknown): boolean {
+  if (!value || typeof value !== "object") return false;
+  const task = value as Record<string, unknown>;
+  return (
+    typeof task.taskId === "string" &&
+    (task.requestId === undefined || typeof task.requestId === "string") &&
+    isGenerationRunTaskStatus(task.status) &&
+    (task.targetBaseUrl === undefined || typeof task.targetBaseUrl === "string") &&
+    (task.createdAt === undefined || typeof task.createdAt === "string") &&
+    (task.updatedAt === undefined || typeof task.updatedAt === "string") &&
+    (task.upstreamStatus === undefined || typeof task.upstreamStatus === "number") &&
+    (task.message === undefined || typeof task.message === "string")
   );
 }
 
@@ -133,9 +149,25 @@ function isGenerationRunStage(value: unknown): value is GenerationRunStage {
 }
 
 function isGenerationRunStatus(value: unknown): value is GenerationRun["status"] {
-  return value === "idle" || value === "running" || value === "completed" || value === "failed";
+  return (
+    value === "idle" ||
+    value === "running" ||
+    value === "completed" ||
+    value === "failed" ||
+    value === "cancelled"
+  );
 }
 
 function isGenerationRunStageStatus(value: unknown): value is GenerationRunStage["status"] {
   return value === "pending" || value === "running" || value === "done" || value === "failed";
+}
+
+function isGenerationRunTaskStatus(value: unknown): boolean {
+  return (
+    value === "queued" ||
+    value === "running" ||
+    value === "completed" ||
+    value === "failed" ||
+    value === "cancelled"
+  );
 }

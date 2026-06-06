@@ -46,6 +46,16 @@ describe("workspace draft persistence", () => {
             startedAt: "2026-06-06T00:03:00.000Z",
             completedAt: "2026-06-06T00:03:12.000Z",
             error: "AI 生成失败",
+            localTasks: [
+              {
+                taskId: "task-run-1",
+                requestId: "jj-run-1",
+                status: "failed",
+                upstreamStatus: 504,
+                message: "上游 AI 服务返回 HTTP 504",
+                updatedAt: "2026-06-06T00:03:11.000Z"
+              }
+            ],
             stages: [
               {
                 id: "connection_check",
@@ -86,6 +96,16 @@ describe("workspace draft persistence", () => {
             startedAt: "2026-06-06T00:03:00.000Z",
             completedAt: "2026-06-06T00:03:12.000Z",
             error: "AI 生成失败",
+            localTasks: [
+              {
+                taskId: "task-run-1",
+                requestId: "jj-run-1",
+                status: "failed",
+                upstreamStatus: 504,
+                message: "上游 AI 服务返回 HTTP 504",
+                updatedAt: "2026-06-06T00:03:11.000Z"
+              }
+            ],
             stages: [
               {
                 id: "connection_check",

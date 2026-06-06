@@ -33,6 +33,7 @@ import { buildGenerationInputPlan, type GenerationInputPlan } from "./core/gener
 import type { AdaptationStyle, Scene, ScreenplayYaml } from "./core/types";
 import {
   generateScreenplayWithApi,
+  listLocalGenerationTasks,
   regenerateSceneWithApi,
   type AiGenerationProgress
 } from "./core/aiProvider";
@@ -56,7 +57,9 @@ import {
   createGenerationRun,
   failGenerationRun,
   markGenerationRunConnection,
+  mergeRecoveredGenerationTasks,
   pushGenerationRunHistory,
+  updateGenerationRunTask,
   updateGenerationRunStage,
   type GenerationRun
 } from "./core/generationRun";
@@ -125,6 +128,7 @@ export default function App() {
     initialWorkspaceDraft?.generationRuns[0] ?? null
   );
   const generationAbortRef = useRef<AbortController | null>(null);
+  const didRecoverGenerationTasksRef = useRef(false);
 
   const validation = useMemo(() => validateScreenplayYaml(yamlText), [yamlText]);
   const preview = useMemo(() => {
@@ -191,6 +195,37 @@ export default function App() {
     if (!generationRun) return;
     setGenerationRunHistory((current) => pushGenerationRunHistory(current, generationRun));
   }, [generationRun]);
+
+  useEffect(() => {
+    if (
+      didRecoverGenerationTasksRef.current ||
+      !useLocalProxy ||
+      !generationRunHistory.some((run) => run.localTasks?.length)
+    ) {
+      return;
+    }
+
+    let cancelled = false;
+    didRecoverGenerationTasksRef.current = true;
+    const requestBaseUrl = resolveAiRequestBaseUrl(apiBaseUrl, useLocalProxy);
+
+    listLocalGenerationTasks(requestBaseUrl)
+      .then((tasks) => {
+        if (cancelled || tasks.length === 0) return;
+        setGenerationRunHistory((current) => mergeRecoveredGenerationTasks(current, tasks));
+        setGenerationRun((current) => (current ? mergeRecoveredGenerationTasks([current], tasks)[0] : current));
+        setGenerationStatus("已恢复本地生成任务状态");
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setGenerationStatus("应用内 AI 服务暂时不可恢复生成任务状态");
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [apiBaseUrl, generationRunHistory, useLocalProxy]);
 
   async function handleGenerate() {
     generationAbortRef.current?.abort();
@@ -266,6 +301,25 @@ export default function App() {
               }
               setGenerationStatus(formatAiProgress(event, apiModel));
               setGenerationRun((current) => (current?.id === run.id ? updateGenerationRunStage(current, event) : current));
+            },
+            onTaskUpdate: (task) => {
+              if (generationAbortRef.current !== abortController) {
+                return;
+              }
+              setGenerationRun((current) =>
+                current?.id === run.id
+                  ? updateGenerationRunTask(current, {
+                      taskId: task.taskId,
+                      requestId: task.requestId,
+                      status: task.status,
+                      targetBaseUrl: task.targetBaseUrl,
+                      createdAt: task.createdAt,
+                      updatedAt: task.updatedAt,
+                      upstreamStatus: task.upstreamStatus,
+                      message: task.message
+                    })
+                  : current
+              );
             }
           }
         )
@@ -925,6 +979,25 @@ function GenerationRunPanel({
           </div>
         ))}
       </div>
+      {activeRun.localTasks?.length ? (
+        <div className="generation-local-tasks">
+          <div className="generation-history-head">
+            <strong>本地任务</strong>
+            <span>{activeRun.localTasks.length} 条</span>
+          </div>
+          {activeRun.localTasks.slice(0, 4).map((task) => (
+            <div className={`local-task ${task.status}`} key={task.taskId}>
+              <span>{formatTaskStatus(task.status)}</span>
+              <strong>{task.taskId}</strong>
+              <p>
+                {task.requestId || "无 request id"}
+                {task.upstreamStatus ? ` · HTTP ${task.upstreamStatus}` : ""}
+                {task.message ? ` · ${task.message}` : ""}
+              </p>
+            </div>
+          ))}
+        </div>
+      ) : null}
       {activeRun.error ? (
         <p className="generation-error">
           <TriangleAlert size={14} />
@@ -1066,6 +1139,14 @@ function RevisionDiffRow({ item }: { item: RevisionDiffItem }) {
       {item.kind === "changed" ? <small>原：{item.before}</small> : null}
     </div>
   );
+}
+
+function formatTaskStatus(status: NonNullable<GenerationRun["localTasks"]>[number]["status"]): string {
+  if (status === "completed") return "完成";
+  if (status === "failed") return "失败";
+  if (status === "cancelled") return "取消";
+  if (status === "running") return "运行";
+  return "等待";
 }
 
 function ScreenplayReview({
