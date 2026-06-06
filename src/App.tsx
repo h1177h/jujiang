@@ -20,7 +20,7 @@ import {
 import { diagnoseAiConnection } from "./core/apiConnection";
 import { countChapters } from "./core/chapters";
 import type { AdaptationStyle, Scene, ScreenplayYaml } from "./core/types";
-import { generateScreenplayWithApi } from "./core/aiProvider";
+import { generateScreenplayWithApi, type AiGenerationProgress } from "./core/aiProvider";
 import { generateWorkspaceDraft } from "./core/generationWorkflow";
 import { sampleNovel } from "./core/sampleNovel";
 import { validateScreenplay } from "./core/schema";
@@ -135,7 +135,8 @@ export default function App() {
           {
             title,
             style,
-            novelText
+            novelText,
+            onProgress: (event) => setGenerationStatus(formatAiProgress(event, apiModel))
           }
         )
     );
@@ -430,6 +431,22 @@ export default function App() {
       </section>
     </main>
   );
+}
+
+function formatAiProgress(event: AiGenerationProgress, model: string): string {
+  if (event.stage === "chapter_event_extract") {
+    return `正在用 ${model} 抽取章节事件：${event.current}/${event.total}`;
+  }
+
+  if (event.stage === "story_bible_generate") {
+    return `正在用 ${model} 合并故事圣经和改编策略`;
+  }
+
+  if (event.stage === "schema_repair") {
+    return `正在用 ${model} 修复剧本结构`;
+  }
+
+  return `${event.message}：${model}`;
 }
 
 function ScreenplayReview({

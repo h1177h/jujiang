@@ -36,7 +36,9 @@
 - API 设置可选择记住在本机浏览器，减少本地反复调试时的输入成本。
 - 本地 API proxy 是推荐调用链路，可使用页面提供的 key，也可从环境变量读取 key，避免浏览器直连 provider 时被 CORS 或系统代理拦截。
 - 生成前提供连接测试，能区分 proxy 未启动、proxy 未读到 key 和浏览器直连失败。
-- 可操作创新点：两阶段 AI 改编、章节事件图谱、场景级工作台编辑、章节到场景映射、冲突曲线、质量检查、角色关系摘要、原文追溯、改编风格选择、节奏统计。
+- 长篇小说会逐章抽取事件，再合并故事圣经和改编策略，避免把整篇小说直接塞进一次 prompt。
+- API 返回结构不完整时，会触发一次 Schema 修复回合，把校验错误反馈给模型修正。
+- 可操作创新点：长篇逐章事件抽取、故事圣经合并、Schema 修复回合、章节事件图谱、场景级工作台编辑、章节到场景映射、冲突曲线、质量检查、角色关系摘要、原文追溯、改编风格选择、节奏统计。
 
 40% 开发过程与质量：
 
@@ -75,12 +77,13 @@
 - PR #18 `fix(parser): align chapter recognition with generation`：修正章节识别与生成上下文不一致。
 - PR #19 `feat(api): add staged story generation`：加入章节事件图谱、故事圣经和两阶段 AI 改编。
 - PR #20 `feat(api): persist provider settings`：本机浏览器记住 API 设置。
-- 本轮产品打磨：把本地 proxy 调整为推荐 AI 调用链路，补连接测试和 `Failed to fetch` 分层诊断。
+- PR #21 `fix(api): add provider connection diagnostics`：把本地 proxy 调整为推荐 AI 调用链路，补连接测试和 `Failed to fetch` 分层诊断。
+- 本轮产品打磨：把 AI 生成升级为长篇逐章事件流水线，并加入 Schema 修复回合。
 
 ## 已运行验证
 
 - `npm audit`：found 0 vulnerabilities。
-- `npm test`：6 个测试文件、28 个测试用例通过。
+- `npm test`：6 个测试文件、30 个测试用例通过。
 - `npm run build`：通过。
 - proxy health check：`http://127.0.0.1:8787/health` 返回 `ok:true`，可显示 target 和 key 加载状态。
 - 本地浏览器 QA：1440px 和 390px 视口检查过，场景编辑器、故事分析区和 YAML 区没有横向溢出。
@@ -91,5 +94,6 @@
 - 自动生成质量依赖真实 AI provider；当前没有离线剧情生成能力。
 - 本地 proxy 可读取环境变量 key，也可使用页面填写并保存在本机浏览器的 key；公开演示或共享电脑上建议使用环境变量。
 - 浏览器直连 provider 仍可能被 CORS 或网络策略拦截，正式演示建议使用本地 proxy。
-- 当前已支持一章多场和场景级内容编辑，但复杂小说仍需要作者继续调整分场边界。
+- 当前已支持长篇逐章事件抽取，但复杂小说仍需要作者继续调整分场边界。
+- 局部重生成、版本对比和撤回还没有完成，是下一轮最值得补的成熟产品能力。
 - 角色抽取已经为示例做了回归，但面对更复杂小说仍可能需要 AI 或更强 NLP 补充。

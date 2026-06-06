@@ -176,4 +176,183 @@ describe("AI provider", () => {
       text: "夜色压在雾港的石桥上，林砚抱着旧皮箱，听见钟楼敲过十下。"
     });
   });
+
+  it("extracts long novels chapter by chapter before generating the screenplay", async () => {
+    const validation = validateScreenplay(parse(sampleOutputYaml));
+    expect(validation.success).toBe(true);
+    if (!validation.success) return;
+
+    const longNovel = [
+      "第一章 起风",
+      "林砚发现码头起风。",
+      "第二章 账册",
+      "沈知夏拿到账册。",
+      "第三章 黑伞",
+      "黑伞男人跟踪他们。",
+      "第四章 钟楼",
+      "众人进入钟楼。",
+      "第五章 第十一声",
+      "第十一声钟即将响起。"
+    ].join("\n");
+
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      json: async () => {
+        const callIndex = fetchMock.mock.calls.length;
+        if (callIndex <= 5) {
+          return {
+            choices: [
+              {
+                message: {
+                  content: JSON.stringify({
+                    chapterEvents: [validation.data.chapterEvents[Math.min(callIndex - 1, 2)]]
+                  })
+                }
+              }
+            ]
+          };
+        }
+
+        if (callIndex === 6) {
+          return {
+            choices: [
+              {
+                message: {
+                  content: JSON.stringify({
+                    chapterEvents: validation.data.chapterEvents,
+                    storyBible: validation.data.storyBible,
+                    adaptationStrategy: validation.data.adaptationStrategy
+                  })
+                }
+              }
+            ]
+          };
+        }
+
+        return {
+          choices: [
+            {
+              message: {
+                content: JSON.stringify({
+                  ...validation.data,
+                  work: {
+                    ...validation.data.work,
+                    sourceChapterCount: 5
+                  }
+                })
+              }
+            }
+          ]
+        };
+      }
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+    const progress: string[] = [];
+
+    const result = await generateScreenplayWithApi(
+      {
+        baseUrl: "https://api.example.com",
+        apiKey: "test-key",
+        model: "test-model"
+      },
+      {
+        title: "长篇测试",
+        style: "cinematic",
+        novelText: longNovel,
+        onProgress: (event) => progress.push(event.stage)
+      }
+    );
+
+    expect(result.work.sourceChapterCount).toBe(5);
+    expect(fetchMock).toHaveBeenCalledTimes(7);
+    expect(progress).toEqual(
+      expect.arrayContaining(["chapter_event_extract", "story_bible_generate", "screenplay_generate"])
+    );
+
+    const firstBody = JSON.parse(String(((fetchMock.mock.calls[0] as unknown as [string, RequestInit])[1]).body));
+    const firstPayload = JSON.parse(firstBody.messages[1].content);
+    expect(firstPayload.pipelineStage).toBe("chapter_event_extract");
+    expect(firstPayload.sourceChapter.chapterIndex).toBe(1);
+    expect(firstPayload.sourceChapters).toBeUndefined();
+
+    const finalBody = JSON.parse(String(((fetchMock.mock.calls[6] as unknown as [string, RequestInit])[1]).body));
+    const finalPayload = JSON.parse(finalBody.messages[1].content);
+    expect(finalPayload.pipelineStage).toBe("screenplay_generate");
+    expect(finalPayload.sourceChapters).toHaveLength(5);
+    expect(finalPayload.sourceChapters[0].paragraphs).toBeUndefined();
+  });
+
+  it("asks the model to repair screenplay JSON when schema validation fails", async () => {
+    const validation = validateScreenplay(parse(sampleOutputYaml));
+    expect(validation.success).toBe(true);
+    if (!validation.success) return;
+
+    const invalidScreenplay = {
+      ...validation.data,
+      scenes: []
+    };
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          choices: [
+            {
+              message: {
+                content: JSON.stringify({
+                  chapterEvents: validation.data.chapterEvents,
+                  storyBible: validation.data.storyBible,
+                  adaptationStrategy: validation.data.adaptationStrategy
+                })
+              }
+            }
+          ]
+        })
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          choices: [
+            {
+              message: {
+                content: JSON.stringify(invalidScreenplay)
+              }
+            }
+          ]
+        })
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          choices: [
+            {
+              message: {
+                content: JSON.stringify(validation.data)
+              }
+            }
+          ]
+        })
+      });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await generateScreenplayWithApi(
+      {
+        baseUrl: "https://api.example.com",
+        apiKey: "test-key",
+        model: "test-model"
+      },
+      {
+        title: "雾港来信",
+        style: "cinematic",
+        novelText: sampleNovel
+      }
+    );
+
+    expect(result.scenes).toHaveLength(6);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    const repairBody = JSON.parse(String((fetchMock.mock.calls[2][1] as RequestInit).body));
+    const repairPayload = JSON.parse(repairBody.messages[1].content);
+    expect(repairPayload.pipelineStage).toBe("schema_repair");
+    expect(repairPayload.validationIssues.join("\n")).toContain("scenes");
+  });
 });
