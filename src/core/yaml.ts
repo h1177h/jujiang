@@ -9,6 +9,8 @@ export interface ScreenplayYamlDiagnostic {
   fieldLabel: string;
   severity: "error";
   suggestion: string;
+  targetField?: "goal" | "characters" | "dialogue" | "conflict" | "source" | "revisionNotes";
+  actionHint: string;
   sceneId?: string;
 }
 
@@ -39,6 +41,8 @@ export function validateScreenplayYaml(yamlText: string): {
         fieldLabel: labelSchemaPath(path),
         severity: "error" as const,
         suggestion: suggestSchemaFix(path),
+        targetField: targetFieldForSchemaPath(path),
+        actionHint: actionHintForSchemaPath(path),
         sceneId: findSceneIdForPath(parsed, issue.path)
       };
     });
@@ -60,11 +64,47 @@ export function validateScreenplayYaml(yamlText: string): {
           message: error instanceof Error ? error.message : "YAML 解析失败",
           fieldLabel: "YAML 格式",
           severity: "error",
-          suggestion: "检查缩进、冒号和列表符号，先让 YAML 能被解析。"
+          suggestion: "检查缩进、冒号和列表符号，先让 YAML 能被解析。",
+          actionHint: "先修复 YAML 文本格式，解析通过后才能定位到具体场景字段。"
         }
       ]
     };
   }
+}
+
+function targetFieldForSchemaPath(
+  path: string
+): ScreenplayYamlDiagnostic["targetField"] {
+  if (/^scenes\.\d+\.goal$/.test(path)) return "goal";
+  if (/^scenes\.\d+\.source/.test(path)) return "source";
+  if (/^scenes\.\d+\.dialogue/.test(path)) return "dialogue";
+  if (/^scenes\.\d+\.characters/.test(path)) return "characters";
+  if (/^scenes\.\d+\.conflict/.test(path)) return "conflict";
+  if (/^scenes\.\d+\.revisionNotes/.test(path)) return "revisionNotes";
+  return undefined;
+}
+
+function actionHintForSchemaPath(path: string): string {
+  const targetField = targetFieldForSchemaPath(path);
+  if (targetField === "goal") {
+    return "在场景编辑器中补齐场景目标后会同步回 YAML。";
+  }
+  if (targetField === "source") {
+    return "核对原文依据区；如果摘录缺失，需要用真实 AI 重新生成或手动修正 YAML 来源字段。";
+  }
+  if (targetField === "dialogue") {
+    return "打开对应场景的对白区，检查对白数组结构和每句台词的必填字段。";
+  }
+  if (targetField === "characters") {
+    return "打开对应场景的出场人物区，补齐至少一个人物名称。";
+  }
+  if (targetField === "conflict") {
+    return "打开对应场景的冲突区，补齐冲突等级和冲突说明。";
+  }
+  if (targetField === "revisionNotes") {
+    return "打开对应场景的修订建议区，补齐下一轮打磨方向。";
+  }
+  return "按 Schema 补齐该字段；如果不是场景级字段，请直接在 YAML 中修正。";
 }
 
 function labelSchemaPath(path: string): string {
