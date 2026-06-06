@@ -100,6 +100,7 @@
 - PR #33 `fix(ai): add resilient staged generation`：强化分阶段生成、长文策略和 Schema 修复诊断。
 - PR #34 `feat(ai): add task generation runtime`：新增本地生成任务运行时，支持创建、轮询、取消和诊断保留。
 - PR #35 `feat(ai): add longform generation planner`：补生成计划预估和长章节分片抽取，降低超长单章触发 504 的概率。
+- PR #36 `feat(ai): recover generation task state`：补本地任务列表、任务快照持久化、刷新恢复和可复制诊断。
 
 ## 已运行验证
 
