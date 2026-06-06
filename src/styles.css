@@ -336,6 +336,28 @@ select:focus,
   flex: 0 0 auto;
 }
 
+.remember-row {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+}
+
+.ghost-action {
+  background: transparent;
+  border: 0;
+  color: #2563eb;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 850;
+  min-height: 32px;
+  padding: 0 6px;
+}
+
+.ghost-action:hover {
+  color: #1d4ed8;
+}
+
 .status-note.strong {
   color: #1d4ed8;
   font-weight: 800;

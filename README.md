@@ -15,7 +15,7 @@
 - 提供可编辑 YAML 区域，编辑后实时 Schema 校验。
 - 支持复制和下载 YAML。
 - 内置多章示例小说《雾港来信》和示例 YAML，无 API key 也能演示编辑、校验、复制和下载。
-- 可填写 Base URL、API Key 和 Model，调用兼容 `/v1/chat/completions` 的模型生成剧本。
+- 可填写 Base URL、API Key 和 Model，调用兼容 `/v1/chat/completions` 的模型生成剧本；前端直连模式可勾选“记住 API Key”，保存到本机浏览器。
 - 可选本地 API proxy：API key 放在环境变量里，前端只请求 `http://127.0.0.1:8787/v1`。
 - 创新点：两阶段 AI 改编、章节事件图谱、场景级工作台编辑、章节到场景映射、冲突曲线、质量检查、角色关系摘要、原文追溯、改编风格选择、节奏统计、改编计划。
 
@@ -52,6 +52,8 @@ npm run proxy
 
 `JUJIANG_NETWORK_PROXY` 优先级高于 `HTTPS_PROXY` / `HTTP_PROXY`。然后在页面里勾选“AI 生成”和“本地 proxy”。前端会请求 `http://127.0.0.1:8787/v1/chat/completions`，真实 key 不会填进浏览器表单。
 
+如果使用前端直连模式，可以在页面勾选“记住 API Key”。剧匠会把 Base URL、Model 和 API Key 写入本机浏览器的 `localStorage`，下次打开同一浏览器会自动带出；也可以随时点击“清除”删除保存的设置。公开演示或共享电脑上建议使用本地 proxy。
+
 ## 验证命令
 
 ```bash
@@ -63,7 +65,7 @@ npm run build
 当前已验证结果：
 
 - `npm audit`：found 0 vulnerabilities。
-- `npm test`：4 个测试文件、17 个测试用例通过。
+- `npm test`：5 个测试文件、20 个测试用例通过。
 - `npm run build`：TypeScript 检查和 Vite 生产构建通过。
 
 ## 架构
@@ -73,6 +75,7 @@ src/
   App.tsx                  # 工作台 UI
   core/
     chapters.ts            # 章节识别与文本清洗
+    apiSettings.ts         # 浏览器端 AI 设置持久化
     schema.ts              # Zod Schema 校验
     sceneEditor.ts         # 场景编辑与 YAML 同步
     storyAnalysis.ts       # 章节映射、冲突曲线和质量检查

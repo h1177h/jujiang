@@ -1,4 +1,4 @@
-import { useMemo, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import {
   CheckCircle2,
   Clipboard,
@@ -11,6 +11,12 @@ import {
   TriangleAlert
 } from "lucide-react";
 import { parse } from "yaml";
+import {
+  clearSavedAiSettings,
+  getBrowserStorage,
+  loadSavedAiSettings,
+  saveAiSettings
+} from "./core/apiSettings";
 import { countChapters } from "./core/chapters";
 import type { AdaptationStyle, Scene, ScreenplayYaml } from "./core/types";
 import { generateScreenplayWithApi } from "./core/aiProvider";
@@ -38,15 +44,21 @@ const directApiBaseUrl = "https://api.openai.com/v1";
 const localProxyBaseUrl = "http://127.0.0.1:8787/v1";
 
 export default function App() {
+  const [initialAiSettings] = useState(() => loadSavedAiSettings(getBrowserStorage()));
   const [novelText, setNovelText] = useState(sampleNovel);
   const [title, setTitle] = useState("雾港来信");
   const [style, setStyle] = useState<AdaptationStyle>("cinematic");
-  const [useApi, setUseApi] = useState(false);
-  const [useLocalProxy, setUseLocalProxy] = useState(false);
-  const [apiBaseUrl, setApiBaseUrl] = useState(directApiBaseUrl);
-  const [apiModel, setApiModel] = useState("gpt-4.1-mini");
-  const [apiKey, setApiKey] = useState("");
-  const [generationStatus, setGenerationStatus] = useState("请配置 AI 后生成剧本");
+  const [useApi, setUseApi] = useState(initialAiSettings?.useApi ?? false);
+  const [useLocalProxy, setUseLocalProxy] = useState(initialAiSettings?.useLocalProxy ?? false);
+  const [apiBaseUrl, setApiBaseUrl] = useState(initialAiSettings?.baseUrl ?? directApiBaseUrl);
+  const [apiModel, setApiModel] = useState(initialAiSettings?.model ?? "gpt-4.1-mini");
+  const [apiKey, setApiKey] = useState(initialAiSettings?.apiKey ?? "");
+  const [rememberApiKey, setRememberApiKey] = useState(
+    Boolean(initialAiSettings?.apiKey && !initialAiSettings.useLocalProxy)
+  );
+  const [generationStatus, setGenerationStatus] = useState(
+    initialAiSettings ? "已载入已保存的 AI 设置" : "请配置 AI 后生成剧本"
+  );
   const [yamlText, setYamlText] = useState(sampleOutputYaml);
   const [copyLabel, setCopyLabel] = useState("复制");
   const [selectedSceneId, setSelectedSceneId] = useState<string | null>(null);
@@ -67,6 +79,21 @@ export default function App() {
   const sceneCount = preview?.scenes.length ?? 0;
   const selectedScene =
     preview?.scenes.find((scene) => scene.id === selectedSceneId) ?? preview?.scenes[0] ?? null;
+
+  useEffect(() => {
+    if (!rememberApiKey || useLocalProxy || !apiKey.trim()) return;
+
+    saveAiSettings(
+      {
+        useApi,
+        useLocalProxy,
+        baseUrl: apiBaseUrl,
+        model: apiModel,
+        apiKey: apiKey.trim()
+      },
+      getBrowserStorage()
+    );
+  }, [apiBaseUrl, apiKey, apiModel, rememberApiKey, useApi, useLocalProxy]);
 
   async function handleGenerate() {
     const apiKeyForRequest = useLocalProxy ? "proxy-managed-key" : apiKey.trim();
@@ -150,6 +177,36 @@ export default function App() {
     }
   }
 
+  function handleRememberApiKey(checked: boolean) {
+    setRememberApiKey(checked);
+    if (!checked) {
+      clearSavedAiSettings(getBrowserStorage());
+      setGenerationStatus("已清除浏览器保存的 API 设置");
+      return;
+    }
+
+    if (apiKey.trim() && !useLocalProxy) {
+      saveAiSettings(
+        {
+          useApi,
+          useLocalProxy,
+          baseUrl: apiBaseUrl,
+          model: apiModel,
+          apiKey: apiKey.trim()
+        },
+        getBrowserStorage()
+      );
+      setGenerationStatus("已在本机浏览器记住 API 设置");
+    }
+  }
+
+  function handleClearSavedAiSettings() {
+    clearSavedAiSettings(getBrowserStorage());
+    setRememberApiKey(false);
+    setApiKey("");
+    setGenerationStatus("已清除浏览器保存的 API 设置");
+  }
+
   return (
     <main className="app-shell">
       <header className="topbar">
@@ -231,14 +288,28 @@ export default function App() {
                     value={apiKey}
                     onChange={(event) => setApiKey(event.target.value)}
                     disabled={useLocalProxy}
-                    placeholder={useLocalProxy ? "由本地 proxy 从环境变量读取" : "只保存在当前浏览器页面状态"}
+                    placeholder={useLocalProxy ? "由本地 proxy 从环境变量读取" : "可选择记住在本机浏览器"}
                   />
                 </div>
               </label>
+              <div className="remember-row">
+                <label className="toggle-line">
+                  <input
+                    type="checkbox"
+                    checked={rememberApiKey}
+                    disabled={useLocalProxy}
+                    onChange={(event) => handleRememberApiKey(event.target.checked)}
+                  />
+                  <span>记住 API Key</span>
+                </label>
+                <button className="ghost-action" type="button" onClick={handleClearSavedAiSettings}>
+                  清除
+                </button>
+              </div>
               <p className="status-note">
                 {useLocalProxy
                   ? "本地 proxy 需先运行 npm run proxy，并设置 JUJIANG_API_KEY 或 OPENAI_API_KEY。"
-                  : "前端直连适合本地 demo；公开部署时建议使用本地 proxy 或后端代理。"}
+                  : "勾选记住后，Base URL、Model 和 API Key 会保存在本机浏览器。"}
               </p>
               <p className="status-note strong">{generationStatus}</p>
             </div>
