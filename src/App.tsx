@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import {
   CheckCircle2,
   Clipboard,
+  Clock3,
   Download,
   FileInput,
   KeyRound,
@@ -33,6 +34,14 @@ import {
   loadSavedWorkspaceDraft,
   saveWorkspaceDraft
 } from "./core/workspaceDraft";
+import {
+  completeGenerationRun,
+  createGenerationRun,
+  failGenerationRun,
+  markGenerationRunConnection,
+  updateGenerationRunStage,
+  type GenerationRun
+} from "./core/generationRun";
 import { sampleNovel } from "./core/sampleNovel";
 import { validateScreenplay } from "./core/schema";
 import {
@@ -84,6 +93,7 @@ export default function App() {
   const [selectedSceneId, setSelectedSceneId] = useState<string | null>(
     initialWorkspaceDraft?.selectedSceneId ?? null
   );
+  const [generationRun, setGenerationRun] = useState<GenerationRun | null>(null);
 
   const validation = useMemo(() => validateScreenplayYaml(yamlText), [yamlText]);
   const preview = useMemo(() => {
@@ -134,6 +144,12 @@ export default function App() {
   async function handleGenerate() {
     const apiKeyForRequest = apiKey.trim();
     const apiReady = useLocalProxy ? true : Boolean(apiKeyForRequest);
+    const run = createGenerationRun({
+      title,
+      model: apiModel,
+      chapterCount
+    });
+    setGenerationRun(run);
     setGenerationStatus(useApi && apiReady ? `正在调用 ${apiModel}...` : "等待 AI 配置...");
 
     if (useApi && apiReady) {
@@ -145,12 +161,16 @@ export default function App() {
 
       if (!connection.ok) {
         setGenerationStatus(connection.message);
+        setGenerationRun((current) => (current ? failGenerationRun(current, connection.message) : current));
         return;
       }
 
       if (useLocalProxy) {
         setGenerationStatus(`${connection.message}，正在调用 ${apiModel}...`);
       }
+      setGenerationRun((current) =>
+        current ? markGenerationRunConnection(current, connection.message) : current
+      );
     }
 
     const result = await generateWorkspaceDraft(
@@ -173,7 +193,10 @@ export default function App() {
             title,
             style,
             novelText,
-            onProgress: (event) => setGenerationStatus(formatAiProgress(event, apiModel))
+            onProgress: (event) => {
+              setGenerationStatus(formatAiProgress(event, apiModel));
+              setGenerationRun((current) => (current ? updateGenerationRunStage(current, event) : current));
+            }
           }
         )
     );
@@ -183,6 +206,9 @@ export default function App() {
       setYamlText(nextYaml);
       setRevisionHistory((current) => pushRevision(current, createRevision("AI 生成", nextYaml)));
       setSelectedSceneId(result.screenplay.scenes[0]?.id ?? null);
+      setGenerationRun((current) => (current ? completeGenerationRun(current) : current));
+    } else {
+      setGenerationRun((current) => (current ? failGenerationRun(current, result.status) : current));
     }
     setGenerationStatus(result.status);
   }
@@ -481,6 +507,7 @@ export default function App() {
                   : "前端直连可能被浏览器或服务商 CORS 拦截，仅建议临时调试。"}
               </p>
               <p className="status-note strong">{generationStatus}</p>
+              <GenerationRunPanel run={generationRun} />
             </div>
 
             <textarea
@@ -586,6 +613,60 @@ function formatAiProgress(event: AiGenerationProgress, model: string): string {
   }
 
   return `${event.message}：${model}`;
+}
+
+function GenerationRunPanel({ run }: { run: GenerationRun | null }) {
+  if (!run) return null;
+
+  const statusLabel =
+    run.status === "completed" ? "已完成" : run.status === "failed" ? "需要处理" : "进行中";
+  const elapsedSeconds = Math.max(
+    0,
+    Math.round(
+      ((run.completedAt ? new Date(run.completedAt).getTime() : Date.now()) -
+        new Date(run.startedAt).getTime()) /
+        1000
+    )
+  );
+
+  return (
+    <div className={`generation-run ${run.status}`}>
+      <div className="generation-run-head">
+        <div>
+          <strong>生成任务</strong>
+          <span>
+            {run.model} · {run.chapterCount} 章 · {elapsedSeconds}s
+          </span>
+        </div>
+        <em>{statusLabel}</em>
+      </div>
+      <div className="generation-stages">
+        {run.stages.map((stage) => (
+          <div className={`generation-stage ${stage.status}`} key={stage.id}>
+            <span className="stage-dot" />
+            <div>
+              <strong>{stage.label}</strong>
+              <p>
+                {stage.message}
+                {stage.total ? ` · ${stage.current ?? 0}/${stage.total}` : ""}
+              </p>
+            </div>
+          </div>
+        ))}
+      </div>
+      {run.error ? (
+        <p className="generation-error">
+          <TriangleAlert size={14} />
+          {run.error}
+        </p>
+      ) : (
+        <p className="generation-meta">
+          <Clock3 size={14} />
+          阶段记录会保留本次调用路径，便于判断卡在连接、事件抽取、结构修复还是 YAML 写入。
+        </p>
+      )}
+    </div>
+  );
 }
 
 function sceneToPatch(scene: Scene): ScenePatch {
