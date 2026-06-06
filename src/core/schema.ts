@@ -9,6 +9,52 @@ export const sourceLocatorSchema = z.object({
   excerpt: z.string().min(1)
 });
 
+export const storyBlueprintSchema = z.object({
+  chapterEvents: z
+    .array(
+      z.object({
+        chapterIndex: z.number().int().positive(),
+        chapterTitle: z.string().min(1),
+        chapterGoal: z.string().min(1),
+        events: z
+          .array(
+            z.object({
+              id: z.string().min(1),
+              summary: z.string().min(1),
+              characters: z.array(z.string()).min(1),
+              location: z.string().min(1),
+              conflict: z.string().min(1),
+              emotionalTurn: z.string().min(1),
+              source: sourceLocatorSchema
+            })
+          )
+          .min(1)
+      })
+    )
+    .min(1),
+  storyBible: z.object({
+    worldview: z.string().min(1),
+    coreConflict: z.string().min(1),
+    timeline: z.array(z.string()).min(1),
+    characterArcs: z
+      .array(
+        z.object({
+          character: z.string().min(1),
+          arc: z.string().min(1),
+          firstEventId: z.string().min(1),
+          lastEventId: z.string().min(1)
+        })
+      )
+      .min(1)
+  }),
+  adaptationStrategy: z.object({
+    format: z.string().min(1),
+    pacing: z.string().min(1),
+    sceneRules: z.array(z.string()).min(1),
+    riskControls: z.array(z.string()).min(1)
+  })
+});
+
 export const screenplaySchema = z.object({
   work: z.object({
     title: z.string().min(1),
@@ -36,6 +82,9 @@ export const screenplaySchema = z.object({
       })
     )
     .min(1),
+  chapterEvents: storyBlueprintSchema.shape.chapterEvents,
+  storyBible: storyBlueprintSchema.shape.storyBible,
+  adaptationStrategy: storyBlueprintSchema.shape.adaptationStrategy,
   chapterMappings: z
     .array(
       z.object({
@@ -104,7 +153,12 @@ export const screenplaySchema = z.object({
 });
 
 export type ScreenplaySchema = z.infer<typeof screenplaySchema>;
+export type StoryBlueprintSchema = z.infer<typeof storyBlueprintSchema>;
 
 export function validateScreenplay(value: unknown) {
   return screenplaySchema.safeParse(value);
+}
+
+export function validateStoryBlueprint(value: unknown) {
+  return storyBlueprintSchema.safeParse(value);
 }

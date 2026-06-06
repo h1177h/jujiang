@@ -46,6 +46,151 @@ characters:
       - 制造关系张力
     firstSeenChapter: 2
     relationshipSummary: 与沈知夏形成行动或情绪上的牵引关系。
+chapterEvents:
+  - chapterIndex: 1
+    chapterTitle: 迟到的渡船
+    chapterGoal: 建立林砚回到雾港后的危险处境，并抛出父亲来信的悬念。
+    events:
+      - id: event-01-01
+        summary: 林砚带着旧皮箱在迟到的渡船后回到雾港，沈知夏警告他不该回来。
+        characters:
+          - 林砚
+          - 沈知夏
+        location: 雾港石桥
+        conflict: 林砚想追查父亲来信，沈知夏试图阻止他进入危险。
+        emotionalTurn: 从久别重逢转为被迫面对旧案。
+        source:
+          chapterIndex: 1
+          chapterTitle: 迟到的渡船
+          paragraphIndexes:
+            - 1
+            - 2
+          lineStart: 3
+          lineEnd: 8
+          excerpt: 夜色压在雾港的石桥上，林砚抱着旧皮箱，听见钟楼敲过十下。沈知夏从灯下走来，低声说：“你不该回来。”
+      - id: event-01-02
+        summary: 黑伞男人出现，林砚追问父亲的信是谁寄出，半枚烧毁印章把旧案推到台前。
+        characters:
+          - 林砚
+          - 黑伞男人
+        location: 雾港码头
+        conflict: 林砚逼问信件来源，黑伞男人和烧毁印章暗示有人掩盖真相。
+        emotionalTurn: 从疑问变成明确追查。
+        source:
+          chapterIndex: 1
+          chapterTitle: 迟到的渡船
+          paragraphIndexes:
+            - 3
+            - 4
+          lineStart: 3
+          lineEnd: 8
+          excerpt: 林砚看着她身后的黑伞男人，问：“我父亲的信，到底是谁寄出的？”风把码头的告示吹落，露出被火烧过的半枚印章。
+  - chapterIndex: 2
+    chapterTitle: 被撕掉的账册
+    chapterGoal: 把旧案证据具体化为账册缺页，并让追查进入被围堵的行动场。
+    events:
+      - id: event-02-01
+        summary: 许掌柜交出账册，沈知夏发现失火当天对应的三页被撕掉。
+        characters:
+          - 许掌柜
+          - 沈知夏
+        location: 茶楼二层
+        conflict: 账册缺页说明关键证据被人提前抹去。
+        emotionalTurn: 从线索确认转为证据被毁的焦虑。
+        source:
+          chapterIndex: 2
+          chapterTitle: 被撕掉的账册
+          paragraphIndexes:
+            - 1
+            - 2
+          lineStart: 9
+          lineEnd: 14
+          excerpt: 清晨，茶楼二层只剩一盏冷灯。许掌柜把账册推到桌边，手指微微发抖。沈知夏说：“账册少了三页，少的正是码头失火那天。”
+      - id: event-02-02
+        summary: 黑伞男人闯入威胁众人，林砚夺账册跃窗逃走，巡丁围住街面。
+        characters:
+          - 黑伞男人
+          - 林砚
+        location: 茶楼与街面
+        conflict: 追查者刚拿到线索就被灭口式围堵。
+        emotionalTurn: 从调查转为逃亡。
+        source:
+          chapterIndex: 2
+          chapterTitle: 被撕掉的账册
+          paragraphIndexes:
+            - 3
+            - 4
+          lineStart: 9
+          lineEnd: 14
+          excerpt: 黑伞男人忽然推门而入，笑道：“有些秘密，知道的人越少越好。”林砚夺过账册，从窗边翻身跃下，街上的巡丁已经围了过来。
+  - chapterIndex: 3
+    chapterTitle: 雾中的钟声
+    chapterGoal: 让第十一声钟成为倒计时危机，并把人物推向正面对抗。
+    events:
+      - id: event-03-01
+        summary: 林砚在锁死的钟楼齿轮间找到父亲留下的暗格和“别相信第十一声钟”的警告。
+        characters:
+          - 林砚
+        location: 钟楼
+        conflict: 真相藏在钟声机关里，但时间和空间都被锁死。
+        emotionalTurn: 从追查线索变成意识到倒计时危险。
+        source:
+          chapterIndex: 3
+          chapterTitle: 雾中的钟声
+          paragraphIndexes:
+            - 1
+            - 2
+          lineStart: 15
+          lineEnd: 19
+          excerpt: 大雾重新漫上河面，钟楼的门被人从里面锁死。林砚在齿轮间找到父亲留下的暗格，里面只有一句话：别相信第十一声钟。
+      - id: event-03-02
+        summary: 沈知夏指出钟声响完会埋掉证据，黑伞男人拔刀堵住楼梯口。
+        characters:
+          - 沈知夏
+          - 黑伞男人
+        location: 钟楼楼梯
+        conflict: 证据即将被毁，黑伞男人以武力阻止他们阻断钟声。
+        emotionalTurn: 从揭开警告转为正面对抗。
+        source:
+          chapterIndex: 3
+          chapterTitle: 雾中的钟声
+          paragraphIndexes:
+            - 3
+            - 4
+          lineStart: 15
+          lineEnd: 19
+          excerpt: 沈知夏举起火把，声音发紧：“如果钟声响完，整座码头都会成为证据的坟场。”第十一声钟响起前，黑伞男人拔刀拦在楼梯口。
+storyBible:
+  worldview: 雾港是一座被旧码头火灾阴影笼罩的港口城镇，账册、印章和钟楼机关共同封存着旧案。
+  coreConflict: 林砚追查父亲来信和码头失火真相，黑伞男人代表的势力不断销毁证据并阻止第十一声钟前的行动。
+  timeline:
+    - 夜晚，林砚回到雾港并被沈知夏警告。
+    - 清晨，账册缺页暴露码头失火当天的证据被人处理。
+    - 大雾中，钟楼倒计时把证据毁灭风险推到最高点。
+  characterArcs:
+    - character: 林砚
+      arc: 从被动回乡取信，转为主动夺取账册并冲向钟楼真相。
+      firstEventId: event-01-01
+      lastEventId: event-03-01
+    - character: 沈知夏
+      arc: 从阻止林砚回来，转为和他一起面对钟声危机。
+      firstEventId: event-01-01
+      lastEventId: event-03-02
+    - character: 黑伞男人
+      arc: 从暗处监视，升级为闯入威胁和持刀阻拦。
+      firstEventId: event-01-02
+      lastEventId: event-03-02
+adaptationStrategy:
+  format: 悬疑短剧分场剧本
+  pacing: 每章保留 2 个关键事件，前场铺线索，后场给动作或钩子。
+  sceneRules:
+    - 每场必须绑定至少一个 chapterEvents 事件。
+    - 当地点、人物目标或冲突压力变化时才开新场。
+    - 场尾优先保留问题、动作或倒计时钩子。
+  riskControls:
+    - 不新增与父亲来信无关的支线。
+    - 黑伞男人的动机先保持悬疑，不提前解释。
+    - source.excerpt 必须来自原文，避免改编偏离原作。
 chapterMappings:
   - chapterIndex: 1
     novelTitle: 迟到的渡船

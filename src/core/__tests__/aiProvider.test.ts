@@ -62,6 +62,70 @@ describe("AI provider", () => {
     );
   });
 
+  it("extracts a story blueprint before asking for final screenplay YAML", async () => {
+    const validation = validateScreenplay(parse(sampleOutputYaml));
+    expect(validation.success).toBe(true);
+    if (!validation.success) return;
+
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          choices: [
+            {
+              message: {
+                content: JSON.stringify({
+                  chapterEvents: validation.data.chapterEvents,
+                  storyBible: validation.data.storyBible,
+                  adaptationStrategy: validation.data.adaptationStrategy
+                })
+              }
+            }
+          ]
+        })
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          choices: [
+            {
+              message: {
+                content: JSON.stringify(validation.data)
+              }
+            }
+          ]
+        })
+      });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await generateScreenplayWithApi(
+      {
+        baseUrl: "https://api.example.com",
+        apiKey: "test-key",
+        model: "test-model"
+      },
+      {
+        title: "雾港来信",
+        style: "cinematic",
+        novelText: sampleNovel
+      }
+    );
+
+    expect(result.chapterEvents).toHaveLength(3);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    const firstBody = JSON.parse(String((fetchMock.mock.calls[0][1] as RequestInit).body));
+    const firstPayload = JSON.parse(firstBody.messages[1].content);
+    expect(firstPayload.pipelineStage).toBe("event_extract");
+    expect(firstPayload.sourceChapters).toHaveLength(3);
+
+    const secondBody = JSON.parse(String((fetchMock.mock.calls[1][1] as RequestInit).body));
+    const secondPayload = JSON.parse(secondBody.messages[1].content);
+    expect(secondPayload.pipelineStage).toBe("screenplay_generate");
+    expect(secondPayload.storyBlueprint.chapterEvents[0].events[0].id).toBe("event-01-01");
+  });
+
   it("sends structured chapter context instead of an undifferentiated novel blob", async () => {
     const validation = validateScreenplay(parse(sampleOutputYaml));
     expect(validation.success).toBe(true);

@@ -68,6 +68,15 @@ describe("screenplay schema and review helpers", () => {
     expect(validation.data.work.sourceChapterCount).toBe(3);
     expect(screenplay.work.sourceChapterCount).toBe(3);
     expect(screenplay.characters.length).toBeGreaterThan(0);
+    expect(validation.data.chapterEvents).toHaveLength(3);
+    expect(validation.data.chapterEvents[0].events[0]).toEqual(
+      expect.objectContaining({
+        id: "event-01-01",
+        summary: expect.stringContaining("渡船")
+      })
+    );
+    expect(validation.data.storyBible.coreConflict).toContain("信");
+    expect(validation.data.adaptationStrategy.sceneRules.length).toBeGreaterThan(0);
     expect(screenplay.chapterMappings).toHaveLength(3);
     expect(screenplay.scenes).toHaveLength(6);
     expect(screenplay.rhythmStats.sceneCount).toBe(6);
@@ -125,6 +134,11 @@ describe("screenplay schema and review helpers", () => {
     const analysis = analyzeScreenplay(screenplay);
 
     expect(analysis.sourceCoveragePercent).toBe(100);
+    expect(analysis.eventCoverage).toEqual([
+      { chapterIndex: 1, eventCount: 2, label: "2 个事件" },
+      { chapterIndex: 2, eventCount: 2, label: "2 个事件" },
+      { chapterIndex: 3, eventCount: 2, label: "2 个事件" }
+    ]);
     expect(analysis.chapterCoverage).toHaveLength(3);
     expect(analysis.chapterCoverage[0].sceneIds).toEqual(["scene-01", "scene-02"]);
     expect(analysis.conflictCurve.map((point) => point.sceneId)).toEqual(

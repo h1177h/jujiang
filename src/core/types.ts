@@ -28,6 +28,48 @@ export interface CharacterProfile {
   relationshipSummary: string;
 }
 
+export interface ChapterEvent {
+  id: string;
+  summary: string;
+  characters: string[];
+  location: string;
+  conflict: string;
+  emotionalTurn: string;
+  source: SourceLocator;
+}
+
+export interface ChapterEventGroup {
+  chapterIndex: number;
+  chapterTitle: string;
+  chapterGoal: string;
+  events: ChapterEvent[];
+}
+
+export interface StoryBible {
+  worldview: string;
+  coreConflict: string;
+  timeline: string[];
+  characterArcs: Array<{
+    character: string;
+    arc: string;
+    firstEventId: string;
+    lastEventId: string;
+  }>;
+}
+
+export interface AdaptationStrategyBrief {
+  format: string;
+  pacing: string;
+  sceneRules: string[];
+  riskControls: string[];
+}
+
+export interface StoryBlueprint {
+  chapterEvents: ChapterEventGroup[];
+  storyBible: StoryBible;
+  adaptationStrategy: AdaptationStrategyBrief;
+}
+
 export interface DialogueBeat {
   speaker: string;
   line: string;
@@ -83,6 +125,9 @@ export interface ScreenplayYaml {
     nextRevisionFocus: string[];
   };
   characters: CharacterProfile[];
+  chapterEvents: ChapterEventGroup[];
+  storyBible: StoryBible;
+  adaptationStrategy: AdaptationStrategyBrief;
   chapterMappings: ChapterMapping[];
   scenes: Scene[];
   rhythmStats: {
