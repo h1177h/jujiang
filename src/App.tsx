@@ -8,9 +8,11 @@ import {
   KeyRound,
   PencilLine,
   RefreshCw,
+  Settings2,
   Sparkles,
   Trash2,
-  TriangleAlert
+  TriangleAlert,
+  X
 } from "lucide-react";
 import { parse } from "yaml";
 import {
@@ -19,6 +21,7 @@ import {
   loadSavedAiSettings,
   saveAiSettings
 } from "./core/apiSettings";
+import { createAiSettingsSummary } from "./core/apiSettingsPresentation";
 import {
   defaultLocalProxyBaseUrl,
   diagnoseAiConnection,
@@ -94,6 +97,7 @@ export default function App() {
   const [apiModel, setApiModel] = useState(initialAiSettings?.model ?? initialProvider.defaultModel);
   const [apiKey, setApiKey] = useState(initialAiSettings?.apiKey ?? "");
   const [rememberApiKey, setRememberApiKey] = useState(initialAiSettings ? Boolean(initialAiSettings.apiKey) : true);
+  const [isAiSettingsOpen, setIsAiSettingsOpen] = useState(false);
   const [generationStatus, setGenerationStatus] = useState(
     initialWorkspaceDraft
       ? "已载入本机工作区草稿"
@@ -132,6 +136,16 @@ export default function App() {
     return countChapters(novelText);
   }, [novelText]);
   const sceneCount = preview?.scenes.length ?? 0;
+  const aiSettingsSummary = useMemo(
+    () =>
+      createAiSettingsSummary({
+        useApi,
+        providerName: selectedProvider.name,
+        model: apiModel,
+        hasApiKey: Boolean(apiKey.trim())
+      }),
+    [apiKey, apiModel, selectedProvider.name, useApi]
+  );
   const selectedScene =
     preview?.scenes.find((scene) => scene.id === selectedSceneId) ?? preview?.scenes[0] ?? null;
 
@@ -486,78 +500,24 @@ export default function App() {
               </label>
             </div>
 
-            <div className="api-box">
-              <div className="switch-row">
-                <label className="toggle-line">
-                  <input type="checkbox" checked={useApi} onChange={(event) => setUseApi(event.target.checked)} />
-                  <span>AI 生成</span>
-                </label>
+            <div className="ai-summary-card">
+              <div>
                 <span className="connection-pill">应用内 AI 服务</span>
+                <strong>{aiSettingsSummary.title}</strong>
+                <p>{aiSettingsSummary.status} · {generationStatus}</p>
               </div>
-              <div className="api-grid">
-                <label>
-                  Provider
-                  <select value={providerId} onChange={(event) => handleProviderChange(event.target.value)}>
-                    {apiProviderPresets.map((provider) => (
-                      <option key={provider.id} value={provider.id}>
-                        {provider.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  Base URL
-                  <input value={providerBaseUrl} onChange={(event) => setProviderBaseUrl(event.target.value)} />
-                </label>
-                <label>
-                  Model
-                  <input list="api-model-presets" value={apiModel} onChange={(event) => setApiModel(event.target.value)} />
-                  <datalist id="api-model-presets">
-                    {selectedProvider.models.map((model) => (
-                      <option key={model} value={model} />
-                    ))}
-                  </datalist>
-                </label>
-              </div>
-              <label>
-                API Key
-                <div className="secret-field">
-                  <KeyRound size={16} />
-                  <input
-                    type="password"
-                    value={apiKey}
-                    onChange={(event) => setApiKey(event.target.value)}
-                    placeholder="输入一次后可记住在本机浏览器"
-                  />
-                </div>
-              </label>
-              <div className="remember-row">
-                <label className="toggle-line">
-                  <input
-                    type="checkbox"
-                    checked={rememberApiKey}
-                    onChange={(event) => handleRememberApiKey(event.target.checked)}
-                  />
-                  <span>记住 API Key</span>
-                </label>
-                <button className="ghost-action" type="button" onClick={handleClearSavedAiSettings}>
-                  清除
-                </button>
-              </div>
-              <button className="secondary-action" type="button" onClick={handleCheckConnection}>
-                测试连接
+              <button className="secondary-action compact" type="button" onClick={() => setIsAiSettingsOpen(true)}>
+                <Settings2 size={16} />
+                AI 设置
               </button>
-              <p className="status-note">
-                推荐用 npm run dev:app 启动完整应用。页面会把当前 provider 配置交给应用内 AI 服务，不需要单独配置上游环境变量。
-              </p>
-              <p className="status-note strong">{generationStatus}</p>
-              <GenerationRunPanel
-                run={generationRun}
-                history={generationRunHistory}
-                onRetry={handleGenerate}
-                onSelectRun={setGenerationRun}
-              />
             </div>
+
+            <GenerationRunPanel
+              run={generationRun}
+              history={generationRunHistory}
+              onRetry={handleGenerate}
+              onSelectRun={setGenerationRun}
+            />
 
             <textarea
               className="novel-editor"
@@ -572,6 +532,27 @@ export default function App() {
             </button>
           </section>
         </aside>
+        {isAiSettingsOpen ? (
+          <AiSettingsPanel
+            apiKey={apiKey}
+            apiModel={apiModel}
+            generationStatus={generationStatus}
+            providerBaseUrl={providerBaseUrl}
+            providerId={providerId}
+            rememberApiKey={rememberApiKey}
+            selectedProvider={selectedProvider}
+            useApi={useApi}
+            onApiKeyChange={setApiKey}
+            onCheckConnection={handleCheckConnection}
+            onClearSavedAiSettings={handleClearSavedAiSettings}
+            onClose={() => setIsAiSettingsOpen(false)}
+            onProviderBaseUrlChange={setProviderBaseUrl}
+            onProviderChange={handleProviderChange}
+            onRememberApiKeyChange={handleRememberApiKey}
+            onModelChange={setApiModel}
+            onUseApiChange={setUseApi}
+          />
+        ) : null}
 
         <section className="review-stage" aria-label="审稿工作区">
           <section className="product-flow" aria-label="创作流程">
@@ -649,6 +630,127 @@ export default function App() {
         </aside>
       </section>
     </main>
+  );
+}
+
+interface AiSettingsPanelProps {
+  apiKey: string;
+  apiModel: string;
+  generationStatus: string;
+  providerBaseUrl: string;
+  providerId: string;
+  rememberApiKey: boolean;
+  selectedProvider: ReturnType<typeof findApiProviderPreset>;
+  useApi: boolean;
+  onApiKeyChange: (value: string) => void;
+  onCheckConnection: () => void;
+  onClearSavedAiSettings: () => void;
+  onClose: () => void;
+  onModelChange: (value: string) => void;
+  onProviderBaseUrlChange: (value: string) => void;
+  onProviderChange: (value: string) => void;
+  onRememberApiKeyChange: (checked: boolean) => void;
+  onUseApiChange: (checked: boolean) => void;
+}
+
+function AiSettingsPanel({
+  apiKey,
+  apiModel,
+  generationStatus,
+  providerBaseUrl,
+  providerId,
+  rememberApiKey,
+  selectedProvider,
+  useApi,
+  onApiKeyChange,
+  onCheckConnection,
+  onClearSavedAiSettings,
+  onClose,
+  onModelChange,
+  onProviderBaseUrlChange,
+  onProviderChange,
+  onRememberApiKeyChange,
+  onUseApiChange
+}: AiSettingsPanelProps) {
+  return (
+    <div className="settings-overlay" role="presentation">
+      <button className="settings-scrim" type="button" aria-label="关闭 AI 设置" onClick={onClose} />
+      <section className="settings-panel" aria-label="AI 设置">
+        <div className="settings-panel-head">
+          <div>
+            <p className="section-kicker">AI Settings</p>
+            <h2>AI 设置</h2>
+          </div>
+          <button className="icon-button" type="button" onClick={onClose} title="关闭">
+            <X size={18} />
+          </button>
+        </div>
+
+        <label className="toggle-line">
+          <input type="checkbox" checked={useApi} onChange={(event) => onUseApiChange(event.target.checked)} />
+          <span>启用 AI 生成</span>
+        </label>
+
+        <div className="api-grid">
+          <label>
+            Provider
+            <select value={providerId} onChange={(event) => onProviderChange(event.target.value)}>
+              {apiProviderPresets.map((provider) => (
+                <option key={provider.id} value={provider.id}>
+                  {provider.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Base URL
+            <input value={providerBaseUrl} onChange={(event) => onProviderBaseUrlChange(event.target.value)} />
+          </label>
+          <label>
+            Model
+            <input list="api-model-presets" value={apiModel} onChange={(event) => onModelChange(event.target.value)} />
+            <datalist id="api-model-presets">
+              {selectedProvider.models.map((model) => (
+                <option key={model} value={model} />
+              ))}
+            </datalist>
+          </label>
+        </div>
+
+        <label>
+          API Key
+          <div className="secret-field">
+            <KeyRound size={16} />
+            <input
+              type="password"
+              value={apiKey}
+              onChange={(event) => onApiKeyChange(event.target.value)}
+              placeholder="输入一次后可记住在本机浏览器"
+            />
+          </div>
+        </label>
+
+        <div className="remember-row">
+          <label className="toggle-line">
+            <input
+              type="checkbox"
+              checked={rememberApiKey}
+              onChange={(event) => onRememberApiKeyChange(event.target.checked)}
+            />
+            <span>记住 API Key</span>
+          </label>
+          <button className="ghost-action" type="button" onClick={onClearSavedAiSettings}>
+            清除保存
+          </button>
+        </div>
+
+        <button className="secondary-action" type="button" onClick={onCheckConnection}>
+          测试连接
+        </button>
+
+        <p className="status-note strong">{generationStatus}</p>
+      </section>
+    </div>
   );
 }
 
