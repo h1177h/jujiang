@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1",
+    "dev:app": "node scripts/dev-app.mjs",
     "build": "tsc --noEmit && vite build",
     "proxy": "node scripts/api-proxy.mjs",
     "preview": "vite preview --host 127.0.0.1",
