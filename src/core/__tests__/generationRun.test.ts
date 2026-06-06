@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildGenerationRunDiagnostic,
+  cancelGenerationRun,
   completeGenerationRun,
   createGenerationRun,
   failGenerationRun,
@@ -71,6 +72,32 @@ describe("generation run tracking", () => {
     expect(failed.error).toBe("API 生成失败");
     expect(failed.completedAt).toBe("2026-06-06T00:00:05.000Z");
     expect(failed.stages.find((stage) => stage.id === "screenplay_generate")?.status).toBe("failed");
+  });
+
+  it("marks cancellation on the active stage without treating it as provider failure", () => {
+    const run = updateGenerationRunStage(
+      createGenerationRun({
+        title: "雾港来信",
+        model: "gpt-4.1-mini",
+        chapterCount: 3,
+        date: new Date("2026-06-06T00:00:00.000Z")
+      }),
+      {
+        stage: "chapter_event_extract",
+        message: "正在抽取第 1 章事件",
+        current: 1,
+        total: 3,
+        date: new Date("2026-06-06T00:00:03.000Z")
+      }
+    );
+
+    const cancelled = cancelGenerationRun(run, new Date("2026-06-06T00:00:04.000Z"));
+
+    expect(cancelled.status).toBe("cancelled");
+    expect(cancelled.error).toBe("生成任务已取消");
+    expect(cancelled.completedAt).toBe("2026-06-06T00:00:04.000Z");
+    expect(cancelled.stages.find((stage) => stage.id === "chapter_event_extract")?.status).toBe("failed");
+    expect(cancelled.stages.find((stage) => stage.id === "chapter_event_extract")?.message).toBe("生成任务已取消");
   });
 
   it("completes the run and marks all stages done", () => {

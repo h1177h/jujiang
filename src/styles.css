@@ -531,6 +531,11 @@ select:focus,
   color: #9a3412;
 }
 
+.generation-run.cancelled .generation-run-head em {
+  background: #f1f5f9;
+  color: #475569;
+}
+
 .generation-stages {
   display: grid;
   gap: 8px;

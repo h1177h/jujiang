@@ -12,6 +12,8 @@ export interface AiProviderSettings {
   providerBaseUrl?: string;
   apiKey: string;
   model: string;
+  useGenerationTasks?: boolean;
+  taskPollIntervalMs?: number;
 }
 
 export interface AiGenerationOptions {
@@ -52,6 +54,25 @@ interface ChatCompletionResponse {
   error?: {
     message?: string;
   };
+}
+
+interface GenerationTaskPayload {
+  task?: {
+    id: string;
+    status: "queued" | "running" | "completed" | "failed" | "cancelled";
+    response?: ChatCompletionResponse;
+    error?: {
+      message?: string;
+      upstreamStatus?: number;
+    };
+  };
+  error?: string;
+}
+
+interface ChatCompletionAttempt {
+  ok: boolean;
+  status: number;
+  payload: ChatCompletionResponse;
 }
 
 export async function generateScreenplayWithApi(
@@ -247,19 +268,14 @@ async function requestChatCompletion(
   let lastErrorMessage = "";
 
   for (let attempt = 1; attempt <= maxTransientAttempts; attempt++) {
-    let response: Response;
+    let completionAttempt: ChatCompletionAttempt;
     try {
-      response = await fetch(`${baseUrl}/chat/completions`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...buildAiGatewayHeaders(settings.apiKey, settings.providerBaseUrl)
-        },
-        body,
-        signal: request.signal
-      });
+      completionAttempt = await requestChatCompletionAttempt(settings, baseUrl, body, request.signal);
     } catch (error) {
       const message = classifyFetchFailure(error, baseUrl);
+      if (message.includes("生成任务已取消")) {
+        throw new Error("生成任务已取消");
+      }
       if (attempt < maxTransientAttempts && isTransientNetworkMessage(message)) {
         lastErrorMessage = message;
         continue;
@@ -267,16 +283,16 @@ async function requestChatCompletion(
       throw new Error(formatAiStageError(request.stage, message, attempt, Date.now() - startedAt, body.length));
     }
 
-    const payload = (await response.json().catch(() => ({}))) as ChatCompletionResponse;
-    if (!response.ok) {
-      const message = payload.error?.message || `HTTP ${response.status}`;
-      if (attempt < maxTransientAttempts && transientHttpStatuses.has(response.status)) {
+    if (!completionAttempt.ok) {
+      const message = completionAttempt.payload.error?.message || `HTTP ${completionAttempt.status}`;
+      if (attempt < maxTransientAttempts && transientHttpStatuses.has(completionAttempt.status)) {
         lastErrorMessage = message;
         continue;
       }
       throw new Error(formatAiStageError(request.stage, message, attempt, Date.now() - startedAt, body.length));
     }
 
+    const payload = completionAttempt.payload;
     const content = payload.choices?.[0]?.message?.content;
     if (!content) {
       throw new Error(
@@ -296,6 +312,125 @@ async function requestChatCompletion(
       body.length
     )
   );
+}
+
+async function requestChatCompletionAttempt(
+  settings: AiProviderSettings,
+  baseUrl: string,
+  body: string,
+  signal?: AbortSignal
+): Promise<ChatCompletionAttempt> {
+  if (settings.useGenerationTasks) {
+    return requestChatCompletionTask(settings, baseUrl, body, signal);
+  }
+
+  const response = await fetch(`${baseUrl}/chat/completions`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...buildAiGatewayHeaders(settings.apiKey, settings.providerBaseUrl)
+    },
+    body,
+    signal
+  });
+  const payload = (await response.json().catch(() => ({}))) as ChatCompletionResponse;
+
+  return {
+    ok: response.ok,
+    status: response.status,
+    payload
+  };
+}
+
+async function requestChatCompletionTask(
+  settings: AiProviderSettings,
+  baseUrl: string,
+  body: string,
+  signal?: AbortSignal
+): Promise<ChatCompletionAttempt> {
+  const createResponse = await fetch(`${baseUrl}/generation-tasks`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...buildAiGatewayHeaders(settings.apiKey, settings.providerBaseUrl)
+    },
+    body,
+    signal
+  });
+  const created = (await createResponse.json().catch(() => ({}))) as GenerationTaskPayload;
+  if (!createResponse.ok || !created.task?.id) {
+    return {
+      ok: false,
+      status: createResponse.status,
+      payload: {
+        error: {
+          message: created.error || `HTTP ${createResponse.status}`
+        }
+      }
+    };
+  }
+
+  try {
+    while (true) {
+      if (signal?.aborted) {
+        await cancelGenerationTask(baseUrl, created.task.id).catch(() => undefined);
+        throw new Error("生成任务已取消");
+      }
+
+      const taskResponse = await fetch(`${baseUrl}/generation-tasks/${created.task.id}`, { signal });
+      const payload = (await taskResponse.json().catch(() => ({}))) as GenerationTaskPayload;
+      const task = payload.task;
+      if (!taskResponse.ok || !task) {
+        return {
+          ok: false,
+          status: taskResponse.status,
+          payload: {
+            error: {
+              message: payload.error || `HTTP ${taskResponse.status}`
+            }
+          }
+        };
+      }
+
+      if (task.status === "completed") {
+        return {
+          ok: true,
+          status: 200,
+          payload: task.response || {}
+        };
+      }
+
+      if (task.status === "failed" || task.status === "cancelled") {
+        return {
+          ok: false,
+          status: task.error?.upstreamStatus || (task.status === "cancelled" ? 499 : 500),
+          payload: {
+            error: {
+              message: task.error?.message || (task.status === "cancelled" ? "生成任务已取消" : "生成任务失败")
+            }
+          }
+        };
+      }
+
+      await wait(settings.taskPollIntervalMs ?? 800);
+    }
+  } catch (error) {
+    if (signal?.aborted) {
+      await cancelGenerationTask(baseUrl, created.task.id).catch(() => undefined);
+      throw new Error("生成任务已取消");
+    }
+    throw error;
+  }
+}
+
+async function cancelGenerationTask(baseUrl: string, taskId: string): Promise<void> {
+  await fetch(`${baseUrl}/generation-tasks/${taskId}`, {
+    method: "DELETE"
+  });
+}
+
+function wait(ms: number): Promise<void> {
+  return new Promise((resolve) => globalThis.setTimeout(resolve, ms));
 }
 
 export function normalizeBaseUrl(baseUrl: string): string {

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import {
   CheckCircle2,
   Clipboard,
@@ -50,6 +50,7 @@ import {
 } from "./core/workspaceDraft";
 import {
   buildGenerationRunDiagnostic,
+  cancelGenerationRun,
   completeGenerationRun,
   createGenerationRun,
   failGenerationRun,
@@ -122,6 +123,7 @@ export default function App() {
   const [generationRun, setGenerationRun] = useState<GenerationRun | null>(
     initialWorkspaceDraft?.generationRuns[0] ?? null
   );
+  const generationAbortRef = useRef<AbortController | null>(null);
 
   const validation = useMemo(() => validateScreenplayYaml(yamlText), [yamlText]);
   const preview = useMemo(() => {
@@ -189,6 +191,9 @@ export default function App() {
   }, [generationRun]);
 
   async function handleGenerate() {
+    generationAbortRef.current?.abort();
+    const abortController = new AbortController();
+    generationAbortRef.current = abortController;
     const apiKeyForRequest = apiKey.trim();
     const apiReady = Boolean(apiKeyForRequest);
     const requestBaseUrl = resolveAiRequestBaseUrl(apiBaseUrl, useLocalProxy);
@@ -209,9 +214,16 @@ export default function App() {
         apiKey: apiKeyForRequest
       });
 
+      if (generationAbortRef.current !== abortController) {
+        return;
+      }
+
       if (!connection.ok) {
         setGenerationStatus(connection.message);
-        setGenerationRun((current) => (current ? failGenerationRun(current, connection.message) : current));
+        setGenerationRun((current) => (current?.id === run.id ? failGenerationRun(current, connection.message) : current));
+        if (generationAbortRef.current === abortController) {
+          generationAbortRef.current = null;
+        }
         return;
       }
 
@@ -219,7 +231,7 @@ export default function App() {
         setGenerationStatus(`${connection.message}，正在调用 ${apiModel}...`);
       }
       setGenerationRun((current) =>
-        current ? markGenerationRunConnection(current, connection.message) : current
+        current?.id === run.id ? markGenerationRunConnection(current, connection.message) : current
       );
     }
 
@@ -238,30 +250,50 @@ export default function App() {
             baseUrl: requestBaseUrl,
             providerBaseUrl,
             apiKey: apiKeyForRequest,
-            model: apiModel
+            model: apiModel,
+            useGenerationTasks: useLocalProxy
           },
           {
             title,
             style,
             novelText,
+            signal: abortController.signal,
             onProgress: (event) => {
+              if (generationAbortRef.current !== abortController) {
+                return;
+              }
               setGenerationStatus(formatAiProgress(event, apiModel));
-              setGenerationRun((current) => (current ? updateGenerationRunStage(current, event) : current));
+              setGenerationRun((current) => (current?.id === run.id ? updateGenerationRunStage(current, event) : current));
             }
           }
         )
     );
+
+    if (generationAbortRef.current !== abortController) {
+      return;
+    }
 
     if (result.screenplay) {
       const nextYaml = screenplayToYaml(result.screenplay);
       setYamlText(nextYaml);
       setRevisionHistory((current) => pushRevision(current, createRevision("AI 生成", nextYaml)));
       setSelectedSceneId(result.screenplay.scenes[0]?.id ?? null);
-      setGenerationRun((current) => (current ? completeGenerationRun(current) : current));
+      setGenerationRun((current) => (current?.id === run.id ? completeGenerationRun(current) : current));
+    } else if (result.status.includes("生成任务已取消")) {
+      setGenerationRun((current) => (current?.id === run.id ? cancelGenerationRun(current) : current));
     } else {
-      setGenerationRun((current) => (current ? failGenerationRun(current, result.status) : current));
+      setGenerationRun((current) => (current?.id === run.id ? failGenerationRun(current, result.status) : current));
     }
     setGenerationStatus(result.status);
+    if (generationAbortRef.current === abortController) {
+      generationAbortRef.current = null;
+    }
+  }
+
+  function handleCancelGeneration() {
+    generationAbortRef.current?.abort();
+    setGenerationStatus("正在取消生成任务...");
+    setGenerationRun((current) => (current ? cancelGenerationRun(current) : current));
   }
 
   async function handleCopy() {
@@ -516,6 +548,7 @@ export default function App() {
             <GenerationRunPanel
               run={generationRun}
               history={generationRunHistory}
+              onCancel={handleCancelGeneration}
               onRetry={handleGenerate}
               onSelectRun={setGenerationRun}
             />
@@ -774,11 +807,13 @@ function formatAiProgress(event: AiGenerationProgress, model: string): string {
 function GenerationRunPanel({
   run,
   history,
+  onCancel,
   onRetry,
   onSelectRun
 }: {
   run: GenerationRun | null;
   history: GenerationRun[];
+  onCancel: () => void;
   onRetry: () => void;
   onSelectRun: (run: GenerationRun) => void;
 }) {
@@ -787,7 +822,13 @@ function GenerationRunPanel({
   if (!activeRun) return null;
 
   const statusLabel =
-    activeRun.status === "completed" ? "已完成" : activeRun.status === "failed" ? "需要处理" : "进行中";
+    activeRun.status === "completed"
+      ? "已完成"
+      : activeRun.status === "failed"
+        ? "需要处理"
+        : activeRun.status === "cancelled"
+          ? "已取消"
+          : "进行中";
   const elapsedSeconds = Math.max(
     0,
     Math.round(
@@ -814,6 +855,12 @@ function GenerationRunPanel({
           </span>
         </div>
         <div className="generation-run-actions">
+          {activeRun.status === "running" ? (
+            <button type="button" onClick={onCancel} title="取消当前生成任务">
+              <X size={13} />
+              取消
+            </button>
+          ) : null}
           {activeRun.status === "failed" ? (
             <>
               <button type="button" onClick={handleCopyDiagnostic} title="复制生成诊断">
@@ -888,6 +935,7 @@ function GenerationRunPanel({
 function formatRunStatus(status: GenerationRun["status"]): string {
   if (status === "completed") return "完成";
   if (status === "failed") return "失败";
+  if (status === "cancelled") return "已取消";
   if (status === "running") return "运行中";
   return "待开始";
 }

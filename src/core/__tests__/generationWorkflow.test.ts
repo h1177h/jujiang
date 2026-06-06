@@ -26,9 +26,9 @@ describe("generation workflow", () => {
     expect(result.screenplay).toBeNull();
   });
 
-  it("does not bury connection diagnostics under a generic hint", async () => {
+  it("does not bury app service diagnostics under a generic hint", async () => {
     const apiGenerator = vi.fn<() => Promise<ScreenplayYaml>>(async () => {
-      throw new Error("浏览器直连失败：这通常是 CORS、系统代理或网络拦截导致。请勾选“本地 proxy”，运行 npm run proxy 后再生成。");
+      throw new Error("应用内 AI 服务没有启动：请用 npm run dev:app 启动完整应用后再生成。");
     });
 
     const result = await generateWorkspaceDraft(
@@ -44,7 +44,7 @@ describe("generation workflow", () => {
     );
 
     expect(result.status).toBe(
-      "AI 生成失败：浏览器直连失败：这通常是 CORS、系统代理或网络拦截导致。请勾选“本地 proxy”，运行 npm run proxy 后再生成。"
+      "AI 生成失败：应用内 AI 服务没有启动：请用 npm run dev:app 启动完整应用后再生成。"
     );
   });
 
@@ -68,6 +68,26 @@ describe("generation workflow", () => {
     expect(result.status).toBe(
       "AI 生成失败：chapter_event_extract 阶段请求失败：HTTP 504，已重试 2 次，耗时 120003ms，请求 4096 bytes"
     );
+  });
+
+  it("keeps user cancellation separate from provider or key failures", async () => {
+    const apiGenerator = vi.fn<() => Promise<ScreenplayYaml>>(async () => {
+      throw new Error("生成任务已取消");
+    });
+
+    const result = await generateWorkspaceDraft(
+      {
+        title: "雾港来信",
+        style: "cinematic",
+        novelText: "第一章 雾港\n林砚推开旧书店的门。",
+        useApi: true,
+        apiReady: true,
+        model: "test-model"
+      },
+      apiGenerator
+    );
+
+    expect(result.status).toBe("AI 生成失败：生成任务已取消");
   });
 
   it("requires AI configuration instead of generating a local plot", async () => {

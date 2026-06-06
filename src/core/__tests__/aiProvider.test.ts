@@ -134,6 +134,148 @@ describe("AI provider", () => {
     expect(secondPayload.storyBlueprint.chapterEvents[0].events[0].id).toBe("event-01-01");
   });
 
+  it("uses pollable generation tasks when the local AI service supports them", async () => {
+    const validation = validateScreenplay(parse(sampleOutputYaml));
+    expect(validation.success).toBe(true);
+    if (!validation.success) return;
+    const shortNovel = [
+      "第一章 雾港",
+      "沈知夏收到匿名信。",
+      "第二章 旧账",
+      "林砚发现账册被调包。"
+    ].join("\n");
+
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 202,
+        json: async () => ({ task: { id: "task-blueprint", status: "queued" } })
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          task: {
+            id: "task-blueprint",
+            status: "completed",
+            response: {
+              choices: [
+                {
+                  message: {
+                    content: JSON.stringify({
+                      chapterEvents: validation.data.chapterEvents,
+                      storyBible: validation.data.storyBible,
+                      adaptationStrategy: validation.data.adaptationStrategy
+                    })
+                  }
+                }
+              ]
+            }
+          }
+        })
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 202,
+        json: async () => ({ task: { id: "task-screenplay", status: "queued" } })
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          task: {
+            id: "task-screenplay",
+            status: "completed",
+            response: {
+              choices: [
+                {
+                  message: {
+                    content: JSON.stringify(validation.data)
+                  }
+                }
+              ]
+            }
+          }
+        })
+      });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await generateScreenplayWithApi(
+      {
+        baseUrl: "http://127.0.0.1:18787/v1",
+        apiKey: "test-key",
+        model: "test-model",
+        useGenerationTasks: true,
+        taskPollIntervalMs: 0
+      },
+      {
+        title: "雾港来信",
+        style: "cinematic",
+        novelText: shortNovel
+      }
+    );
+
+    expect(result.scenes).toHaveLength(6);
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+    expect(fetchMock.mock.calls[0][0]).toBe("http://127.0.0.1:18787/v1/generation-tasks");
+    expect(fetchMock.mock.calls[1][0]).toBe("http://127.0.0.1:18787/v1/generation-tasks/task-blueprint");
+    expect(fetchMock.mock.calls[2][0]).toBe("http://127.0.0.1:18787/v1/generation-tasks");
+    expect(fetchMock.mock.calls[3][0]).toBe("http://127.0.0.1:18787/v1/generation-tasks/task-screenplay");
+  });
+
+  it("cancels the active generation task when the request is aborted", async () => {
+    const controller = new AbortController();
+    const shortNovel = [
+      "第一章 雾港",
+      "沈知夏收到匿名信。",
+      "第二章 旧账",
+      "林砚发现账册被调包。"
+    ].join("\n");
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 202,
+        json: async () => ({ task: { id: "task-blueprint", status: "queued" } })
+      })
+      .mockImplementationOnce(async () => {
+        controller.abort();
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ task: { id: "task-blueprint", status: "running" } })
+        };
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ task: { id: "task-blueprint", status: "cancelled" } })
+      });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      generateScreenplayWithApi(
+        {
+          baseUrl: "http://127.0.0.1:18787/v1",
+          apiKey: "test-key",
+          model: "test-model",
+          useGenerationTasks: true,
+          taskPollIntervalMs: 0
+        },
+        {
+          title: "雾港来信",
+          style: "cinematic",
+          novelText: shortNovel,
+          signal: controller.signal
+        }
+      )
+    ).rejects.toThrow("生成任务已取消");
+
+    expect(fetchMock.mock.calls[2][0]).toBe("http://127.0.0.1:18787/v1/generation-tasks/task-blueprint");
+    expect((fetchMock.mock.calls[2][1] as RequestInit).method).toBe("DELETE");
+  });
+
   it("uses staged chapter extraction for exactly three chapters", async () => {
     const validation = validateScreenplay(parse(sampleOutputYaml));
     expect(validation.success).toBe(true);
