@@ -165,4 +165,29 @@ describe("api proxy config", () => {
     expect(upstreamAuthorization).toBe("Bearer browser-key");
     expect(upstreamPath).toBe("/v1/chat/completions");
   });
+
+  it("reports the upstream provider target when chat completion forwarding fails", async () => {
+    const proxy = createApiProxyServer({
+      port: 0,
+      targetBaseUrl: "http://127.0.0.1:9/v1",
+      apiKey: "",
+      networkProxyUrl: ""
+    });
+    const proxyBaseUrl = await listen(proxy);
+
+    const response = await fetch(`${proxyBaseUrl}/v1/chat/completions`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: "Bearer browser-key"
+      },
+      body: JSON.stringify({ model: "test-model", messages: [] })
+    });
+    const payload = await response.json();
+
+    expect(response.status).toBe(502);
+    expect(payload.error).toContain("上游 AI provider 连接失败");
+    expect(payload.error).toContain("http://127.0.0.1:9/v1");
+    expect(payload.error).toContain("请检查 Base URL、网络代理或 provider 服务状态");
+  });
 });

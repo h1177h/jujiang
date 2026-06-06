@@ -83,9 +83,12 @@ export function createApiProxyServer(config = getProxyConfig()) {
       return;
     }
 
+    let targetBaseUrl = config.targetBaseUrl;
+    let forwardingToUpstream = false;
     try {
       const body = await readBody(request);
-      const targetBaseUrl = resolveRequestTargetBaseUrl(config, request);
+      targetBaseUrl = resolveRequestTargetBaseUrl(config, request);
+      forwardingToUpstream = true;
       const upstream = await requestUpstreamChatCompletions(config, body, apiKey, targetBaseUrl);
       const text = await upstream.text();
 
@@ -94,8 +97,10 @@ export function createApiProxyServer(config = getProxyConfig()) {
       });
       response.end(text);
     } catch (error) {
-      writeJson(response, 500, {
-        error: error instanceof Error ? error.message : "应用内 AI 服务请求失败。"
+      writeJson(response, forwardingToUpstream ? 502 : 500, {
+        error: forwardingToUpstream
+          ? formatUpstreamFailure(targetBaseUrl, error)
+          : error instanceof Error ? error.message : "应用内 AI 服务请求失败。"
       });
     }
   });
@@ -138,6 +143,16 @@ function setCorsHeaders(response) {
 function writeJson(response, status, payload) {
   response.writeHead(status, { "Content-Type": "application/json" });
   response.end(JSON.stringify(payload));
+}
+
+function formatUpstreamFailure(targetBaseUrl, error) {
+  const message = error instanceof Error ? error.message : String(error || "unknown error");
+  return `上游 AI provider 连接失败：${targetBaseUrl}。请检查 Base URL、网络代理或 provider 服务状态。底层错误：${truncateDiagnostic(message)}`;
+}
+
+function truncateDiagnostic(value) {
+  const normalized = value.replace(/\s+/g, " ").trim();
+  return normalized.length > 300 ? `${normalized.slice(0, 300)}...` : normalized;
 }
 
 function readBody(request) {
