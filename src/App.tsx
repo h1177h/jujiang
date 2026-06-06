@@ -6,7 +6,6 @@ import {
   Download,
   FileInput,
   KeyRound,
-  PencilLine,
   RefreshCw,
   Sparkles,
   Trash2,
@@ -54,29 +53,21 @@ import {
   updateGenerationRunStage,
   type GenerationRun
 } from "./core/generationRun";
+import { SceneInspector } from "./components/SceneInspector";
 import { sampleNovel } from "./core/sampleNovel";
 import { validateScreenplay } from "./core/schema";
 import {
-  parseDialogueInput,
-  parseListInput,
-  serializeDialogueInput,
+  isEditorReadyScene,
   updateScreenplaySceneYaml,
   type ScenePatch
 } from "./core/sceneEditor";
+import {
+  patchTouchesEditorIssueField,
+  type ActiveEditorIssue
+} from "./core/editorIssues";
 import { analyzeScreenplay, type SceneQualityIssue, type StoryAnalysis } from "./core/storyAnalysis";
 import { screenplayToYaml, validateScreenplayYaml, type ScreenplayYamlDiagnostic } from "./core/yaml";
 import sampleOutputYaml from "../examples/sample-output.yaml?raw";
-
-type EditorIssueTargetField = NonNullable<ScreenplayYamlDiagnostic["targetField"]>;
-
-interface ActiveEditorIssue {
-  sceneId: string;
-  label: string;
-  detail: string;
-  severity: "warning" | "risk" | "error";
-  targetField: EditorIssueTargetField;
-  actionHint: string;
-}
 
 const styles: { value: AdaptationStyle; label: string }[] = [
   { value: "balanced", label: "均衡" },
@@ -728,39 +719,6 @@ export default function App() {
   );
 }
 
-function patchTouchesEditorIssueField(patch: ScenePatch, targetField: EditorIssueTargetField): boolean {
-  if (targetField === "source") return false;
-  return Object.prototype.hasOwnProperty.call(patch, targetField);
-}
-
-function isEditorReadyScene(scene: unknown): scene is Scene {
-  if (!scene || typeof scene !== "object") return false;
-
-  const candidate = scene as Partial<Scene>;
-  return (
-    typeof candidate.id === "string" &&
-    typeof candidate.title === "string" &&
-    typeof candidate.goal === "string" &&
-    typeof candidate.location === "string" &&
-    typeof candidate.time === "string" &&
-    Array.isArray(candidate.characters) &&
-    Array.isArray(candidate.action) &&
-    Array.isArray(candidate.dialogue) &&
-    typeof candidate.narrationOrTransition === "string" &&
-    typeof candidate.emotion === "string" &&
-    typeof candidate.pacing === "string" &&
-    Boolean(candidate.conflict) &&
-    typeof candidate.conflict?.level === "number" &&
-    typeof candidate.conflict?.reason === "string" &&
-    Array.isArray(candidate.revisionNotes) &&
-    Boolean(candidate.source) &&
-    typeof candidate.source?.chapterIndex === "number" &&
-    Array.isArray(candidate.source?.paragraphIndexes) &&
-    typeof candidate.source?.lineStart === "number" &&
-    typeof candidate.source?.lineEnd === "number"
-  );
-}
-
 function formatAiProgress(event: AiGenerationProgress, model: string): string {
   if (event.stage === "chapter_event_extract") {
     return `正在用 ${model} 抽取章节事件：${event.current}/${event.total}`;
@@ -1145,169 +1103,6 @@ function ScreenplayReview({
             </button>
           ))}
         </div>
-      </div>
-    </section>
-  );
-}
-
-function SceneInspector({
-  scene,
-  activeEditorIssue,
-  onPatch,
-  onRegenerate
-}: {
-  scene: Scene;
-  activeEditorIssue: ActiveEditorIssue | null;
-  onPatch: (patch: ScenePatch) => void;
-  onRegenerate: () => void;
-}) {
-  const highlightClass = (targetField: EditorIssueTargetField) =>
-    activeEditorIssue?.targetField === targetField ? "inspector-field highlighted" : "inspector-field";
-
-  return (
-    <section className="scene-inspector">
-      <div className="scene-card-top">
-        <span>{scene.id}</span>
-        <strong>{scene.pacing}</strong>
-      </div>
-      <div className="editor-heading">
-        <PencilLine size={18} />
-        <h3>场景编辑器</h3>
-        <button className="secondary-action compact" type="button" onClick={onRegenerate}>
-          AI 补强
-        </button>
-      </div>
-      <p className="sync-note">修改会立即同步到 YAML，并触发 Schema 校验。</p>
-      {activeEditorIssue ? (
-        <div className={`active-quality-callout ${activeEditorIssue.severity}`}>
-          <strong>{activeEditorIssue.label}</strong>
-          <p>{activeEditorIssue.detail}</p>
-          <span>{activeEditorIssue.actionHint}</span>
-        </div>
-      ) : null}
-
-      <label className="inspector-field">
-        场景标题
-        <input value={scene.title} onChange={(event) => onPatch({ title: event.target.value })} />
-      </label>
-      <label className={highlightClass("goal")}>
-        场景目标
-        <textarea
-          className="compact-editor"
-          value={scene.goal}
-          onChange={(event) => onPatch({ goal: event.target.value })}
-        />
-      </label>
-      <div className="inspector-grid">
-        <label className="inspector-field">
-          地点
-          <input value={scene.location} onChange={(event) => onPatch({ location: event.target.value })} />
-        </label>
-        <label className="inspector-field">
-          时间
-          <input value={scene.time} onChange={(event) => onPatch({ time: event.target.value })} />
-        </label>
-      </div>
-      <div className="inspector-grid">
-        <label className={highlightClass("conflict")}>
-          冲突等级
-          <select
-            value={scene.conflict.level}
-            onChange={(event) =>
-              onPatch({
-                conflict: {
-                  ...scene.conflict,
-                  level: Number(event.target.value) as 1 | 2 | 3 | 4 | 5
-                }
-              })
-            }
-          >
-            {[1, 2, 3, 4, 5].map((level) => (
-              <option key={level} value={level}>
-                {level}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="inspector-field">
-          节奏
-          <select
-            value={scene.pacing}
-            onChange={(event) => onPatch({ pacing: event.target.value as ScenePatch["pacing"] })}
-          >
-            <option value="quiet">quiet</option>
-            <option value="steady">steady</option>
-            <option value="tense">tense</option>
-            <option value="cliffhanger">cliffhanger</option>
-          </select>
-        </label>
-      </div>
-      <label className={highlightClass("conflict")}>
-        冲突说明
-        <textarea
-          className="compact-editor"
-          value={scene.conflict.reason}
-          onChange={(event) =>
-            onPatch({
-              conflict: {
-                ...scene.conflict,
-                reason: event.target.value
-              }
-            })
-          }
-        />
-      </label>
-      <label className={highlightClass("characters")}>
-        出场人物
-        <textarea
-          className="compact-editor"
-          value={scene.characters.join("\n")}
-          onChange={(event) => onPatch({ characters: parseListInput(event.target.value) })}
-        />
-      </label>
-      <label className="inspector-field">
-        动作描写
-        <textarea
-          className="compact-editor tall"
-          value={scene.action.join("\n")}
-          onChange={(event) => onPatch({ action: parseListInput(event.target.value) })}
-        />
-      </label>
-      <label className={highlightClass("dialogue")}>
-        对白
-        <textarea
-          className="compact-editor tall"
-          value={serializeDialogueInput(scene.dialogue)}
-          onChange={(event) => onPatch({ dialogue: parseDialogueInput(event.target.value, scene) })}
-        />
-      </label>
-      <label className="inspector-field">
-        旁白 / 转场
-        <textarea
-          className="compact-editor"
-          value={scene.narrationOrTransition}
-          onChange={(event) => onPatch({ narrationOrTransition: event.target.value })}
-        />
-      </label>
-      <label className="inspector-field">
-        情绪
-        <input value={scene.emotion} onChange={(event) => onPatch({ emotion: event.target.value })} />
-      </label>
-      <label className={highlightClass("revisionNotes")}>
-        修订建议
-        <textarea
-          className="compact-editor tall"
-          value={scene.revisionNotes.join("\n")}
-          onChange={(event) => onPatch({ revisionNotes: parseListInput(event.target.value) })}
-        />
-      </label>
-      <div className={highlightClass("source")}>
-        <h4>原文依据</h4>
-        <p className="source-note">
-          第 {scene.source.chapterIndex} 章，段落 {scene.source.paragraphIndexes.join("、")}，行 {scene.source.lineStart}-
-          {scene.source.lineEnd}
-        </p>
-        <blockquote className="source-excerpt">{scene.source.excerpt}</blockquote>
       </div>
     </section>
   );

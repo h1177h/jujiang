@@ -83,6 +83,34 @@ export function parseDialogueInput(value: string, sourceScene: Scene): DialogueB
     });
 }
 
+export function isEditorReadyScene(scene: unknown): scene is Scene {
+  if (!scene || typeof scene !== "object") return false;
+
+  const candidate = scene as Partial<Scene>;
+  return (
+    typeof candidate.id === "string" &&
+    typeof candidate.title === "string" &&
+    typeof candidate.goal === "string" &&
+    typeof candidate.location === "string" &&
+    typeof candidate.time === "string" &&
+    Array.isArray(candidate.characters) &&
+    Array.isArray(candidate.action) &&
+    Array.isArray(candidate.dialogue) &&
+    typeof candidate.narrationOrTransition === "string" &&
+    typeof candidate.emotion === "string" &&
+    typeof candidate.pacing === "string" &&
+    Boolean(candidate.conflict) &&
+    typeof candidate.conflict?.level === "number" &&
+    typeof candidate.conflict?.reason === "string" &&
+    Array.isArray(candidate.revisionNotes) &&
+    Boolean(candidate.source) &&
+    typeof candidate.source?.chapterIndex === "number" &&
+    Array.isArray(candidate.source?.paragraphIndexes) &&
+    typeof candidate.source?.lineStart === "number" &&
+    typeof candidate.source?.lineEnd === "number"
+  );
+}
+
 function findDialogueSeparator(line: string): number {
   const chinese = line.indexOf("：");
   const english = line.indexOf(":");
