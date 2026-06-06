@@ -623,7 +623,20 @@ export default function App() {
               {validation.ok ? <CheckCircle2 size={18} /> : <TriangleAlert size={18} />}
               <div>
                 <strong>{validation.ok ? "Schema 校验通过" : "Schema 校验失败"}</strong>
-                <p>{validation.ok ? "当前 YAML 可复制、下载和继续改写。" : validation.errors.slice(0, 3).join("；")}</p>
+                {validation.ok ? (
+                  <p>当前 YAML 可复制、下载和继续改写。</p>
+                ) : validation.issues?.length ? (
+                  <ul className="validation-issue-list">
+                    {validation.issues.slice(0, 3).map((issue) => (
+                      <li key={`${issue.path}-${issue.message}`}>
+                        <span>{issue.sceneId ? `${issue.sceneId} / ` : ""}{issue.fieldLabel}</span>
+                        <p>{issue.suggestion}</p>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p>{validation.errors.slice(0, 3).join("；")}</p>
+                )}
               </div>
             </div>
 
