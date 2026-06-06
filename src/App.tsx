@@ -18,7 +18,7 @@ import {
   resolveAiRequestBaseUrl
 } from "./core/apiConnection";
 import { apiProviderPresets, findApiProviderPreset } from "./core/apiProviders";
-import { countChapters } from "./core/chapters";
+import { summarizeSourceDraft } from "./core/chapters";
 import type { AdaptationStyle, Scene, ScreenplayYaml } from "./core/types";
 import {
   generateScreenplayWithApi,
@@ -134,9 +134,7 @@ export default function App() {
       return null;
     }
   }, [preview, yamlText]);
-  const chapterCount = useMemo(() => {
-    return countChapters(novelText);
-  }, [novelText]);
+  const sourceSummary = useMemo(() => summarizeSourceDraft(novelText), [novelText]);
   const sceneCount = draftScreenplay?.scenes.length ?? 0;
   const selectedScene =
     draftScreenplay?.scenes.find((scene) => scene.id === selectedSceneId) ?? draftScreenplay?.scenes[0] ?? null;
@@ -186,10 +184,19 @@ export default function App() {
     const run = createGenerationRun({
       title,
       model: apiModel,
-      chapterCount
+      chapterCount: sourceSummary.chapterCount
     });
     setGenerationRun(run);
     setGenerationRunHistory((current) => pushGenerationRunHistory(current, run));
+
+    if (!sourceSummary.canGenerate) {
+      const failedRun = failGenerationRun(run, sourceSummary.detail);
+      setGenerationRun(failedRun);
+      setGenerationRunHistory((current) => pushGenerationRunHistory(current, failedRun));
+      setGenerationStatus(sourceSummary.detail);
+      return;
+    }
+
     setGenerationStatus(useApi && apiReady ? `正在调用 ${apiModel}...` : "等待 AI 配置...");
 
     if (useApi && apiReady) {
@@ -468,7 +475,7 @@ export default function App() {
           <h1>剧匠 AI 小说转剧本工作台</h1>
         </div>
         <div className="status-strip">
-          <span>{chapterCount} 章识别</span>
+          <span>{sourceSummary.chapterCount} 章识别</span>
           <span>{sceneCount} 场剧本</span>
           <span className={validation.ok ? "valid" : "invalid"}>
             {validation.ok ? "YAML 校验通过" : "YAML 待修正"}
@@ -589,12 +596,38 @@ export default function App() {
               />
             </div>
 
-            <textarea
-              className="novel-editor"
-              value={novelText}
-              onChange={(event) => setNovelText(event.target.value)}
-              spellCheck={false}
-            />
+            <div className="source-editor-column">
+              <div className={`source-health ${sourceSummary.status}`}>
+                <div className="source-health-head">
+                  <div>
+                    <strong>{sourceSummary.headline}</strong>
+                    <p>{sourceSummary.detail}</p>
+                  </div>
+                  <span>{sourceSummary.canGenerate ? "可生成" : "待补充"}</span>
+                </div>
+                <div className="source-stat-grid">
+                  <span>
+                    <strong>{sourceSummary.chapterCount}</strong>
+                    章节
+                  </span>
+                  <span>
+                    <strong>{sourceSummary.paragraphCount}</strong>
+                    段落
+                  </span>
+                  <span>
+                    <strong>{sourceSummary.lineCount}</strong>
+                    行
+                  </span>
+                </div>
+              </div>
+
+              <textarea
+                className="novel-editor"
+                value={novelText}
+                onChange={(event) => setNovelText(event.target.value)}
+                spellCheck={false}
+              />
+            </div>
 
             <button className="primary-action" type="button" onClick={handleGenerate}>
               <Sparkles size={18} />
