@@ -8,6 +8,7 @@ import {
   PencilLine,
   RefreshCw,
   Sparkles,
+  Trash2,
   TriangleAlert
 } from "lucide-react";
 import { parse } from "yaml";
@@ -27,6 +28,11 @@ import {
 } from "./core/aiProvider";
 import { generateWorkspaceDraft } from "./core/generationWorkflow";
 import { createRevision, pushRevision, type ScreenplayRevision } from "./core/revisionHistory";
+import {
+  clearSavedWorkspaceDraft,
+  loadSavedWorkspaceDraft,
+  saveWorkspaceDraft
+} from "./core/workspaceDraft";
 import { sampleNovel } from "./core/sampleNovel";
 import { validateScreenplay } from "./core/schema";
 import {
@@ -51,9 +57,10 @@ const localProxyBaseUrl = "http://127.0.0.1:8787/v1";
 
 export default function App() {
   const [initialAiSettings] = useState(() => loadSavedAiSettings(getBrowserStorage()));
-  const [novelText, setNovelText] = useState(sampleNovel);
-  const [title, setTitle] = useState("雾港来信");
-  const [style, setStyle] = useState<AdaptationStyle>("cinematic");
+  const [initialWorkspaceDraft] = useState(() => loadSavedWorkspaceDraft(getBrowserStorage()));
+  const [novelText, setNovelText] = useState(initialWorkspaceDraft?.novelText ?? sampleNovel);
+  const [title, setTitle] = useState(initialWorkspaceDraft?.title ?? "雾港来信");
+  const [style, setStyle] = useState<AdaptationStyle>(initialWorkspaceDraft?.style ?? "cinematic");
   const [useApi, setUseApi] = useState(initialAiSettings?.useApi ?? false);
   const [useLocalProxy, setUseLocalProxy] = useState(initialAiSettings?.useLocalProxy ?? true);
   const [apiBaseUrl, setApiBaseUrl] = useState(initialAiSettings?.baseUrl ?? localProxyBaseUrl);
@@ -61,14 +68,22 @@ export default function App() {
   const [apiKey, setApiKey] = useState(initialAiSettings?.apiKey ?? "");
   const [rememberApiKey, setRememberApiKey] = useState(Boolean(initialAiSettings?.apiKey));
   const [generationStatus, setGenerationStatus] = useState(
-    initialAiSettings ? "已载入已保存的 AI 设置" : "请配置 AI 后生成剧本"
+    initialWorkspaceDraft
+      ? "已载入本机工作区草稿"
+      : initialAiSettings
+        ? "已载入已保存的 AI 设置"
+        : "请配置 AI 后生成剧本"
   );
-  const [yamlText, setYamlText] = useState(sampleOutputYaml);
+  const [yamlText, setYamlText] = useState(initialWorkspaceDraft?.yamlText ?? sampleOutputYaml);
   const [revisionHistory, setRevisionHistory] = useState<ScreenplayRevision[]>(() => [
-    createRevision("示例 YAML", sampleOutputYaml)
+    ...(initialWorkspaceDraft?.revisionHistory.length
+      ? initialWorkspaceDraft.revisionHistory
+      : [createRevision("示例 YAML", sampleOutputYaml)])
   ]);
   const [copyLabel, setCopyLabel] = useState("复制");
-  const [selectedSceneId, setSelectedSceneId] = useState<string | null>(null);
+  const [selectedSceneId, setSelectedSceneId] = useState<string | null>(
+    initialWorkspaceDraft?.selectedSceneId ?? null
+  );
 
   const validation = useMemo(() => validateScreenplayYaml(yamlText), [yamlText]);
   const preview = useMemo(() => {
@@ -101,6 +116,20 @@ export default function App() {
       getBrowserStorage()
     );
   }, [apiBaseUrl, apiKey, apiModel, rememberApiKey, useApi, useLocalProxy]);
+
+  useEffect(() => {
+    saveWorkspaceDraft(
+      {
+        title,
+        style,
+        novelText,
+        yamlText,
+        selectedSceneId,
+        revisionHistory
+      },
+      getBrowserStorage()
+    );
+  }, [novelText, revisionHistory, selectedSceneId, style, title, yamlText]);
 
   async function handleGenerate() {
     const apiKeyForRequest = apiKey.trim();
@@ -307,6 +336,18 @@ export default function App() {
     setGenerationStatus("已清除浏览器保存的 API 设置");
   }
 
+  function handleResetWorkspace() {
+    const nextHistory = [createRevision("示例 YAML", sampleOutputYaml)];
+    clearSavedWorkspaceDraft(getBrowserStorage());
+    setNovelText(sampleNovel);
+    setTitle("雾港来信");
+    setStyle("cinematic");
+    setYamlText(sampleOutputYaml);
+    setRevisionHistory(nextHistory);
+    setSelectedSceneId(null);
+    setGenerationStatus("已重置工作区草稿");
+  }
+
   async function handleCheckConnection() {
     const apiKeyForRequest = apiKey.trim();
     if (!useApi || !apiKeyForRequest) {
@@ -349,10 +390,19 @@ export default function App() {
                 <p className="section-kicker">Source</p>
                 <h2>原文与生成设置</h2>
               </div>
-              <label className="icon-button file-button" title="上传文本文件">
-                <FileInput size={18} />
-                <input type="file" accept=".txt,.md" onChange={(event) => handleFileUpload(event.target.files?.[0] ?? null)} />
-              </label>
+              <div className="header-actions">
+                <label className="icon-button file-button" title="上传文本文件">
+                  <FileInput size={18} />
+                  <input
+                    type="file"
+                    accept=".txt,.md"
+                    onChange={(event) => handleFileUpload(event.target.files?.[0] ?? null)}
+                  />
+                </label>
+                <button className="icon-button" type="button" onClick={handleResetWorkspace} title="重置工作区草稿">
+                  <Trash2 size={18} />
+                </button>
+              </div>
             </div>
 
             <div className="field-row">
