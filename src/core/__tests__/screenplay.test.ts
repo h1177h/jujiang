@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { parse, stringify } from "yaml";
 import { countChapters, parseChapters } from "../chapters";
-import { patchTouchesEditorIssueField } from "../editorIssues";
+import { editorIssueFromYamlDiagnostic, patchTouchesEditorIssueField } from "../editorIssues";
 import { sampleNovel } from "../sampleNovel";
 import { isEditorReadyScene, updateScreenplaySceneYaml } from "../sceneEditor";
 import { validateScreenplay } from "../schema";
@@ -174,6 +174,25 @@ describe("screenplay schema and review helpers", () => {
     expect(patchTouchesEditorIssueField({ conflict: { level: 4, reason: "阻碍升级" } }, "conflict")).toBe(true);
     expect(patchTouchesEditorIssueField({ goal: "新的场景目标" }, "dialogue")).toBe(false);
     expect(patchTouchesEditorIssueField({ title: "改标题" }, "source")).toBe(false);
+  });
+
+  it("converts scene-level yaml diagnostics into editor issues", () => {
+    const result = validateScreenplayYaml("scenes:\n  - id: scene-01\n    goal: ''\n");
+    const diagnostic = result.issues?.find((issue) => issue.sceneId === "scene-01" && issue.targetField === "goal");
+
+    expect(diagnostic).toBeTruthy();
+    if (!diagnostic) return;
+
+    expect(editorIssueFromYamlDiagnostic(diagnostic)).toEqual({
+      sceneId: "scene-01",
+      label: diagnostic.fieldLabel,
+      detail: diagnostic.suggestion,
+      severity: "error",
+      targetField: "goal",
+      actionHint: diagnostic.actionHint
+    });
+    expect(editorIssueFromYamlDiagnostic({ ...diagnostic, sceneId: undefined })).toBeNull();
+    expect(editorIssueFromYamlDiagnostic({ ...diagnostic, targetField: undefined })).toBeNull();
   });
 
   it("maps quality issues to editable scene fields", () => {
