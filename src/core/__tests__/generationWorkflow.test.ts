@@ -48,6 +48,28 @@ describe("generation workflow", () => {
     );
   });
 
+  it("keeps staged provider diagnostics instead of turning 504 into a key hint", async () => {
+    const apiGenerator = vi.fn<() => Promise<ScreenplayYaml>>(async () => {
+      throw new Error("chapter_event_extract 阶段请求失败：HTTP 504，已重试 2 次，耗时 120003ms，请求 4096 bytes");
+    });
+
+    const result = await generateWorkspaceDraft(
+      {
+        title: "雨夜来信",
+        style: "cinematic",
+        novelText: "第一章 雨夜\n林砚推开旧书店的门，说：“我来取那封信。”",
+        useApi: true,
+        apiReady: true,
+        model: "test-model"
+      },
+      apiGenerator
+    );
+
+    expect(result.status).toBe(
+      "AI 生成失败：chapter_event_extract 阶段请求失败：HTTP 504，已重试 2 次，耗时 120003ms，请求 4096 bytes"
+    );
+  });
+
   it("requires AI configuration instead of generating a local plot", async () => {
     const apiGenerator = vi.fn<() => Promise<ScreenplayYaml>>();
 

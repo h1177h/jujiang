@@ -165,4 +165,35 @@ describe("api proxy config", () => {
     expect(upstreamAuthorization).toBe("Bearer browser-key");
     expect(upstreamPath).toBe("/v1/chat/completions");
   });
+
+  it("wraps upstream 504 responses with a proxy request id when the provider body is not useful", async () => {
+    const upstream = createServer((request, response) => {
+      response.writeHead(504, { "Content-Type": "text/plain" });
+      response.end("Gateway Timeout");
+    });
+    const upstreamBaseUrl = await listen(upstream);
+    const proxy = createApiProxyServer({
+      port: 0,
+      targetBaseUrl: `${upstreamBaseUrl}/v1`,
+      apiKey: "",
+      networkProxyUrl: ""
+    });
+    const proxyBaseUrl = await listen(proxy);
+
+    const response = await fetch(`${proxyBaseUrl}/v1/chat/completions`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: "Bearer browser-key"
+      },
+      body: JSON.stringify({ model: "test-model", messages: [] })
+    });
+    const payload = await response.json();
+
+    expect(response.status).toBe(504);
+    expect(response.headers.get("x-jujiang-request-id")).toMatch(/^jj-/);
+    expect(payload.error.message).toBe("上游 AI 服务返回 HTTP 504");
+    expect(payload.error.requestId).toBe(response.headers.get("x-jujiang-request-id"));
+    expect(payload.error.upstreamStatus).toBe(504);
+  });
 });

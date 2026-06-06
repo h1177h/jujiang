@@ -84,10 +84,24 @@ export function createApiProxyServer(config = getProxyConfig()) {
     }
 
     try {
+      const requestId = createRequestId();
       const body = await readBody(request);
       const targetBaseUrl = resolveRequestTargetBaseUrl(config, request);
       const upstream = await requestUpstreamChatCompletions(config, body, apiKey, targetBaseUrl);
       const text = await upstream.text();
+      response.setHeader("X-Jujiang-Request-Id", requestId);
+
+      if (!upstream.ok && !hasProviderErrorMessage(text)) {
+        writeJson(response, upstream.status, {
+          error: {
+            message: `上游 AI 服务返回 HTTP ${upstream.status}`,
+            requestId,
+            upstreamStatus: upstream.status,
+            targetBaseUrl
+          }
+        });
+        return;
+      }
 
       response.writeHead(upstream.status, {
         "Content-Type": upstream.headers.get("content-type") || "application/json"
@@ -127,6 +141,19 @@ function readSingleHeader(value) {
 function readBearerToken(authorization = "") {
   const match = authorization.match(/^Bearer\s+(.+)$/i);
   return match?.[1]?.trim() || "";
+}
+
+function createRequestId() {
+  return `jj-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function hasProviderErrorMessage(text) {
+  try {
+    const payload = JSON.parse(text);
+    return Boolean(payload?.error?.message || payload?.message);
+  } catch {
+    return false;
+  }
 }
 
 function setCorsHeaders(response) {

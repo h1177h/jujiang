@@ -153,6 +153,23 @@ export function pushGenerationRunHistory(
   return [run, ...history.filter((item) => item.id !== run.id)].slice(0, limit);
 }
 
+export function buildGenerationRunDiagnostic(run: GenerationRun): string {
+  const failedStage = run.stages.find((stage) => stage.status === "failed");
+  const lines = [
+    `Title: ${run.title}`,
+    `Model: ${run.model}`,
+    `Chapters: ${run.chapterCount}`,
+    `Status: ${run.status}`,
+    failedStage ? `Failed stage: ${failedStage.label}` : null,
+    run.error ? `Error: ${run.error}` : null,
+    `Run id: ${run.id}`,
+    `Started: ${run.startedAt}`,
+    run.completedAt ? `Completed: ${run.completedAt}` : null
+  ];
+
+  return lines.filter((line): line is string => Boolean(line)).join("\n");
+}
+
 function createStage(
   id: GenerationRunStageId,
   label: string,

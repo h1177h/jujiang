@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildGenerationRunDiagnostic,
   completeGenerationRun,
   createGenerationRun,
   failGenerationRun,
@@ -122,5 +123,33 @@ describe("generation run tracking", () => {
 
     expect(history.map((run) => run.id)).toEqual([first.id, second.id]);
     expect(history).toHaveLength(2);
+  });
+
+  it("builds a copyable diagnostic summary for failed runs", () => {
+    const run = failGenerationRun(
+      updateGenerationRunStage(
+        createGenerationRun({
+          title: "三章失败",
+          model: "gpt-4.1-mini",
+          chapterCount: 3,
+          date: new Date("2026-06-06T00:00:00.000Z")
+        }),
+        {
+          stage: "chapter_event_extract",
+          message: "正在抽取第 1 章事件",
+          current: 1,
+          total: 3,
+          date: new Date("2026-06-06T00:00:03.000Z")
+        }
+      ),
+      "chapter_event_extract 阶段请求失败：HTTP 504，已重试 2 次",
+      new Date("2026-06-06T00:02:00.000Z")
+    );
+
+    expect(buildGenerationRunDiagnostic(run)).toContain("Title: 三章失败");
+    expect(buildGenerationRunDiagnostic(run)).toContain("Model: gpt-4.1-mini");
+    expect(buildGenerationRunDiagnostic(run)).toContain("Chapters: 3");
+    expect(buildGenerationRunDiagnostic(run)).toContain("Failed stage: 逐章事件");
+    expect(buildGenerationRunDiagnostic(run)).toContain("Error: chapter_event_extract 阶段请求失败：HTTP 504，已重试 2 次");
   });
 });

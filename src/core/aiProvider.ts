@@ -4,6 +4,8 @@ import { parseChapters } from "./chapters";
 import { storyBlueprintSchema, validateScene, validateScreenplay, validateStoryBlueprint } from "./schema";
 
 const longFormChapterThreshold = 3;
+const maxTransientAttempts = 3;
+const transientHttpStatuses = new Set([429, 500, 502, 503, 504]);
 
 export interface AiProviderSettings {
   baseUrl: string;
@@ -32,6 +34,8 @@ export interface AiGenerationProgress {
   total?: number;
 }
 
+type AiRequestStage = AiGenerationProgress["stage"] | "scene_regenerate";
+
 export interface SceneRegenerationOptions {
   screenplay: ScreenplayYaml;
   sceneId: string;
@@ -57,7 +61,7 @@ export async function generateScreenplayWithApi(
   const baseUrl = normalizeBaseUrl(settings.baseUrl);
   const sourceChapters = buildSourceChapters(options.novelText);
 
-  if (sourceChapters.length > longFormChapterThreshold) {
+  if (sourceChapters.length >= longFormChapterThreshold) {
     return generateLongFormScreenplay(settings, baseUrl, options, sourceChapters);
   }
 
@@ -66,6 +70,7 @@ export async function generateScreenplayWithApi(
     message: "正在抽取章节事件和故事蓝图"
   });
   const blueprintContent = await requestChatCompletion(settings, baseUrl, {
+    stage: "event_extract",
     temperature: 0.25,
     messages: [
       {
@@ -86,6 +91,7 @@ export async function generateScreenplayWithApi(
     message: "正在生成结构化剧本 YAML"
   });
   const screenplayContent = await requestChatCompletion(settings, baseUrl, {
+    stage: "screenplay_generate",
     temperature: 0.4,
     messages: [
       {
@@ -116,6 +122,7 @@ export async function regenerateSceneWithApi(
 
   const sceneIndex = options.screenplay.scenes.findIndex((item) => item.id === options.sceneId);
   const content = await requestChatCompletion(settings, baseUrl, {
+    stage: "scene_regenerate",
     temperature: 0.35,
     messages: [
       {
@@ -152,6 +159,7 @@ async function generateLongFormScreenplay(
       total: sourceChapters.length
     });
     const content = await requestChatCompletion(settings, baseUrl, {
+      stage: "chapter_event_extract",
       temperature: 0.2,
       messages: [
         {
@@ -173,6 +181,7 @@ async function generateLongFormScreenplay(
     message: "正在合并故事圣经和改编策略"
   });
   const blueprintContent = await requestChatCompletion(settings, baseUrl, {
+    stage: "story_bible_generate",
     temperature: 0.25,
     messages: [
       {
@@ -193,6 +202,7 @@ async function generateLongFormScreenplay(
     message: "正在按故事蓝图生成完整剧本"
   });
   const screenplayContent = await requestChatCompletion(settings, baseUrl, {
+    stage: "screenplay_generate",
     temperature: 0.4,
     messages: [
       {
@@ -221,42 +231,71 @@ async function requestChatCompletion(
   settings: AiProviderSettings,
   baseUrl: string,
   request: {
+    stage: AiRequestStage;
     temperature: number;
     messages: Array<{ role: "system" | "user"; content: string }>;
     signal?: AbortSignal;
   }
 ): Promise<string> {
-  let response: Response;
-  try {
-    response = await fetch(`${baseUrl}/chat/completions`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...buildAiGatewayHeaders(settings.apiKey, settings.providerBaseUrl)
-      },
-      body: JSON.stringify({
-        model: settings.model,
-        temperature: request.temperature,
-        response_format: { type: "json_object" },
-        messages: request.messages
-      }),
-      signal: request.signal
-    });
-  } catch (error) {
-    throw new Error(classifyFetchFailure(error, baseUrl));
+  const startedAt = Date.now();
+  const body = JSON.stringify({
+    model: settings.model,
+    temperature: request.temperature,
+    response_format: { type: "json_object" },
+    messages: request.messages
+  });
+  let lastErrorMessage = "";
+
+  for (let attempt = 1; attempt <= maxTransientAttempts; attempt++) {
+    let response: Response;
+    try {
+      response = await fetch(`${baseUrl}/chat/completions`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...buildAiGatewayHeaders(settings.apiKey, settings.providerBaseUrl)
+        },
+        body,
+        signal: request.signal
+      });
+    } catch (error) {
+      const message = classifyFetchFailure(error, baseUrl);
+      if (attempt < maxTransientAttempts && isTransientNetworkMessage(message)) {
+        lastErrorMessage = message;
+        continue;
+      }
+      throw new Error(formatAiStageError(request.stage, message, attempt, Date.now() - startedAt, body.length));
+    }
+
+    const payload = (await response.json().catch(() => ({}))) as ChatCompletionResponse;
+    if (!response.ok) {
+      const message = payload.error?.message || `HTTP ${response.status}`;
+      if (attempt < maxTransientAttempts && transientHttpStatuses.has(response.status)) {
+        lastErrorMessage = message;
+        continue;
+      }
+      throw new Error(formatAiStageError(request.stage, message, attempt, Date.now() - startedAt, body.length));
+    }
+
+    const content = payload.choices?.[0]?.message?.content;
+    if (!content) {
+      throw new Error(
+        formatAiStageError(request.stage, "API 返回内容没有剧本正文", attempt, Date.now() - startedAt, body.length)
+      );
+    }
+
+    return content;
   }
 
-  const payload = (await response.json().catch(() => ({}))) as ChatCompletionResponse;
-  if (!response.ok) {
-    throw new Error(payload.error?.message || `API 请求失败：HTTP ${response.status}`);
-  }
-
-  const content = payload.choices?.[0]?.message?.content;
-  if (!content) {
-    throw new Error("API 没有返回可解析的剧本内容。");
-  }
-
-  return content;
+  throw new Error(
+    formatAiStageError(
+      request.stage,
+      lastErrorMessage || "API 请求失败",
+      maxTransientAttempts,
+      Date.now() - startedAt,
+      body.length
+    )
+  );
 }
 
 export function normalizeBaseUrl(baseUrl: string): string {
@@ -268,6 +307,21 @@ export function normalizeBaseUrl(baseUrl: string): string {
     return trimmed;
   }
   return `${trimmed}/v1`;
+}
+
+function isTransientNetworkMessage(message: string): boolean {
+  return /timeout|timed out|econnreset|econnrefused|socket|network|fetch failed|failed to fetch/i.test(message);
+}
+
+function formatAiStageError(
+  stage: AiRequestStage,
+  message: string,
+  attempt: number,
+  elapsedMs: number,
+  requestBytes: number
+): string {
+  const retrySuffix = attempt > 1 ? `，已重试 ${attempt - 1} 次` : "";
+  return `${stage} 阶段请求失败：${message}${retrySuffix}，耗时 ${elapsedMs}ms，请求 ${requestBytes} bytes`;
 }
 
 function buildBlueprintSystemPrompt(): string {
@@ -632,6 +686,7 @@ async function validateOrRepairScreenplay(
     message: "AI 返回结构未通过校验，正在尝试修复"
   });
   const repairedContent = await requestChatCompletion(settings, baseUrl, {
+    stage: "schema_repair",
     temperature: 0.1,
     messages: [
       {
