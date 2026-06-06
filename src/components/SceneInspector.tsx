@@ -6,21 +6,25 @@ import {
   serializeDialogueInput,
   type ScenePatch
 } from "../core/sceneEditor";
+import { buildSourceTrace } from "../core/sourceTrace";
 import type { Scene } from "../core/types";
 
 export function SceneInspector({
   scene,
+  novelText,
   activeEditorIssue,
   onPatch,
   onRegenerate
 }: {
   scene: Scene;
+  novelText: string;
   activeEditorIssue: ActiveEditorIssue | null;
   onPatch: (patch: ScenePatch) => void;
   onRegenerate: () => void;
 }) {
   const highlightClass = (targetField: EditorIssueTargetField) =>
     activeEditorIssue?.targetField === targetField ? "inspector-field highlighted" : "inspector-field";
+  const sourceTrace = buildSourceTrace(scene.source, novelText);
 
   return (
     <section className="scene-inspector">
@@ -162,10 +166,20 @@ export function SceneInspector({
       <div className={highlightClass("source")}>
         <h4>原文依据</h4>
         <p className="source-note">
-          第 {scene.source.chapterIndex} 章，段落 {scene.source.paragraphIndexes.join("、")}，行 {scene.source.lineStart}-
-          {scene.source.lineEnd}
+          {sourceTrace.locationLabel}
         </p>
-        <blockquote className="source-excerpt">{scene.source.excerpt}</blockquote>
+        <div className="source-trace-lines" aria-label="原文行号追溯">
+          {sourceTrace.lines.map((line) => (
+            <div className={line.isMatched ? "source-trace-line matched" : "source-trace-line"} key={line.lineNumber}>
+              <span>{line.lineNumber}</span>
+              <p>{line.text || "（空行）"}</p>
+            </div>
+          ))}
+        </div>
+        {sourceTrace.matchedLineCount === 0 ? (
+          <p className="source-warning">当前原文中没有找到摘录原句，请核对 YAML source 或重新生成带来源的版本。</p>
+        ) : null}
+        <blockquote className="source-excerpt">{sourceTrace.excerpt}</blockquote>
       </div>
     </section>
   );

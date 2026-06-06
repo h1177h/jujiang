@@ -637,6 +637,7 @@ export default function App() {
           {selectedScene ? (
             <SceneInspector
               scene={selectedScene}
+              novelText={novelText}
               activeEditorIssue={activeEditorIssue?.sceneId === selectedScene.id ? activeEditorIssue : null}
               onPatch={(patch) => handleScenePatch(selectedScene.id, patch)}
               onRegenerate={handleRegenerateSelectedScene}
