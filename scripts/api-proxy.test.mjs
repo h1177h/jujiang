@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { createApiProxyServer, getProxyConfig, normalizeTargetBaseUrl } from "./api-proxy.mjs";
 
 const servers = [];
+let nextTestPort = 19080;
 
 afterEach(async () => {
   await Promise.all(
@@ -17,7 +18,8 @@ afterEach(async () => {
 
 async function listen(server) {
   servers.push(server);
-  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const port = nextTestPort++;
+  await new Promise((resolve) => server.listen(port, "127.0.0.1", resolve));
   const address = server.address();
   return `http://127.0.0.1:${address.port}`;
 }

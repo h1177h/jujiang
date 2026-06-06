@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { parse } from "yaml";
-import { generateScreenplayWithApi, normalizeBaseUrl } from "../aiProvider";
+import { generateScreenplayWithApi, normalizeBaseUrl, regenerateSceneWithApi } from "../aiProvider";
 import { sampleNovel } from "../sampleNovel";
 import { validateScreenplay } from "../schema";
 import sampleOutputYaml from "../../../examples/sample-output.yaml?raw";
@@ -354,5 +354,57 @@ describe("AI provider", () => {
     const repairPayload = JSON.parse(repairBody.messages[1].content);
     expect(repairPayload.pipelineStage).toBe("schema_repair");
     expect(repairPayload.validationIssues.join("\n")).toContain("scenes");
+  });
+
+  it("regenerates a single scene without rerunning the whole screenplay pipeline", async () => {
+    const validation = validateScreenplay(parse(sampleOutputYaml));
+    expect(validation.success).toBe(true);
+    if (!validation.success) return;
+    const sourceScene = validation.data.scenes[0];
+    const revisedScene = {
+      ...sourceScene,
+      goal: "补强林砚和沈知夏之间的试探，让场尾留下更强追问。",
+      conflict: {
+        level: 5,
+        reason: "主角直接逼问来信来源，关系压力和外部危险同时抬升。"
+      },
+      revisionNotes: ["已补强冲突", "保留原文来源"]
+    };
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({ scene: revisedScene })
+            }
+          }
+        ]
+      })
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await regenerateSceneWithApi(
+      {
+        baseUrl: "https://api.example.com",
+        apiKey: "test-key",
+        model: "test-model"
+      },
+      {
+        screenplay: validation.data,
+        sceneId: sourceScene.id,
+        instruction: "强化本场冲突和对白"
+      }
+    );
+
+    expect(result.goal).toContain("试探");
+    expect(result.conflict.level).toBe(5);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    const requestBody = JSON.parse(String(((fetchMock.mock.calls[0] as unknown as [string, RequestInit])[1]).body));
+    const payload = JSON.parse(requestBody.messages[1].content);
+    expect(payload.pipelineStage).toBe("scene_regenerate");
+    expect(payload.scene.id).toBe(sourceScene.id);
+    expect(payload.screenplay).toBeUndefined();
   });
 });

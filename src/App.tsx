@@ -20,8 +20,13 @@ import {
 import { diagnoseAiConnection } from "./core/apiConnection";
 import { countChapters } from "./core/chapters";
 import type { AdaptationStyle, Scene, ScreenplayYaml } from "./core/types";
-import { generateScreenplayWithApi, type AiGenerationProgress } from "./core/aiProvider";
+import {
+  generateScreenplayWithApi,
+  regenerateSceneWithApi,
+  type AiGenerationProgress
+} from "./core/aiProvider";
 import { generateWorkspaceDraft } from "./core/generationWorkflow";
+import { createRevision, pushRevision, type ScreenplayRevision } from "./core/revisionHistory";
 import { sampleNovel } from "./core/sampleNovel";
 import { validateScreenplay } from "./core/schema";
 import {
@@ -59,6 +64,9 @@ export default function App() {
     initialAiSettings ? "已载入已保存的 AI 设置" : "请配置 AI 后生成剧本"
   );
   const [yamlText, setYamlText] = useState(sampleOutputYaml);
+  const [revisionHistory, setRevisionHistory] = useState<ScreenplayRevision[]>(() => [
+    createRevision("示例 YAML", sampleOutputYaml)
+  ]);
   const [copyLabel, setCopyLabel] = useState("复制");
   const [selectedSceneId, setSelectedSceneId] = useState<string | null>(null);
 
@@ -142,7 +150,9 @@ export default function App() {
     );
 
     if (result.screenplay) {
-      setYamlText(screenplayToYaml(result.screenplay));
+      const nextYaml = screenplayToYaml(result.screenplay);
+      setYamlText(nextYaml);
+      setRevisionHistory((current) => pushRevision(current, createRevision("AI 生成", nextYaml)));
       setSelectedSceneId(result.screenplay.scenes[0]?.id ?? null);
     }
     setGenerationStatus(result.status);
@@ -178,6 +188,79 @@ export default function App() {
     } catch (error) {
       const message = error instanceof Error ? error.message : "场景同步失败";
       setGenerationStatus(message);
+    }
+  }
+
+  function handleSaveRevision() {
+    setRevisionHistory((current) => pushRevision(current, createRevision("手动保存", yamlText)));
+    setGenerationStatus("已保存当前 YAML 版本");
+  }
+
+  function handleRestoreRevision(revision: ScreenplayRevision) {
+    setYamlText(revision.yamlText);
+    try {
+      const parsed = parse(revision.yamlText);
+      const result = validateScreenplay(parsed);
+      setSelectedSceneId(result.success ? result.data.scenes[0]?.id ?? null : null);
+    } catch {
+      setSelectedSceneId(null);
+    }
+    setGenerationStatus(`已恢复版本：${revision.label}`);
+  }
+
+  async function handleRegenerateSelectedScene() {
+    if (!preview || !selectedScene) {
+      setGenerationStatus("请先生成或载入可编辑的剧本场景。");
+      return;
+    }
+
+    if (!useApi) {
+      setGenerationStatus("请先开启 AI 生成，再补强单场。");
+      return;
+    }
+
+    const apiKeyForRequest = apiKey.trim();
+    if (!useLocalProxy && !apiKeyForRequest) {
+      setGenerationStatus("请先填写 API Key。");
+      return;
+    }
+
+    const connection = await diagnoseAiConnection({
+      baseUrl: apiBaseUrl,
+      useLocalProxy,
+      apiKey: apiKeyForRequest
+    });
+    if (!connection.ok) {
+      setGenerationStatus(connection.message);
+      return;
+    }
+
+    setGenerationStatus(`正在用 ${apiModel} 补强 ${selectedScene.id}...`);
+    try {
+      const revisedScene = await regenerateSceneWithApi(
+        {
+          baseUrl: apiBaseUrl,
+          apiKey: apiKeyForRequest,
+          model: apiModel
+        },
+        {
+          screenplay: preview,
+          sceneId: selectedScene.id,
+          instruction: "补强本场对白、冲突压力和场尾钩子，保留原文依据。"
+        }
+      );
+      setYamlText((current) => {
+        const nextYaml = updateScreenplaySceneYaml(current, selectedScene.id, sceneToPatch(revisedScene));
+        setRevisionHistory((history) =>
+          pushRevision(history, createRevision(`AI 补强 ${selectedScene.id}`, nextYaml))
+        );
+        return nextYaml;
+      });
+      setSelectedSceneId(selectedScene.id);
+      setGenerationStatus(`已补强 ${selectedScene.id} 并同步到 YAML`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "单场补强失败";
+      setGenerationStatus(`AI 补强失败：${message}`);
     }
   }
 
@@ -397,6 +480,9 @@ export default function App() {
                   <Download size={18} />
                   下载
                 </button>
+                <button className="icon-button text-button" type="button" onClick={handleSaveRevision} title="保存当前版本">
+                  保存
+                </button>
               </div>
             </div>
 
@@ -414,12 +500,15 @@ export default function App() {
                 <p>{validation.ok ? "当前 YAML 可复制、下载和继续改写。" : validation.errors.slice(0, 3).join("；")}</p>
               </div>
             </div>
+
+            <RevisionHistoryPanel history={revisionHistory} onRestore={handleRestoreRevision} />
           </section>
 
           {selectedScene ? (
             <SceneInspector
               scene={selectedScene}
               onPatch={(patch) => handleScenePatch(selectedScene.id, patch)}
+              onRegenerate={handleRegenerateSelectedScene}
             />
           ) : (
             <section className="scene-inspector empty">
@@ -447,6 +536,48 @@ function formatAiProgress(event: AiGenerationProgress, model: string): string {
   }
 
   return `${event.message}：${model}`;
+}
+
+function sceneToPatch(scene: Scene): ScenePatch {
+  return {
+    title: scene.title,
+    goal: scene.goal,
+    location: scene.location,
+    time: scene.time,
+    characters: scene.characters,
+    action: scene.action,
+    dialogue: scene.dialogue,
+    narrationOrTransition: scene.narrationOrTransition,
+    emotion: scene.emotion,
+    pacing: scene.pacing,
+    conflict: scene.conflict,
+    revisionNotes: scene.revisionNotes
+  };
+}
+
+function RevisionHistoryPanel({
+  history,
+  onRestore
+}: {
+  history: ScreenplayRevision[];
+  onRestore: (revision: ScreenplayRevision) => void;
+}) {
+  return (
+    <div className="revision-history">
+      <div className="analysis-card-head">
+        <h3>版本历史</h3>
+        <span>{history.length} 个版本</span>
+      </div>
+      <div className="revision-list">
+        {history.map((revision) => (
+          <button key={revision.id} type="button" onClick={() => onRestore(revision)}>
+            <strong>{revision.label}</strong>
+            <span>{new Date(revision.createdAt).toLocaleString()}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 function ScreenplayReview({
@@ -598,7 +729,15 @@ function ScreenplayReview({
   );
 }
 
-function SceneInspector({ scene, onPatch }: { scene: Scene; onPatch: (patch: ScenePatch) => void }) {
+function SceneInspector({
+  scene,
+  onPatch,
+  onRegenerate
+}: {
+  scene: Scene;
+  onPatch: (patch: ScenePatch) => void;
+  onRegenerate: () => void;
+}) {
   return (
     <section className="scene-inspector">
       <div className="scene-card-top">
@@ -608,6 +747,9 @@ function SceneInspector({ scene, onPatch }: { scene: Scene; onPatch: (patch: Sce
       <div className="editor-heading">
         <PencilLine size={18} />
         <h3>场景编辑器</h3>
+        <button className="secondary-action compact" type="button" onClick={onRegenerate}>
+          AI 补强
+        </button>
       </div>
       <p className="sync-note">修改会立即同步到 YAML，并触发 Schema 校验。</p>
 
