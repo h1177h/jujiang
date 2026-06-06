@@ -3,11 +3,40 @@ import {
   completeGenerationRun,
   createGenerationRun,
   failGenerationRun,
+  formatAiGenerationProgress,
+  formatGenerationRunStatus,
   pushGenerationRunHistory,
   updateGenerationRunStage
 } from "../generationRun";
 
 describe("generation run tracking", () => {
+  it("formats progress and status labels for the visible task panel", () => {
+    expect(
+      formatAiGenerationProgress(
+        {
+          stage: "chapter_event_extract",
+          message: "正在抽取章节事件",
+          current: 2,
+          total: 5
+        },
+        "gpt-4.1-mini"
+      )
+    ).toBe("正在用 gpt-4.1-mini 抽取章节事件：2/5");
+    expect(
+      formatAiGenerationProgress(
+        {
+          stage: "schema_repair",
+          message: "正在修复结构"
+        },
+        "gpt-4.1-mini"
+      )
+    ).toBe("正在用 gpt-4.1-mini 修复剧本结构");
+    expect(formatGenerationRunStatus("completed")).toBe("完成");
+    expect(formatGenerationRunStatus("failed")).toBe("失败");
+    expect(formatGenerationRunStatus("running")).toBe("运行中");
+    expect(formatGenerationRunStatus("idle")).toBe("待开始");
+  });
+
   it("starts a visible run with source and connection stages", () => {
     const run = createGenerationRun({
       title: "雾港来信",
