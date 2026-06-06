@@ -29,6 +29,7 @@ import {
 } from "./core/apiConnection";
 import { apiProviderPresets, findApiProviderPreset } from "./core/apiProviders";
 import { countChapters } from "./core/chapters";
+import { buildGenerationInputPlan, type GenerationInputPlan } from "./core/generationPlan";
 import type { AdaptationStyle, Scene, ScreenplayYaml } from "./core/types";
 import {
   generateScreenplayWithApi,
@@ -138,6 +139,7 @@ export default function App() {
   const chapterCount = useMemo(() => {
     return countChapters(novelText);
   }, [novelText]);
+  const generationInputPlan = useMemo(() => buildGenerationInputPlan(novelText), [novelText]);
   const sceneCount = preview?.scenes.length ?? 0;
   const aiSettingsSummary = useMemo(
     () =>
@@ -545,6 +547,8 @@ export default function App() {
               </button>
             </div>
 
+            <GenerationInputPlanCard plan={generationInputPlan} />
+
             <GenerationRunPanel
               run={generationRun}
               history={generationRunHistory}
@@ -785,6 +789,37 @@ function AiSettingsPanel({
         <p className="status-note strong">{generationStatus}</p>
       </section>
     </div>
+  );
+}
+
+function GenerationInputPlanCard({ plan }: { plan: GenerationInputPlan }) {
+  const modeLabel =
+    plan.mode === "compact" ? "故事蓝图" : plan.mode === "staged" ? "逐章抽取" : "分片抽取";
+
+  return (
+    <section className={`generation-plan-card ${plan.mode}`} aria-label="生成计划">
+      <div>
+        <span>{modeLabel}</span>
+        <strong>{plan.summary}</strong>
+      </div>
+      <dl>
+        <div>
+          <dt>章节</dt>
+          <dd>{plan.chapterCount}</dd>
+        </div>
+        <div>
+          <dt>段落</dt>
+          <dd>{plan.paragraphCount}</dd>
+        </div>
+        <div>
+          <dt>抽取单元</dt>
+          <dd>{plan.extractionUnitCount}</dd>
+        </div>
+      </dl>
+      {plan.mode === "chunked" ? (
+        <p>长章节会先按段落拆分，逐段提取事件后再合并故事蓝图，减少长文生成超时。</p>
+      ) : null}
+    </section>
   );
 }
 

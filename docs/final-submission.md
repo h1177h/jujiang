@@ -40,19 +40,20 @@
 - 创作工作区会自动保存在本机浏览器，刷新后可以继续编辑原文、YAML、当前场景、版本历史和生成记录。
 - 应用内 AI 服务是固定调用链路，可使用页面提供的 key，也可从环境变量读取 key，避免浏览器直连 provider 时被 CORS 或系统代理拦截。
 - 生成前提供连接测试，能区分应用内服务未启动、服务未读到 key 和上游地址不可用。
-- 长篇小说会逐章抽取事件，再合并故事圣经和改编策略，避免把整篇小说直接塞进一次 prompt。
+- 原文区会展示生成计划，根据章节、段落和文本长度预估短篇、逐章抽取或长章节分片抽取。
+- 长篇小说会逐章抽取事件；单章过长时会按段落预算拆成多个抽取单元，再合并故事圣经和改编策略，避免把整篇小说或超长单章直接塞进一次 prompt。
 - API 返回结构不完整时，会触发一次 Schema 修复回合，把校验错误反馈给模型修正。
 - 生成任务面板会记录每次调用的阶段、耗时、章节进度和失败位置；模型请求通过本地任务运行时创建和轮询，运行中可以取消，失败任务可以复制诊断并直接重试。
 - 支持单场 AI 补强，可以只重写当前场景的对白、冲突和场尾钩子，不必整篇重跑。
 - 提供轻量版本历史，可保存、恢复和对比关键 YAML 快照。
-- 可操作创新点：本地任务化生成与取消、长篇逐章事件抽取、故事圣经合并、Schema 修复回合、生成任务面板、失败重试与生成记录恢复、单场 AI 补强、轻量版本历史、版本对比、工作区草稿自动保存、章节事件图谱、场景级工作台编辑、章节到场景映射、冲突曲线、质量检查、角色关系摘要、原文追溯、改编风格选择、节奏统计。
+- 可操作创新点：生成计划预估、长章节分片抽取、本地任务化生成与取消、长篇逐章事件抽取、故事圣经合并、Schema 修复回合、生成任务面板、失败重试与生成记录恢复、单场 AI 补强、轻量版本历史、版本对比、工作区草稿自动保存、章节事件图谱、场景级工作台编辑、章节到场景映射、冲突曲线、质量检查、角色关系摘要、原文追溯、改编风格选择、节奏统计。
 
 40% 开发过程与质量：
 
 - Vite + React + TypeScript + Zod + YAML，结构轻，方便评审阅读。
 - 核心逻辑放在 `src/core/`，UI 和转换逻辑分开。
 - Zod Schema 和 `docs/yaml-schema.md` 对齐。
-- 测试覆盖章节解析、YAML 生成结构、Schema 校验、API provider、场景编辑同步、故事分析，以及角色抽取误判回归。
+- 测试覆盖章节解析、YAML 生成结构、Schema 校验、API provider、长文生成计划、场景编辑同步、故事分析，以及角色抽取误判回归。
 - 通过多个小 PR 分阶段推进，没有直推 main。
 
 20% 演示与表达：
@@ -80,11 +81,11 @@
 - PR #14 `feat(ui): rebuild studio layout`：重建作者审稿台、YAML 交付和场景编辑布局。
 - PR #15 `style(ui): loosen studio layout density`：降低界面密度，让输入、审稿和交付区更有层次。
 - PR #16 `fix(workflow): require ai for screenplay generation`：移除本地规则剧情生成，AI 不可用时不伪造剧本。
-- PR #17 `fix(api): add proxy env support`：补本地 proxy、网络代理和重复章节清洗。
-- PR #18 `fix(parser): align chapter recognition with generation`：修正章节识别与生成上下文不一致。
-- PR #19 `feat(api): add staged story generation`：加入章节事件图谱、故事圣经和两阶段 AI 改编。
-- PR #20 `feat(api): persist provider settings`：本机浏览器记住 API 设置。
-- PR #21 `fix(api): add provider connection diagnostics`：把本地 proxy 调整为推荐 AI 调用链路，补连接测试和 `Failed to fetch` 分层诊断。
+- PR #17 `fix(ai): require real generation provider`：移除本地规则剧情生成，AI 不可用时不伪造剧本。
+- PR #18 `fix(ai): structure long novel context`：修正章节识别与 AI 上下文不一致。
+- PR #19 `feat(ai): add staged adaptation pipeline`：加入章节事件图谱、故事圣经和两阶段 AI 改编。
+- PR #20 `feat(settings): persist api credentials locally`：本机浏览器记住 API 设置。
+- PR #21 `fix(api): add provider connection diagnostics`：补连接测试和 `Failed to fetch` 分层诊断。
 - PR #22 `feat(ai): add longform generation pipeline`：把 AI 生成升级为长篇逐章事件流水线，并加入 Schema 修复回合。
 - PR #23 `feat(workspace): add scene regeneration history`：补单场 AI 补强和轻量版本历史。
 - PR #24 `feat(workspace): persist local drafts`：补工作区草稿自动保存、恢复和重置。
@@ -92,11 +93,17 @@
 - PR #26 `feat(ai): persist generation run history`：把生成任务记录纳入本机工作区草稿，失败后可保留阶段信息并直接重试。
 - PR #27 `feat(workspace): add revision diff panel`：把版本历史从“只能恢复”补成可对比的修订面板，展示当前 YAML 相比旧版的新增、删除和变更行。
 - PR #28 `fix(api): harden local proxy transport`：修复 proxy 模式仍可能走浏览器直连的问题，并把默认 proxy 端口迁移到 18787，避开常见本地端口冲突。
+- PR #29 `feat(api): route provider profiles through app service`：把页面 Provider 设置统一接到应用内 AI 服务，避免 Base URL 配了但没有真正转发。
+- PR #30 `fix(workspace): start from blank draft`：默认从空白工作区开始，示例内容改为可主动加载。
+- PR #31 `fix(ai): retry transient provider failures`：对 504 等临时 provider 失败增加重试和阶段诊断。
+- PR #32 `feat(ui): move api settings into panel`：把 API Key 和 Provider 配置移出首页，改成独立设置面板。
+- PR #33 `fix(ai): add resilient staged generation`：强化分阶段生成、长文策略和 Schema 修复诊断。
+- PR #34 `feat(ai): add task generation runtime`：新增本地生成任务运行时，支持创建、轮询、取消和诊断保留。
 
 ## 已运行验证
 
 - `npm audit`：found 0 vulnerabilities。
-- `npm test`：10 个测试文件、65 个测试用例通过。
+- `npm test`：11 个测试文件、70 个测试用例通过。
 - `npm run build`：通过。
 - 应用内 AI 服务 health check：`http://127.0.0.1:18787/health` 返回 `ok:true` 和 `service:"jujiang-api-proxy"`，可显示 target 和 key 加载状态。
 - 本地浏览器 QA：1440px 和 390px 视口检查过，场景编辑器、故事分析区和 YAML 区没有横向溢出。
@@ -107,7 +114,7 @@
 - 自动生成质量依赖真实 AI provider；当前没有离线剧情生成能力。
 - 应用内 AI 服务可读取环境变量 key，也可使用页面填写并保存在本机浏览器的 key；公开演示或共享电脑上建议使用环境变量。默认端口是 18787，如被占用可用 `JUJIANG_PROXY_PORT` 改端口并同步页面 Base URL。
 - 浏览器直连 provider 仍可能被 CORS 或网络策略拦截，正式演示建议使用 `npm run dev:app` 启动完整应用链路。
-- 当前已支持长篇逐章事件抽取和单场补强，但复杂小说仍需要作者继续调整分场边界。
+- 当前已支持长篇逐章事件抽取、长章节分片和单场补强，但复杂小说仍需要作者继续调整分场边界。
 - 版本历史目前是轻量行级对比，还没有做逐字段语义 diff。
 - 工作区草稿和生成记录保存在当前浏览器 localStorage，还不是跨设备项目库；公开演示机器上可用重置工作区清理草稿。
 - 角色抽取已经为示例做了回归，但面对更复杂小说仍可能需要 AI 或更强 NLP 补充。
