@@ -48,6 +48,30 @@ describe("generation workflow", () => {
     );
   });
 
+  it("does not mislabel upstream timeouts as key or proxy problems", async () => {
+    const apiGenerator = vi.fn<() => Promise<ScreenplayYaml>>(async () => {
+      throw new Error("上游 AI 服务超时：HTTP 504。已尝试 3 次仍未返回。建议换更快模型。");
+    });
+
+    const result = await generateWorkspaceDraft(
+      {
+        title: "雨夜来信",
+        style: "cinematic",
+        novelText: "第一章 雨夜\n林砚推开旧书店的门，说：“我来取那封信。”",
+        useApi: true,
+        apiReady: true,
+        model: "test-model"
+      },
+      apiGenerator
+    );
+
+    expect(result.status).toBe(
+      "AI 生成失败：上游 AI 服务超时：HTTP 504。已尝试 3 次仍未返回。建议换更快模型。"
+    );
+    expect(result.status).not.toContain("API key");
+    expect(result.status).not.toContain("代理");
+  });
+
   it("requires AI configuration instead of generating a local plot", async () => {
     const apiGenerator = vi.fn<() => Promise<ScreenplayYaml>>();
 
