@@ -56,7 +56,7 @@ import {
   patchTouchesEditorIssueField,
   type ActiveEditorIssue
 } from "./core/editorIssues";
-import { analyzeScreenplay, type SceneQualityIssue } from "./core/storyAnalysis";
+import { analyzeScreenplay, findSceneIdForChapterEvent, type SceneQualityIssue } from "./core/storyAnalysis";
 import { screenplayToYaml, validateScreenplayYaml, type ScreenplayYamlDiagnostic } from "./core/yaml";
 import { DeliveryPanel } from "./components/DeliveryPanel";
 import sampleOutputYaml from "../examples/sample-output.yaml?raw";
@@ -753,10 +753,8 @@ function ScreenplayReview({
                   className="event-item"
                   type="button"
                   onClick={() => {
-                    const matchedScene = screenplay.scenes.find(
-                      (scene) => scene.chapterIndex === chapter.chapterIndex
-                    );
-                    if (matchedScene) onSelectScene(matchedScene.id);
+                    const matchedSceneId = findSceneIdForChapterEvent(event, screenplay.scenes);
+                    if (matchedSceneId) onSelectScene(matchedSceneId);
                   }}
                 >
                   <span>{event.id}</span>

@@ -1,4 +1,4 @@
-import type { Scene, ScreenplayYaml } from "./types";
+import type { ChapterEvent, Scene, ScreenplayYaml, SourceLocator } from "./types";
 
 export interface ChapterSceneCoverage {
   chapterIndex: number;
@@ -101,6 +101,12 @@ export function formatStoryAnalysisPanelLabels(analysis: StoryAnalysis): {
   };
 }
 
+export function findSceneIdForChapterEvent(event: ChapterEvent, scenes: Scene[]): string | null {
+  const chapterScenes = scenes.filter((scene) => scene.chapterIndex === event.source.chapterIndex);
+  const sourceMatchedScene = chapterScenes.find((scene) => sourceOverlaps(scene.source, event.source));
+  return sourceMatchedScene?.id ?? chapterScenes[0]?.id ?? null;
+}
+
 function buildSceneIssues(scene: Scene): SceneQualityIssue[] {
   const issues: SceneQualityIssue[] = [];
 
@@ -160,4 +166,13 @@ function buildSceneIssues(scene: Scene): SceneQualityIssue[] {
   }
 
   return issues;
+}
+
+function sourceOverlaps(sceneSource: SourceLocator, eventSource: SourceLocator): boolean {
+  if (sceneSource.excerpt.includes(eventSource.excerpt) || eventSource.excerpt.includes(sceneSource.excerpt)) {
+    return true;
+  }
+
+  const eventParagraphs = new Set(eventSource.paragraphIndexes);
+  return sceneSource.paragraphIndexes.some((paragraphIndex) => eventParagraphs.has(paragraphIndex));
 }
