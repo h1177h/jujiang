@@ -9,7 +9,7 @@
 1. `npm install`
 2. `npm run dev`
 3. 打开 Vite 本地地址。
-4. 使用内置多章示例，上传 `examples/sample-novel.md`，或直接粘贴一段短篇素材。
+4. 上传 `examples/sample-novel.md`，或直接粘贴一段短篇素材。
 5. 如果展示真实 API，先运行 `npm run proxy`，页面勾选“AI 生成”和“本地 proxy”，填写 API Key 或让 proxy 从 `JUJIANG_API_KEY` 读取。
 6. 点击“测试连接”，确认本地 proxy 已启动、上游地址和 key 状态正常。
 7. 点击“生成结构化剧本 YAML”。

@@ -17,7 +17,7 @@
 - 提供可编辑 YAML 区域，编辑后实时 Schema 校验。
 - 支持复制、下载 YAML，并保留轻量版本历史，可保存、恢复和对比关键版本。
 - 工作区草稿会自动保存在本机浏览器：小说正文、标题、改编风格、YAML、选中场景、版本历史和生成记录刷新后仍可恢复，也可以一键重置工作区。
-- 内置多章示例小说《雾港来信》和示例 YAML，无 API key 也能演示编辑、校验、复制和下载。
+- 提供 `examples/sample-novel.md` 和 `examples/sample-output.yaml` 作为演示材料；产品首屏默认空白，等待用户上传或粘贴自己的小说。
 - 可选择 Provider，填写 Base URL、API Key 和 Model，调用兼容 `/v1/chat/completions` 的模型生成剧本；整套 API 配置可记住在本机浏览器。
 - 页面始终通过应用内 AI 服务转发到当前 Provider，上游 Base URL 会随请求传入服务端，避免“页面填了但实际没用”的配置错位。
 - 支持“测试连接”：生成前会检查应用内 AI 服务、当前上游地址和 API Key 状态。
@@ -38,7 +38,7 @@ npm install
 npm run dev:app
 ```
 
-浏览器打开 Vite 输出的本地地址后，可以先查看和编辑内置示例 YAML。自动生成需要配置 AI。
+浏览器打开 Vite 输出的本地地址后，先上传 `.txt/.md` 小说文件或粘贴正文。自动生成需要配置 AI。
 
 `npm run dev:app` 会同时启动前端工作台和应用内 AI 服务。页面里只需要选择 Provider，填写 Base URL、Model 和 API Key，然后点击“测试连接”或直接生成；不需要再理解浏览器直连、CORS 或 proxy 端口。
 
@@ -108,7 +108,7 @@ src/
     sceneEditor.ts         # 场景编辑与 YAML 同步
     storyAnalysis.ts       # 章节映射、冲突曲线和质量检查
     yaml.ts                # YAML 序列化与解析校验
-    sampleNovel.ts         # 多章示例小说
+    sampleNovel.ts         # 示例小说测试 fixture
     types.ts               # 剧本数据结构
     __tests__/             # 核心测试
 scripts/
@@ -122,7 +122,7 @@ docs/
 ## Demo 步骤
 
 1. 运行 `npm run dev:app`。
-2. 打开本地页面，确认左侧已有示例小说，也可以直接粘贴短篇片段。
+2. 打开本地页面，上传 `examples/sample-novel.md`，或直接粘贴自己的短篇片段。
 3. 切换改编风格，例如“影视感”或“短剧”。
 4. 如需真实 AI 生成，在 AI 配置区选择 Provider，确认 Base URL 和 Model，填写 API Key；勾选“记住 API Key”后刷新页面仍会保留。
 5. 点击“生成结构化剧本 YAML”。
