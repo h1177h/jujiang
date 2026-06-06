@@ -1,7 +1,9 @@
 import type { AdaptationStyle, ScreenplayYaml, StoryBlueprint } from "./types";
 import { classifyFetchFailure } from "./apiConnection";
 import { parseChapters } from "./chapters";
-import { validateScreenplay, validateStoryBlueprint } from "./schema";
+import { storyBlueprintSchema, validateScreenplay, validateStoryBlueprint } from "./schema";
+
+const longFormChapterThreshold = 3;
 
 export interface AiProviderSettings {
   baseUrl: string;
@@ -14,6 +16,19 @@ export interface AiGenerationOptions {
   style: AdaptationStyle;
   novelText: string;
   signal?: AbortSignal;
+  onProgress?: (event: AiGenerationProgress) => void;
+}
+
+export interface AiGenerationProgress {
+  stage:
+    | "chapter_event_extract"
+    | "event_extract"
+    | "story_bible_generate"
+    | "screenplay_generate"
+    | "schema_repair";
+  message: string;
+  current?: number;
+  total?: number;
 }
 
 interface ChatCompletionResponse {
@@ -33,6 +48,15 @@ export async function generateScreenplayWithApi(
 ): Promise<ScreenplayYaml> {
   const baseUrl = normalizeBaseUrl(settings.baseUrl);
   const sourceChapters = buildSourceChapters(options.novelText);
+
+  if (sourceChapters.length > longFormChapterThreshold) {
+    return generateLongFormScreenplay(settings, baseUrl, options, sourceChapters);
+  }
+
+  options.onProgress?.({
+    stage: "event_extract",
+    message: "正在抽取章节事件和故事蓝图"
+  });
   const blueprintContent = await requestChatCompletion(settings, baseUrl, {
     temperature: 0.25,
     messages: [
@@ -49,6 +73,10 @@ export async function generateScreenplayWithApi(
   });
   const blueprint = normalizeStoryBlueprint(parseJsonObject(blueprintContent));
 
+  options.onProgress?.({
+    stage: "screenplay_generate",
+    message: "正在生成结构化剧本 YAML"
+  });
   const screenplayContent = await requestChatCompletion(settings, baseUrl, {
     temperature: 0.4,
     messages: [
@@ -65,13 +93,88 @@ export async function generateScreenplayWithApi(
   });
 
   const parsed = parseJsonObject(screenplayContent);
-  const normalized = normalizeApiScreenplay(parsed, settings.model, blueprint);
-  const result = validateScreenplay(normalized);
-  if (!result.success) {
-    throw new Error(`API 返回结构未通过 Schema：${result.error.issues.map((issue) => issue.path.join(".")).join(", ")}`);
+  return validateOrRepairScreenplay(settings, baseUrl, options, sourceChapters, blueprint, parsed);
+}
+
+async function generateLongFormScreenplay(
+  settings: AiProviderSettings,
+  baseUrl: string,
+  options: AiGenerationOptions,
+  sourceChapters: ReturnType<typeof buildSourceChapters>
+): Promise<ScreenplayYaml> {
+  const chapterEvents = [];
+
+  for (const [index, sourceChapter] of sourceChapters.entries()) {
+    options.onProgress?.({
+      stage: "chapter_event_extract",
+      message: `正在抽取第 ${sourceChapter.chapterIndex} 章事件`,
+      current: index + 1,
+      total: sourceChapters.length
+    });
+    const content = await requestChatCompletion(settings, baseUrl, {
+      temperature: 0.2,
+      messages: [
+        {
+          role: "system",
+          content: buildChapterEventSystemPrompt()
+        },
+        {
+          role: "user",
+          content: buildChapterEventUserPrompt(options, sourceChapter, sourceChapters.length)
+        }
+      ],
+      signal: options.signal
+    });
+    chapterEvents.push(...normalizeChapterEventGroups(parseJsonObject(content)));
   }
 
-  return result.data;
+  options.onProgress?.({
+    stage: "story_bible_generate",
+    message: "正在合并故事圣经和改编策略"
+  });
+  const blueprintContent = await requestChatCompletion(settings, baseUrl, {
+    temperature: 0.25,
+    messages: [
+      {
+        role: "system",
+        content: buildBlueprintMergeSystemPrompt()
+      },
+      {
+        role: "user",
+        content: buildBlueprintMergeUserPrompt(options, sourceChapters, chapterEvents)
+      }
+    ],
+    signal: options.signal
+  });
+  const blueprint = normalizeStoryBlueprint(parseJsonObject(blueprintContent));
+
+  options.onProgress?.({
+    stage: "screenplay_generate",
+    message: "正在按故事蓝图生成完整剧本"
+  });
+  const screenplayContent = await requestChatCompletion(settings, baseUrl, {
+    temperature: 0.4,
+    messages: [
+      {
+        role: "system",
+        content: buildScreenplaySystemPrompt()
+      },
+      {
+        role: "user",
+        content: buildLongFormScreenplayUserPrompt(options, sourceChapters, blueprint)
+      }
+    ],
+    signal: options.signal
+  });
+
+  return validateOrRepairScreenplay(
+    settings,
+    baseUrl,
+    options,
+    sourceChapters,
+    blueprint,
+    parseJsonObject(screenplayContent)
+  );
 }
 
 async function requestChatCompletion(
@@ -138,6 +241,25 @@ function buildBlueprintSystemPrompt(): string {
   ].join("\n");
 }
 
+function buildChapterEventSystemPrompt(): string {
+  return [
+    "你是剧匠的章节事件抽取引擎，只输出 JSON，不要输出 Markdown。",
+    "你一次只处理一个章节，输出必须只包含 chapterEvents。",
+    "chapterEvents 必须是数组，并且只包含当前章节的事件组。",
+    "每个事件必须写 characters、location、conflict、emotionalTurn 和 source。",
+    "source.excerpt 必须来自当前章节原文段落，不要补写原文不存在的剧情。"
+  ].join("\n");
+}
+
+function buildBlueprintMergeSystemPrompt(): string {
+  return [
+    "你是剧匠的长篇故事统筹引擎，只输出 JSON，不要输出 Markdown。",
+    "你会收到逐章抽取的 chapterEvents，请合并成完整故事蓝图。",
+    "输出必须包含 chapterEvents、storyBible、adaptationStrategy。",
+    "不要删除已抽取事件；可以统一角色弧光、时间线、核心冲突和分场策略。"
+  ].join("\n");
+}
+
 function buildScreenplaySystemPrompt(): string {
   return [
     "你是剧匠的小说改编引擎，只输出 JSON，不要输出 Markdown。",
@@ -183,6 +305,51 @@ function buildBlueprintUserPrompt(
   });
 }
 
+function buildChapterEventUserPrompt(
+  options: AiGenerationOptions,
+  sourceChapter: ReturnType<typeof buildSourceChapters>[number],
+  sourceChapterCount: number
+): string {
+  return JSON.stringify({
+    pipelineStage: "chapter_event_extract",
+    title: options.title,
+    adaptationStyle: options.style,
+    sourceChapterCount,
+    sourceChapter,
+    extractionRules: [
+      "只处理 sourceChapter 中的 paragraphs。",
+      "按人物目标、阻碍、转折、线索和场尾钩子提取事件。",
+      "同一章节可以有多个事件；事件数量应由剧情变化决定，不要机械固定。"
+    ]
+  });
+}
+
+function buildBlueprintMergeUserPrompt(
+  options: AiGenerationOptions,
+  sourceChapters: ReturnType<typeof buildSourceChapters>,
+  chapterEvents: StoryBlueprint["chapterEvents"]
+): string {
+  return JSON.stringify({
+    pipelineStage: "story_bible_generate",
+    title: options.title,
+    adaptationStyle: options.style,
+    sourceChapterCount: sourceChapters.length,
+    sourceChapters: sourceChapters.map((chapter) => ({
+      chapterIndex: chapter.chapterIndex,
+      chapterTitle: chapter.chapterTitle,
+      lineStart: chapter.lineStart,
+      lineEnd: chapter.lineEnd,
+      paragraphCount: chapter.paragraphs.length
+    })),
+    chapterEvents,
+    mergeRules: [
+      "保持 chapterEvents 覆盖所有输入章节。",
+      "storyBible 要解决角色弧光、时间线和核心冲突的连续性。",
+      "adaptationStrategy 要明确长篇分场策略和风险控制。"
+    ]
+  });
+}
+
 function buildScreenplayUserPrompt(
   options: AiGenerationOptions,
   sourceChapters: ReturnType<typeof buildSourceChapters>,
@@ -210,6 +377,74 @@ function buildScreenplayUserPrompt(
   });
 }
 
+function buildLongFormScreenplayUserPrompt(
+  options: AiGenerationOptions,
+  sourceChapters: ReturnType<typeof buildSourceChapters>,
+  storyBlueprint: StoryBlueprint
+): string {
+  return JSON.stringify({
+    pipelineStage: "screenplay_generate",
+    title: options.title,
+    adaptationStyle: options.style,
+    longNovelStrategy: [
+      "基于 storyBlueprint.chapterEvents 生成 scenes，不要重新请求或复述整篇小说。",
+      "source.excerpt 直接使用 chapterEvents 中已抽取的原文摘录。",
+      "地点、时间、人物行动或冲突发生变化时才开新场，不能机械按章节平均拆分。",
+      "chapterMappings 必须覆盖所有 sourceChapters。"
+    ],
+    schemaNotes: {
+      generatedBy: "请写成 api:<model>",
+      conflictLevel: "1 到 5 的整数",
+      pacing: ["quiet", "steady", "tense", "cliffhanger"],
+      beatType: ["setup", "turning_point", "payoff"],
+      minimumScenes: 3
+    },
+    sourceChapterCount: sourceChapters.length,
+    sourceChapters: sourceChapters.map((chapter) => ({
+      chapterIndex: chapter.chapterIndex,
+      chapterTitle: chapter.chapterTitle,
+      heading: chapter.heading,
+      lineStart: chapter.lineStart,
+      lineEnd: chapter.lineEnd,
+      paragraphCount: chapter.paragraphs.length
+    })),
+    storyBlueprint
+  });
+}
+
+function buildRepairSystemPrompt(): string {
+  return [
+    "你是剧匠的 Schema 修复引擎，只输出 JSON，不要输出 Markdown。",
+    "你会收到一份未通过校验的剧本 JSON、校验错误和故事蓝图。",
+    "只修结构和缺失字段，尽量保留原剧本内容；不要重写成另一个故事。",
+    "修复后的输出必须匹配剧匠 ScreenplayYaml Schema。"
+  ].join("\n");
+}
+
+function buildRepairUserPrompt(
+  options: AiGenerationOptions,
+  sourceChapters: ReturnType<typeof buildSourceChapters>,
+  storyBlueprint: StoryBlueprint,
+  screenplayDraft: unknown,
+  validationIssues: string[]
+): string {
+  return JSON.stringify({
+    pipelineStage: "schema_repair",
+    title: options.title,
+    adaptationStyle: options.style,
+    validationIssues,
+    sourceChapterCount: sourceChapters.length,
+    sourceChapters,
+    storyBlueprint,
+    screenplayDraft,
+    repairRules: [
+      "补齐缺失字段和空数组，但不要编造不存在的章节。",
+      "scene.source.excerpt 必须来自 sourceChapters 的原文段落。",
+      "rhythmStats 和 storyDiagnostics 必须与 scenes 保持一致。"
+    ]
+  });
+}
+
 function parseJsonObject(content: string): unknown {
   const trimmed = content.trim();
   try {
@@ -231,6 +466,19 @@ function normalizeStoryBlueprint(value: unknown): StoryBlueprint {
   return result.data;
 }
 
+function normalizeChapterEventGroups(value: unknown): StoryBlueprint["chapterEvents"] {
+  if (!value || typeof value !== "object") {
+    throw new Error("API 章节事件返回 JSON 不是对象。");
+  }
+
+  const chapterEvents = (value as Partial<StoryBlueprint>).chapterEvents;
+  const result = storyBlueprintSchema.shape.chapterEvents.safeParse(chapterEvents);
+  if (!result.success) {
+    throw new Error(`API 章节事件未通过 Schema：${result.error.issues.map((issue) => issue.path.join(".")).join(", ")}`);
+  }
+  return result.data;
+}
+
 function normalizeApiScreenplay(value: unknown, model: string, blueprint: StoryBlueprint): ScreenplayYaml {
   if (!value || typeof value !== "object") {
     throw new Error("API 返回 JSON 不是对象。");
@@ -247,4 +495,46 @@ function normalizeApiScreenplay(value: unknown, model: string, blueprint: StoryB
       generatedBy: screenplay.work?.generatedBy || `api:${model}`
     }
   };
+}
+
+async function validateOrRepairScreenplay(
+  settings: AiProviderSettings,
+  baseUrl: string,
+  options: AiGenerationOptions,
+  sourceChapters: ReturnType<typeof buildSourceChapters>,
+  blueprint: StoryBlueprint,
+  screenplayDraft: unknown
+): Promise<ScreenplayYaml> {
+  const normalized = normalizeApiScreenplay(screenplayDraft, settings.model, blueprint);
+  const result = validateScreenplay(normalized);
+  if (result.success) {
+    return result.data;
+  }
+
+  const validationIssues = result.error.issues.map((issue) => issue.path.join(".")).filter(Boolean);
+  options.onProgress?.({
+    stage: "schema_repair",
+    message: "AI 返回结构未通过校验，正在尝试修复"
+  });
+  const repairedContent = await requestChatCompletion(settings, baseUrl, {
+    temperature: 0.1,
+    messages: [
+      {
+        role: "system",
+        content: buildRepairSystemPrompt()
+      },
+      {
+        role: "user",
+        content: buildRepairUserPrompt(options, sourceChapters, blueprint, normalized, validationIssues)
+      }
+    ],
+    signal: options.signal
+  });
+
+  const repaired = normalizeApiScreenplay(parseJsonObject(repairedContent), settings.model, blueprint);
+  const repairedResult = validateScreenplay(repaired);
+  if (!repairedResult.success) {
+    throw new Error(`API 返回结构未通过 Schema：${repairedResult.error.issues.map((issue) => issue.path.join(".")).join(", ")}`);
+  }
+  return repairedResult.data;
 }
