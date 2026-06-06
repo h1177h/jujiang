@@ -53,6 +53,7 @@ describe("workspace draft persistence", () => {
                 status: "failed",
                 upstreamStatus: 504,
                 message: "上游 AI 服务返回 HTTP 504",
+                providerSummary: "contentType=text/event-stream; choices=0",
                 updatedAt: "2026-06-06T00:03:11.000Z"
               }
             ],
@@ -103,6 +104,7 @@ describe("workspace draft persistence", () => {
                 status: "failed",
                 upstreamStatus: 504,
                 message: "上游 AI 服务返回 HTTP 504",
+                providerSummary: "contentType=text/event-stream; choices=0",
                 updatedAt: "2026-06-06T00:03:11.000Z"
               }
             ],

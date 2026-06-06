@@ -316,7 +316,8 @@ export default function App() {
                       createdAt: task.createdAt,
                       updatedAt: task.updatedAt,
                       upstreamStatus: task.upstreamStatus,
-                      message: task.message
+                      message: task.message,
+                      providerSummary: task.providerSummary
                     })
                   : current
               );
@@ -994,6 +995,7 @@ function GenerationRunPanel({
                 {task.upstreamStatus ? ` · HTTP ${task.upstreamStatus}` : ""}
                 {task.message ? ` · ${task.message}` : ""}
               </p>
+              {task.providerSummary ? <p className="local-task-summary">{task.providerSummary}</p> : null}
             </div>
           ))}
         </div>

@@ -709,6 +709,12 @@ select:focus,
   font-size: 11px;
 }
 
+.local-task .local-task-summary {
+  color: #475569;
+  white-space: normal;
+  word-break: break-word;
+}
+
 .generation-history {
   border-top: 1px solid #e2e8f0;
   display: grid;

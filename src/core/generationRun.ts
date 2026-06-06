@@ -40,6 +40,7 @@ export interface GenerationRunTaskSnapshot {
   updatedAt?: string;
   upstreamStatus?: number;
   message?: string;
+  providerSummary?: string;
 }
 
 export function createGenerationRun({
@@ -267,7 +268,8 @@ export function buildGenerationRunDiagnostic(run: GenerationRun): string {
       task.requestId,
       task.status,
       task.upstreamStatus ? `HTTP ${task.upstreamStatus}` : null,
-      task.message
+      task.message,
+      task.providerSummary ? `Provider: ${task.providerSummary}` : null
     ]
       .filter(Boolean)
       .join(" / ")
