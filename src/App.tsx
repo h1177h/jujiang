@@ -386,6 +386,40 @@ function ScreenplayReview({
         </article>
       </div>
 
+      <section className="event-board" aria-label="章节事件图谱">
+        <div className="analysis-card-head">
+          <h3>章节事件图谱</h3>
+          <span>{analysis.eventCoverage.map((item) => item.eventCount).reduce((sum, count) => sum + count, 0)} 个事件</span>
+        </div>
+        <div className="event-grid">
+          {screenplay.chapterEvents.map((chapter) => (
+            <article key={chapter.chapterIndex} className="event-column">
+              <div>
+                <strong>第 {chapter.chapterIndex} 章：{chapter.chapterTitle}</strong>
+                <p>{chapter.chapterGoal}</p>
+              </div>
+              {chapter.events.map((event) => (
+                <button
+                  key={event.id}
+                  className="event-item"
+                  type="button"
+                  onClick={() => {
+                    const matchedScene = screenplay.scenes.find(
+                      (scene) => scene.chapterIndex === chapter.chapterIndex
+                    );
+                    if (matchedScene) onSelectScene(matchedScene.id);
+                  }}
+                >
+                  <span>{event.id}</span>
+                  <strong>{event.summary}</strong>
+                  <small>{event.conflict}</small>
+                </button>
+              ))}
+            </article>
+          ))}
+        </div>
+      </section>
+
       <StoryAnalysisPanel
         analysis={analysis}
         selectedSceneId={selectedScene.id}

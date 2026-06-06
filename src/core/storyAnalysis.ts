@@ -26,6 +26,11 @@ export interface SceneQualityIssue {
 
 export interface StoryAnalysis {
   chapterCoverage: ChapterSceneCoverage[];
+  eventCoverage: Array<{
+    chapterIndex: number;
+    eventCount: number;
+    label: string;
+  }>;
   conflictCurve: ConflictCurvePoint[];
   qualityIssues: SceneQualityIssue[];
   sourceCoveragePercent: number;
@@ -60,12 +65,18 @@ export function analyzeScreenplay(screenplay: ScreenplayYaml): StoryAnalysis {
     pacing: scene.pacing,
     chapterIndex: scene.chapterIndex
   }));
+  const eventCoverage = screenplay.chapterEvents.map((chapter) => ({
+    chapterIndex: chapter.chapterIndex,
+    eventCount: chapter.events.length,
+    label: `${chapter.events.length} 个事件`
+  }));
 
   const qualityIssues = screenplay.scenes.flatMap((scene) => buildSceneIssues(scene));
   const readySceneCount = screenplay.scenes.length - new Set(qualityIssues.map((issue) => issue.sceneId)).size;
 
   return {
     chapterCoverage,
+    eventCoverage,
     conflictCurve,
     qualityIssues,
     sourceCoveragePercent:

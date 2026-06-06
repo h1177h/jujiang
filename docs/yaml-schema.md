@@ -13,6 +13,9 @@ work:
   generatedBy: api:gpt-4.1-mini
 characters: []
 adaptationPlan: {}
+chapterEvents: []
+storyBible: {}
+adaptationStrategy: {}
 chapterMappings: []
 scenes: []
 rhythmStats: {}
@@ -25,6 +28,9 @@ validationHints: []
 - `work`：作品元信息。
 - `characters`：角色表。
 - `adaptationPlan`：改编计划。
+- `chapterEvents`：章节事件图谱。
+- `storyBible`：故事圣经，保存世界观、核心冲突、时间线和角色弧光。
+- `adaptationStrategy`：AI 生成剧本前形成的改编策略。
 - `chapterMappings`：小说章节到剧本场景的映射。
 - `scenes`：场景列表。
 - `rhythmStats`：节奏统计。
@@ -79,6 +85,68 @@ characters:
 | `relationshipSummary` | 是 | string | 角色关系摘要。 |
 
 设计原因：角色表让后续场景引用更稳定，也能作为展示创新点。`relationshipSummary` 比单纯列名字更接近作者改稿时需要的信息。
+
+## chapterEvents
+
+```yaml
+chapterEvents:
+  - chapterIndex: 1
+    chapterTitle: 迟到的渡船
+    chapterGoal: 建立林砚回到雾港后的危险处境，并抛出父亲来信的悬念。
+    events:
+      - id: event-01-01
+        summary: 林砚带着旧皮箱在迟到的渡船后回到雾港。
+        characters:
+          - 林砚
+          - 沈知夏
+        location: 雾港石桥
+        conflict: 林砚想追查父亲来信，沈知夏试图阻止他进入危险。
+        emotionalTurn: 从久别重逢转为被迫面对旧案。
+        source:
+          chapterIndex: 1
+          chapterTitle: 迟到的渡船
+          paragraphIndexes: [1, 2]
+          lineStart: 3
+          lineEnd: 8
+          excerpt: 夜色压在雾港的石桥上...
+```
+
+| 字段 | 必填 | 类型 | 说明 |
+| --- | --- | --- | --- |
+| `chapterIndex` | 是 | number | 来源章节序号。 |
+| `chapterTitle` | 是 | string | 来源章节标题。 |
+| `chapterGoal` | 是 | string | 这一章在改编中的戏剧任务。 |
+| `events[].id` | 是 | string | 稳定事件 ID，可被场景或后续局部重生成引用。 |
+| `events[].summary` | 是 | string | 关键事件摘要。 |
+| `events[].characters` | 是 | string[] | 事件涉及人物。 |
+| `events[].location` | 是 | string | 事件主要地点。 |
+| `events[].conflict` | 是 | string | 事件中的阻碍、选择压力或信息冲突。 |
+| `events[].emotionalTurn` | 是 | string | 事件造成的情绪或关系转折。 |
+| `events[].source` | 是 | object | 原文来源定位。 |
+
+设计原因：成熟的长篇改编不能直接从整段小说跳到剧本。`chapterEvents` 是剧匠的中间层，让作者能先审查“AI 认为发生了什么”，再看它如何被改成场景。
+
+## storyBible
+
+| 字段 | 必填 | 类型 | 说明 |
+| --- | --- | --- | --- |
+| `worldview` | 是 | string | 故事世界、空间或规则概括。 |
+| `coreConflict` | 是 | string | 驱动改编的核心矛盾。 |
+| `timeline` | 是 | string[] | 主要事件时间线。 |
+| `characterArcs` | 是 | object[] | 角色弧光，包含角色名、变化、首尾事件 ID。 |
+
+设计原因：`storyBible` 给多章小说一个全局记忆层，避免每场戏只看局部段落而丢掉主线。
+
+## adaptationStrategy
+
+| 字段 | 必填 | 类型 | 说明 |
+| --- | --- | --- | --- |
+| `format` | 是 | string | 目标剧本形态，例如悬疑短剧分场剧本。 |
+| `pacing` | 是 | string | 节奏策略。 |
+| `sceneRules` | 是 | string[] | 分场规则。 |
+| `riskControls` | 是 | string[] | 防止跑偏、编造或过度展开的约束。 |
+
+设计原因：`adaptationStrategy` 保存 AI 在写剧本前形成的改编取舍，让作者能理解为什么这样分场，而不是只看到最终 YAML。
 
 ## chapterMappings
 
@@ -229,6 +297,9 @@ rhythmStats:
 
 - `work.sourceChapterCount` 至少为 1。
 - `characters` 至少 1 个角色。
+- `chapterEvents` 至少 1 个章节事件组，每组至少 1 个事件。
+- `storyBible` 必须给出核心冲突、时间线和角色弧光。
+- `adaptationStrategy` 必须给出分场规则和风险控制。
 - `chapterMappings` 至少 1 个结构映射。
 - `scenes` 至少 1 个场景。
 - 每个 scene 必须有目标、beat 类型、节奏、地点、时间、人物、动作、情绪、冲突、修订建议和来源定位。
