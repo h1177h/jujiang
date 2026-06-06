@@ -82,6 +82,28 @@ describe("api proxy config", () => {
     expect(payload.hasApiKey).toBe(true);
   });
 
+  it("uses the browser-provided upstream base URL during health checks", async () => {
+    const proxy = createApiProxyServer({
+      port: 0,
+      targetBaseUrl: "https://api.openai.com/v1",
+      apiKey: "",
+      networkProxyUrl: ""
+    });
+    const proxyBaseUrl = await listen(proxy);
+
+    const response = await fetch(`${proxyBaseUrl}/health`, {
+      headers: {
+        Authorization: "Bearer browser-key",
+        "X-Jujiang-Target-Base-Url": "https://api.deepseek.com"
+      }
+    });
+    const payload = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(payload.targetBaseUrl).toBe("https://api.deepseek.com/v1");
+    expect(payload.hasApiKey).toBe(true);
+  });
+
   it("forwards the browser-provided API key when no environment key is configured", async () => {
     let upstreamAuthorization = "";
     const upstream = createServer((request, response) => {
@@ -109,5 +131,38 @@ describe("api proxy config", () => {
 
     expect(response.status).toBe(200);
     expect(upstreamAuthorization).toBe("Bearer browser-key");
+  });
+
+  it("forwards chat completions to the browser-provided upstream base URL", async () => {
+    let upstreamAuthorization = "";
+    let upstreamPath = "";
+    const upstream = createServer((request, response) => {
+      upstreamAuthorization = request.headers.authorization || "";
+      upstreamPath = request.url || "";
+      response.writeHead(200, { "Content-Type": "application/json" });
+      response.end(JSON.stringify({ choices: [{ message: { content: "{\"ok\":true}" } }] }));
+    });
+    const upstreamBaseUrl = await listen(upstream);
+    const proxy = createApiProxyServer({
+      port: 0,
+      targetBaseUrl: "https://api.openai.com/v1",
+      apiKey: "",
+      networkProxyUrl: ""
+    });
+    const proxyBaseUrl = await listen(proxy);
+
+    const response = await fetch(`${proxyBaseUrl}/v1/chat/completions`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: "Bearer browser-key",
+        "X-Jujiang-Target-Base-Url": upstreamBaseUrl
+      },
+      body: JSON.stringify({ model: "test-model", messages: [] })
+    });
+
+    expect(response.status).toBe(200);
+    expect(upstreamAuthorization).toBe("Bearer browser-key");
+    expect(upstreamPath).toBe("/v1/chat/completions");
   });
 });

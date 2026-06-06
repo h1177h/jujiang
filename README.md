@@ -18,9 +18,9 @@
 - 支持复制、下载 YAML，并保留轻量版本历史，可保存、恢复和对比关键版本。
 - 工作区草稿会自动保存在本机浏览器：小说正文、标题、改编风格、YAML、选中场景、版本历史和生成记录刷新后仍可恢复，也可以一键重置工作区。
 - 内置多章示例小说《雾港来信》和示例 YAML，无 API key 也能演示编辑、校验、复制和下载。
-- 可填写 Base URL、API Key 和 Model，调用兼容 `/v1/chat/completions` 的模型生成剧本；API 设置可记住在本机浏览器。
-- 推荐使用本地 API proxy：前端请求 `http://127.0.0.1:18787/v1`，避免浏览器直连 provider 时被 CORS 或系统代理拦截。
-- 支持“测试连接”：生成前会检查本地 proxy 是否启动、是否能读到页面或环境变量里的 API Key。
+- 可选择 Provider，填写 Base URL、API Key 和 Model，调用兼容 `/v1/chat/completions` 的模型生成剧本；整套 API 配置可记住在本机浏览器。
+- 页面始终通过应用内 AI 服务转发到当前 Provider，上游 Base URL 会随请求传入服务端，避免“页面填了但实际没用”的配置错位。
+- 支持“测试连接”：生成前会检查应用内 AI 服务、当前上游地址和 API Key 状态。
 - API 返回结构不完整时，会把 Schema 错误反馈给模型尝试修复一次，不直接吞掉坏结果。
 - 创新点：长篇逐章事件抽取、故事圣经合并、Schema 修复回合、生成任务面板、单场 AI 补强、轻量版本历史与版本对比、工作区草稿自动保存、章节事件图谱、场景级工作台编辑、章节到场景映射、冲突曲线、质量检查、角色关系摘要、原文追溯、改编风格选择、节奏统计、改编计划。
 
@@ -35,47 +35,48 @@
 
 ```bash
 npm install
-npm run dev
+npm run dev:app
 ```
 
 浏览器打开 Vite 输出的本地地址后，可以先查看和编辑内置示例 YAML。自动生成需要配置 AI。
 
-推荐通过本地 proxy 调用真实模型：
+`npm run dev:app` 会同时启动前端工作台和应用内 AI 服务。页面里只需要选择 Provider，填写 Base URL、Model 和 API Key，然后点击“测试连接”或直接生成；不需要再理解浏览器直连、CORS 或 proxy 端口。
 
-```bash
-$env:JUJIANG_API_BASE_URL="https://api.openai.com/v1"
-npm run proxy
-```
+内置 Provider 预设：
 
-然后在页面里勾选“AI 生成”和“本地 proxy”，填写 API Key 并按需勾选“记住 API Key”。剧匠会把 key 发给本机 proxy，再由 proxy 转发给 provider，避免浏览器直接请求 OpenAI-compatible API。
+- OpenAI-compatible：适合大多数中转站或自建兼容服务。
+- OpenAI：默认 `https://api.openai.com/v1`。
+- DeepSeek：默认 `https://api.deepseek.com/v1`。
+- Qwen compatible：默认 DashScope 兼容模式。
+- Doubao / Volcengine：默认火山方舟兼容地址。
 
-如果不想把 key 填在页面，也可以让 proxy 从环境变量读取：
+勾选“记住 API Key”后，剧匠会把 Provider、Base URL、Model 和 API Key 写入本机浏览器的 `localStorage`，下次打开同一浏览器会自动带出。公开演示或共享电脑上，可以不在页面保存 key，改用环境变量：
 
 ```bash
 $env:JUJIANG_API_KEY="你的 API Key"
 $env:JUJIANG_API_BASE_URL="https://api.openai.com/v1"
-npm run proxy
+npm run dev:app
 ```
 
-如果你的网络需要代理，可以显式传给剧匠 proxy：
+页面填写的 Base URL 优先级高于 `JUJIANG_API_BASE_URL`。环境变量更适合固定演示环境；普通作者只需要在页面里配置一次。
+
+如果你的网络需要代理，可以显式传给应用内 AI 服务：
 
 ```bash
 $env:JUJIANG_NETWORK_PROXY="http://127.0.0.1:7897"
-npm run proxy
+npm run dev:app
 ```
 
-`JUJIANG_NETWORK_PROXY` 优先级高于 `HTTPS_PROXY` / `HTTP_PROXY`。生成前可以先点击“测试连接”，确认 proxy 已启动、上游地址和 key 状态正常。
+`JUJIANG_NETWORK_PROXY` 优先级高于 `HTTPS_PROXY` / `HTTP_PROXY`。生成前可以先点击“测试连接”，确认应用服务、上游地址和 key 状态正常。
 
-如果 `18787` 端口被其他本地服务占用，可以改端口启动 proxy：
+如果 `18787` 端口被其他本地服务占用，可以改端口启动应用内 AI 服务：
 
 ```bash
 $env:JUJIANG_PROXY_PORT="18788"
-npm run proxy
+npm run dev:app
 ```
 
-然后把页面 Base URL 改成 `http://127.0.0.1:18788/v1`。剧匠的健康检查会识别端口上跑的是不是剧匠 proxy，避免误连到其他本地服务。
-
-前端直连模式仍保留给临时调试，但很多 provider 不允许浏览器跨域直连，遇到 `Failed to fetch` 时应切回本地 proxy。勾选“记住 API Key”后，剧匠会把 Base URL、Model 和 API Key 写入本机浏览器的 `localStorage`，下次打开同一浏览器会自动带出；也可以随时点击“清除”删除保存的设置。公开演示或共享电脑上建议使用环境变量 key。
+当前页面默认使用 `18787`；如需自定义端口，需要同步调整代码或环境中的应用网关地址。日常演示建议保持默认端口，避免误连到其他本地服务。
 
 创作工作区也会自动保存到同一浏览器的 `localStorage`：标题、原文、改编风格、YAML、当前场景和版本历史都会随编辑更新。页面右上角的重置按钮只重置工作区草稿，不会清除 API 设置。
 
@@ -111,7 +112,7 @@ src/
     types.ts               # 剧本数据结构
     __tests__/             # 核心测试
 scripts/
-  api-proxy.mjs             # 本地 OpenAI-compatible API proxy
+  api-proxy.mjs             # 应用内 OpenAI-compatible AI 服务
 docs/
   yaml-schema.md           # YAML Schema 说明
   reference-analysis.md    # 参考项目分析与 no copied code 说明
@@ -120,10 +121,10 @@ docs/
 
 ## Demo 步骤
 
-1. 运行 `npm run dev`。
+1. 运行 `npm run dev:app`。
 2. 打开本地页面，确认左侧已有示例小说，也可以直接粘贴短篇片段。
 3. 切换改编风格，例如“影视感”或“短剧”。
-4. 如需真实 AI 生成，先运行 `npm run proxy`，页面勾选“AI 生成”和“本地 proxy”，填写 API Key 或让 proxy 读取环境变量。
+4. 如需真实 AI 生成，在 AI 配置区选择 Provider，确认 Base URL 和 Model，填写 API Key；勾选“记住 API Key”后刷新页面仍会保留。
 5. 点击“生成结构化剧本 YAML”。
 6. 观察生成任务面板：连接、事件抽取、故事圣经、剧本生成、Schema 修复和 YAML 写入都会留下状态；失败后可以保留记录并直接重试。
 7. 在右侧查看并编辑 YAML，确认校验状态实时变化。

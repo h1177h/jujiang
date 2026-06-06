@@ -24,6 +24,7 @@ import {
   diagnoseAiConnection,
   resolveAiRequestBaseUrl
 } from "./core/apiConnection";
+import { apiProviderPresets, findApiProviderPreset } from "./core/apiProviders";
 import { countChapters } from "./core/chapters";
 import type { AdaptationStyle, Scene, ScreenplayYaml } from "./core/types";
 import {
@@ -72,23 +73,27 @@ const styles: { value: AdaptationStyle; label: string }[] = [
   { value: "stage", label: "舞台" },
   { value: "short_drama", label: "短剧" }
 ];
-const directApiBaseUrl = "https://api.openai.com/v1";
 const localProxyBaseUrl = defaultLocalProxyBaseUrl;
 
 export default function App() {
   const [initialAiSettings] = useState(() => loadSavedAiSettings(getBrowserStorage()));
   const [initialWorkspaceDraft] = useState(() => loadSavedWorkspaceDraft(getBrowserStorage()));
+  const initialProvider = findApiProviderPreset(initialAiSettings?.providerId);
   const [novelText, setNovelText] = useState(initialWorkspaceDraft?.novelText ?? sampleNovel);
   const [title, setTitle] = useState(initialWorkspaceDraft?.title ?? "雾港来信");
   const [style, setStyle] = useState<AdaptationStyle>(initialWorkspaceDraft?.style ?? "cinematic");
-  const [useApi, setUseApi] = useState(initialAiSettings?.useApi ?? false);
-  const [useLocalProxy, setUseLocalProxy] = useState(initialAiSettings?.useLocalProxy ?? true);
-  const [apiBaseUrl, setApiBaseUrl] = useState(
-    resolveAiRequestBaseUrl(initialAiSettings?.baseUrl ?? localProxyBaseUrl, initialAiSettings?.useLocalProxy ?? true)
+  const [useApi, setUseApi] = useState(initialAiSettings?.useApi ?? true);
+  const useLocalProxy = true;
+  const [providerId, setProviderId] = useState(initialAiSettings?.providerId ?? initialProvider.id);
+  const selectedProvider = useMemo(() => findApiProviderPreset(providerId), [providerId]);
+  const [apiBaseUrl] = useState(localProxyBaseUrl);
+  const [providerBaseUrl, setProviderBaseUrl] = useState(
+    initialAiSettings?.providerBaseUrl ??
+      (initialAiSettings?.useLocalProxy === false ? initialAiSettings.baseUrl : initialProvider.baseUrl)
   );
-  const [apiModel, setApiModel] = useState(initialAiSettings?.model ?? "gpt-4.1-mini");
+  const [apiModel, setApiModel] = useState(initialAiSettings?.model ?? initialProvider.defaultModel);
   const [apiKey, setApiKey] = useState(initialAiSettings?.apiKey ?? "");
-  const [rememberApiKey, setRememberApiKey] = useState(Boolean(initialAiSettings?.apiKey));
+  const [rememberApiKey, setRememberApiKey] = useState(initialAiSettings ? Boolean(initialAiSettings.apiKey) : true);
   const [generationStatus, setGenerationStatus] = useState(
     initialWorkspaceDraft
       ? "已载入本机工作区草稿"
@@ -137,20 +142,16 @@ export default function App() {
       {
         useApi,
         useLocalProxy,
+        providerId,
+        providerName: selectedProvider.name,
         baseUrl: apiBaseUrl,
+        providerBaseUrl,
         model: apiModel,
         apiKey: apiKey.trim()
       },
       getBrowserStorage()
     );
-  }, [apiBaseUrl, apiKey, apiModel, rememberApiKey, useApi, useLocalProxy]);
-
-  useEffect(() => {
-    const resolvedBaseUrl = resolveAiRequestBaseUrl(apiBaseUrl, useLocalProxy);
-    if (useLocalProxy && resolvedBaseUrl !== apiBaseUrl) {
-      setApiBaseUrl(resolvedBaseUrl);
-    }
-  }, [apiBaseUrl, useLocalProxy]);
+  }, [apiBaseUrl, apiKey, apiModel, providerBaseUrl, providerId, rememberApiKey, selectedProvider.name, useApi, useLocalProxy]);
 
   useEffect(() => {
     saveWorkspaceDraft(
@@ -174,7 +175,7 @@ export default function App() {
 
   async function handleGenerate() {
     const apiKeyForRequest = apiKey.trim();
-    const apiReady = useLocalProxy ? true : Boolean(apiKeyForRequest);
+    const apiReady = Boolean(apiKeyForRequest);
     const requestBaseUrl = resolveAiRequestBaseUrl(apiBaseUrl, useLocalProxy);
     const run = createGenerationRun({
       title,
@@ -189,6 +190,7 @@ export default function App() {
       const connection = await diagnoseAiConnection({
         baseUrl: requestBaseUrl,
         useLocalProxy,
+        providerBaseUrl,
         apiKey: apiKeyForRequest
       });
 
@@ -219,6 +221,7 @@ export default function App() {
         generateScreenplayWithApi(
           {
             baseUrl: requestBaseUrl,
+            providerBaseUrl,
             apiKey: apiKeyForRequest,
             model: apiModel
           },
@@ -309,7 +312,7 @@ export default function App() {
 
     const apiKeyForRequest = apiKey.trim();
     const requestBaseUrl = resolveAiRequestBaseUrl(apiBaseUrl, useLocalProxy);
-    if (!useLocalProxy && !apiKeyForRequest) {
+    if (!apiKeyForRequest) {
       setGenerationStatus("请先填写 API Key。");
       return;
     }
@@ -317,6 +320,7 @@ export default function App() {
     const connection = await diagnoseAiConnection({
       baseUrl: requestBaseUrl,
       useLocalProxy,
+      providerBaseUrl,
       apiKey: apiKeyForRequest
     });
     if (!connection.ok) {
@@ -329,6 +333,7 @@ export default function App() {
       const revisedScene = await regenerateSceneWithApi(
         {
           baseUrl: requestBaseUrl,
+          providerBaseUrl,
           apiKey: apiKeyForRequest,
           model: apiModel
         },
@@ -353,16 +358,11 @@ export default function App() {
     }
   }
 
-  function handleProxyToggle(checked: boolean) {
-    setUseLocalProxy(checked);
-    if (checked) {
-      setUseApi(true);
-      setApiBaseUrl(localProxyBaseUrl);
-      return;
-    }
-    if (!checked && apiBaseUrl === localProxyBaseUrl) {
-      setApiBaseUrl(directApiBaseUrl);
-    }
+  function handleProviderChange(nextProviderId: string) {
+    const nextProvider = findApiProviderPreset(nextProviderId);
+    setProviderId(nextProvider.id);
+    setProviderBaseUrl(nextProvider.baseUrl);
+    setApiModel(nextProvider.defaultModel);
   }
 
   function handleRememberApiKey(checked: boolean) {
@@ -378,7 +378,10 @@ export default function App() {
         {
           useApi,
           useLocalProxy,
+          providerId,
+          providerName: selectedProvider.name,
           baseUrl: apiBaseUrl,
+          providerBaseUrl,
           model: apiModel,
           apiKey: apiKey.trim()
         },
@@ -412,17 +415,16 @@ export default function App() {
   async function handleCheckConnection() {
     const apiKeyForRequest = apiKey.trim();
     const requestBaseUrl = resolveAiRequestBaseUrl(apiBaseUrl, useLocalProxy);
-    if (!useApi || !apiKeyForRequest) {
-      if (!useLocalProxy) {
-        setGenerationStatus("请先开启 AI 生成并填写 API Key。");
-        return;
-      }
+    if (!apiKeyForRequest) {
+      setGenerationStatus("请先填写 API Key，再测试连接。");
+      return;
     }
 
     setGenerationStatus("正在检查 AI 连接...");
     const connection = await diagnoseAiConnection({
       baseUrl: requestBaseUrl,
       useLocalProxy,
+      providerBaseUrl,
       apiKey: apiKeyForRequest
     });
     setGenerationStatus(connection.message);
@@ -490,23 +492,31 @@ export default function App() {
                   <input type="checkbox" checked={useApi} onChange={(event) => setUseApi(event.target.checked)} />
                   <span>AI 生成</span>
                 </label>
-                <label className="toggle-line">
-                  <input
-                    type="checkbox"
-                    checked={useLocalProxy}
-                    onChange={(event) => handleProxyToggle(event.target.checked)}
-                  />
-                  <span>本地 proxy</span>
-                </label>
+                <span className="connection-pill">应用内 AI 服务</span>
               </div>
               <div className="api-grid">
                 <label>
+                  Provider
+                  <select value={providerId} onChange={(event) => handleProviderChange(event.target.value)}>
+                    {apiProviderPresets.map((provider) => (
+                      <option key={provider.id} value={provider.id}>
+                        {provider.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
                   Base URL
-                  <input value={apiBaseUrl} onChange={(event) => setApiBaseUrl(event.target.value)} />
+                  <input value={providerBaseUrl} onChange={(event) => setProviderBaseUrl(event.target.value)} />
                 </label>
                 <label>
                   Model
-                  <input value={apiModel} onChange={(event) => setApiModel(event.target.value)} />
+                  <input list="api-model-presets" value={apiModel} onChange={(event) => setApiModel(event.target.value)} />
+                  <datalist id="api-model-presets">
+                    {selectedProvider.models.map((model) => (
+                      <option key={model} value={model} />
+                    ))}
+                  </datalist>
                 </label>
               </div>
               <label>
@@ -517,7 +527,7 @@ export default function App() {
                     type="password"
                     value={apiKey}
                     onChange={(event) => setApiKey(event.target.value)}
-                    placeholder={useLocalProxy ? "可由页面提供，或留空使用 proxy 环境变量" : "可选择记住在本机浏览器"}
+                    placeholder="输入一次后可记住在本机浏览器"
                   />
                 </div>
               </label>
@@ -538,9 +548,7 @@ export default function App() {
                 测试连接
               </button>
               <p className="status-note">
-                {useLocalProxy
-                  ? "推荐使用本地 proxy：先运行 npm run proxy，再由页面填写 key 或让 proxy 读取环境变量。"
-                  : "前端直连可能被浏览器或服务商 CORS 拦截，仅建议临时调试。"}
+                推荐用 npm run dev:app 启动完整应用。页面会把当前 provider 配置交给应用内 AI 服务，不需要单独配置上游环境变量。
               </p>
               <p className="status-note strong">{generationStatus}</p>
               <GenerationRunPanel

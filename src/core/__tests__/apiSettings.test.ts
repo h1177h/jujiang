@@ -17,6 +17,35 @@ function createMemoryStorage(): AiSettingsStorage {
 }
 
 describe("AI settings persistence", () => {
+  it("saves and loads a provider profile", () => {
+    const storage = createMemoryStorage();
+
+    saveAiSettings(
+      {
+        useApi: true,
+        useLocalProxy: true,
+        providerId: "deepseek",
+        providerName: "DeepSeek",
+        baseUrl: "http://127.0.0.1:18787/v1",
+        providerBaseUrl: "https://api.deepseek.com",
+        model: "deepseek-chat",
+        apiKey: "sk-test"
+      },
+      storage
+    );
+
+    expect(loadSavedAiSettings(storage)).toEqual({
+      useApi: true,
+      useLocalProxy: true,
+      providerId: "deepseek",
+      providerName: "DeepSeek",
+      baseUrl: "http://127.0.0.1:18787/v1",
+      providerBaseUrl: "https://api.deepseek.com",
+      model: "deepseek-chat",
+      apiKey: "sk-test"
+    });
+  });
+
   it("saves and loads remembered direct API settings", () => {
     const storage = createMemoryStorage();
 

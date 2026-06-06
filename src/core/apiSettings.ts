@@ -7,7 +7,10 @@ export interface AiSettingsStorage {
 export interface SavedAiSettings {
   useApi: boolean;
   useLocalProxy: boolean;
+  providerId?: string;
+  providerName?: string;
   baseUrl: string;
+  providerBaseUrl?: string;
   model: string;
   apiKey: string;
 }
@@ -32,9 +35,21 @@ export function loadSavedAiSettings(storage: AiSettingsStorage | null): SavedAiS
       return null;
     }
 
+    const providerFields =
+      typeof parsed.providerId === "string" &&
+      typeof parsed.providerName === "string" &&
+      typeof parsed.providerBaseUrl === "string"
+        ? {
+            providerId: parsed.providerId,
+            providerName: parsed.providerName,
+            providerBaseUrl: parsed.providerBaseUrl
+          }
+        : {};
+
     return {
       useApi: parsed.useApi,
       useLocalProxy: parsed.useLocalProxy,
+      ...providerFields,
       baseUrl: parsed.baseUrl,
       model: parsed.model,
       apiKey: parsed.apiKey

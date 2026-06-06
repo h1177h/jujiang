@@ -292,7 +292,11 @@ select:focus,
 .api-grid {
   display: grid;
   gap: 8px;
-  grid-template-columns: 1.2fr 0.8fr;
+  grid-template-columns: 1fr 1fr;
+}
+
+.api-grid label:first-child {
+  grid-column: 1 / -1;
 }
 
 .switch-row {
@@ -315,6 +319,19 @@ select:focus,
   height: 16px;
   margin: 0;
   width: 16px;
+}
+
+.connection-pill {
+  align-items: center;
+  background: #e8f5f0;
+  border: 1px solid #b8dfcf;
+  border-radius: 999px;
+  color: #126044;
+  display: inline-flex;
+  font-size: 12px;
+  font-weight: 700;
+  min-height: 30px;
+  padding: 0 10px;
 }
 
 .secret-field {

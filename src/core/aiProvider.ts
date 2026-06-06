@@ -1,5 +1,5 @@
 import type { AdaptationStyle, Scene, ScreenplayYaml, StoryBlueprint } from "./types";
-import { classifyFetchFailure } from "./apiConnection";
+import { buildAiGatewayHeaders, classifyFetchFailure } from "./apiConnection";
 import { parseChapters } from "./chapters";
 import { storyBlueprintSchema, validateScene, validateScreenplay, validateStoryBlueprint } from "./schema";
 
@@ -7,6 +7,7 @@ const longFormChapterThreshold = 3;
 
 export interface AiProviderSettings {
   baseUrl: string;
+  providerBaseUrl?: string;
   apiKey: string;
   model: string;
 }
@@ -231,7 +232,7 @@ async function requestChatCompletion(
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${settings.apiKey}`
+        ...buildAiGatewayHeaders(settings.apiKey, settings.providerBaseUrl)
       },
       body: JSON.stringify({
         model: settings.model,

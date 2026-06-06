@@ -1,6 +1,7 @@
 export interface AiConnectionSettings {
   baseUrl: string;
   useLocalProxy: boolean;
+  providerBaseUrl?: string;
   apiKey?: string;
 }
 
@@ -50,18 +51,16 @@ export async function diagnoseAiConnection(
   if (!settings.useLocalProxy) {
     return {
       ok: true,
-      message: "前端直连模式不会预检 provider；如果浏览器拦截请求，请切换本地 proxy。"
+      message: "当前使用浏览器直连，仅建议临时调试。"
     };
   }
 
   const healthUrl = deriveProxyHealthUrl(settings.baseUrl);
-  const apiKey = settings.apiKey?.trim();
-  const init: RequestInit = apiKey
+  const headers = buildAiGatewayHeaders(settings.apiKey, settings.providerBaseUrl);
+  const init: RequestInit = Object.keys(headers).length
     ? {
         method: "GET",
-        headers: {
-          Authorization: `Bearer ${apiKey}`
-        }
+        headers
       }
     : { method: "GET" };
 
@@ -73,37 +72,38 @@ export async function diagnoseAiConnection(
       hasApiKey?: boolean;
       targetBaseUrl?: string;
       networkProxy?: string;
+      error?: string;
     };
 
     if (!response.ok) {
       return {
         ok: false,
-        message: `本地 proxy 健康检查失败：HTTP ${response.status ?? "非 2xx"}。请重启 npm run proxy。`
+        message: payload.error || `AI 服务连接检查失败：HTTP ${response.status ?? "非 2xx"}。`
       };
     }
 
     if (payload.service !== "jujiang-api-proxy") {
       return {
         ok: false,
-        message: "本地 proxy 端口返回的不是剧匠 proxy：请关闭占用端口的其他服务，或用 JUJIANG_PROXY_PORT 启动剧匠 proxy 并同步页面 Base URL。"
+        message: "当前端口不是剧匠 AI 服务，请用 npm run dev:app 启动完整应用。"
       };
     }
 
     if (!payload.hasApiKey) {
       return {
         ok: false,
-        message: "本地 proxy 没有读到 API Key：请在页面填写 API Key，或设置 JUJIANG_API_KEY / OPENAI_API_KEY 后重启 npm run proxy。"
+        message: "还没有可用的 API Key：请在页面填写并保存，或在本机环境变量中配置后重启应用服务。"
       };
     }
 
     return {
       ok: true,
-      message: `本地 proxy 已连接：${payload.targetBaseUrl || settings.baseUrl}`
+      message: `AI 服务已连接：${payload.targetBaseUrl || settings.providerBaseUrl || settings.baseUrl}`
     };
   } catch {
     return {
       ok: false,
-      message: `本地 proxy 未连接：请先运行 npm run proxy，并确认 ${healthUrl} 可访问。`
+      message: `应用内 AI 服务没有启动：请用 npm run dev:app 启动完整应用后再生成。`
     };
   }
 }
@@ -117,17 +117,35 @@ export function classifyFetchFailure(error: unknown, baseUrl: string): string {
   }
 
   if (/127\.0\.0\.1|localhost/i.test(baseUrl)) {
-    return "本地 proxy 未连接：请先运行 npm run proxy，并确认 /health 可以访问。";
+    return "应用内 AI 服务没有启动：请用 npm run dev:app 启动完整应用后再生成。";
   }
 
-  return "浏览器直连失败：这通常是 CORS、系统代理或网络拦截导致。请勾选“本地 proxy”，运行 npm run proxy 后再生成。";
+  return "AI 请求没有到达应用服务：请用 npm run dev:app 启动完整应用后再生成。";
 }
 
 export function isActionableConnectionMessage(message: string): boolean {
   return (
+    message.startsWith("应用内 AI 服务没有启动") ||
+    message.startsWith("AI 请求没有到达应用服务") ||
+    message.startsWith("还没有可用的 API Key") ||
+    message.startsWith("当前端口不是剧匠 AI 服务") ||
+    message.startsWith("AI 服务连接检查失败") ||
     message.startsWith("浏览器直连失败") ||
-    message.startsWith("本地 proxy 未连接") ||
-    message.startsWith("本地 proxy 没有读到 API Key") ||
-    message.startsWith("本地 proxy 健康检查失败")
+    message.startsWith("本地 proxy 未连接")
   );
+}
+
+export function buildAiGatewayHeaders(apiKey?: string, providerBaseUrl?: string): Record<string, string> {
+  const headers: Record<string, string> = {};
+  const trimmedApiKey = apiKey?.trim();
+  const trimmedProviderBaseUrl = providerBaseUrl?.trim();
+
+  if (trimmedApiKey) {
+    headers.Authorization = `Bearer ${trimmedApiKey}`;
+  }
+  if (trimmedProviderBaseUrl) {
+    headers["X-Jujiang-Target-Base-Url"] = trimmedProviderBaseUrl;
+  }
+
+  return headers;
 }

@@ -40,6 +40,7 @@ describe("AI provider", () => {
     const result = await generateScreenplayWithApi(
       {
         baseUrl: "https://api.example.com",
+        providerBaseUrl: "https://api.deepseek.com",
         apiKey: "test-key",
         model: "test-model"
       },
@@ -56,7 +57,8 @@ describe("AI provider", () => {
       expect.objectContaining({
         method: "POST",
         headers: expect.objectContaining({
-          Authorization: "Bearer test-key"
+          Authorization: "Bearer test-key",
+          "X-Jujiang-Target-Base-Url": "https://api.deepseek.com"
         })
       })
     );
