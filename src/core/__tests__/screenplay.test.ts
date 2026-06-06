@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { parse, stringify } from "yaml";
 import { countChapters, parseChapters } from "../chapters";
+import { patchTouchesEditorIssueField } from "../editorIssues";
 import { sampleNovel } from "../sampleNovel";
-import { updateScreenplaySceneYaml } from "../sceneEditor";
+import { isEditorReadyScene, updateScreenplaySceneYaml } from "../sceneEditor";
 import { validateScreenplay } from "../schema";
 import { analyzeScreenplay } from "../storyAnalysis";
 import { validateScreenplayYaml } from "../yaml";
@@ -156,6 +157,23 @@ describe("screenplay schema and review helpers", () => {
     expect(validation.data.scenes[0].dialogue[0].speaker).toBe("林砚");
     expect(validation.data.rhythmStats.highConflictSceneIds).toContain("scene-01");
     expect(validateScreenplayYaml(updatedYaml)).toEqual({ ok: true, errors: [] });
+  });
+
+  it("accepts schema-invalid scenes only when they are still safe to edit", () => {
+    const parsed = parse(sampleOutputYaml);
+    parsed.scenes[0].goal = "";
+
+    expect(isEditorReadyScene(parsed.scenes[0])).toBe(true);
+
+    delete parsed.scenes[0].source.lineEnd;
+    expect(isEditorReadyScene(parsed.scenes[0])).toBe(false);
+  });
+
+  it("only clears editor issues when a patch touches the editable target field", () => {
+    expect(patchTouchesEditorIssueField({ dialogue: [] }, "dialogue")).toBe(true);
+    expect(patchTouchesEditorIssueField({ conflict: { level: 4, reason: "阻碍升级" } }, "conflict")).toBe(true);
+    expect(patchTouchesEditorIssueField({ goal: "新的场景目标" }, "dialogue")).toBe(false);
+    expect(patchTouchesEditorIssueField({ title: "改标题" }, "source")).toBe(false);
   });
 
   it("maps quality issues to editable scene fields", () => {
