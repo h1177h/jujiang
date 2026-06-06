@@ -104,6 +104,8 @@ describe("screenplay schema and review helpers", () => {
           sceneId: "scene-01",
           fieldLabel: "场景目标",
           severity: "error",
+          targetField: "goal",
+          actionHint: "在场景编辑器中补齐场景目标后会同步回 YAML。",
           suggestion: "补充这一场的戏剧目标，让作者知道本场要推动什么。"
         }),
         expect.objectContaining({
@@ -111,6 +113,8 @@ describe("screenplay schema and review helpers", () => {
           sceneId: "scene-01",
           fieldLabel: "原文摘录",
           severity: "error",
+          targetField: "source",
+          actionHint: "核对原文依据区；如果摘录缺失，需要用真实 AI 重新生成或手动修正 YAML 来源字段。",
           suggestion: "补充可追溯的原文摘录，避免场景失去改编依据。"
         })
       ])

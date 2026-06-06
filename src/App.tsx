@@ -64,8 +64,19 @@ import {
   type ScenePatch
 } from "./core/sceneEditor";
 import { analyzeScreenplay, type SceneQualityIssue, type StoryAnalysis } from "./core/storyAnalysis";
-import { screenplayToYaml, validateScreenplayYaml } from "./core/yaml";
+import { screenplayToYaml, validateScreenplayYaml, type ScreenplayYamlDiagnostic } from "./core/yaml";
 import sampleOutputYaml from "../examples/sample-output.yaml?raw";
+
+type EditorIssueTargetField = NonNullable<ScreenplayYamlDiagnostic["targetField"]>;
+
+interface ActiveEditorIssue {
+  sceneId: string;
+  label: string;
+  detail: string;
+  severity: "warning" | "risk" | "error";
+  targetField: EditorIssueTargetField;
+  actionHint: string;
+}
 
 const styles: { value: AdaptationStyle; label: string }[] = [
   { value: "balanced", label: "均衡" },
@@ -111,7 +122,7 @@ export default function App() {
   const [selectedSceneId, setSelectedSceneId] = useState<string | null>(
     initialWorkspaceDraft?.selectedSceneId ?? null
   );
-  const [activeQualityIssue, setActiveQualityIssue] = useState<SceneQualityIssue | null>(null);
+  const [activeEditorIssue, setActiveEditorIssue] = useState<ActiveEditorIssue | null>(null);
   const [generationRunHistory, setGenerationRunHistory] = useState<GenerationRun[]>(
     initialWorkspaceDraft?.generationRuns ?? []
   );
@@ -129,12 +140,23 @@ export default function App() {
       return null;
     }
   }, [yamlText]);
+  const draftScreenplay = useMemo(() => {
+    if (preview) return preview;
+    try {
+      const parsed = parse(yamlText) as Partial<ScreenplayYaml>;
+      return Array.isArray(parsed.scenes) && parsed.scenes.every(isEditorReadyScene)
+        ? (parsed as ScreenplayYaml)
+        : null;
+    } catch {
+      return null;
+    }
+  }, [preview, yamlText]);
   const chapterCount = useMemo(() => {
     return countChapters(novelText);
   }, [novelText]);
-  const sceneCount = preview?.scenes.length ?? 0;
+  const sceneCount = draftScreenplay?.scenes.length ?? 0;
   const selectedScene =
-    preview?.scenes.find((scene) => scene.id === selectedSceneId) ?? preview?.scenes[0] ?? null;
+    draftScreenplay?.scenes.find((scene) => scene.id === selectedSceneId) ?? draftScreenplay?.scenes[0] ?? null;
 
   useEffect(() => {
     if (!rememberApiKey || !apiKey.trim()) return;
@@ -277,10 +299,10 @@ export default function App() {
       setYamlText((current) => updateScreenplaySceneYaml(current, sceneId, patch));
       setSelectedSceneId(sceneId);
       if (
-        activeQualityIssue?.sceneId === sceneId &&
-        patchTouchesQualityField(patch, activeQualityIssue.targetField)
+        activeEditorIssue?.sceneId === sceneId &&
+        patchTouchesEditorIssueField(patch, activeEditorIssue.targetField)
       ) {
-        setActiveQualityIssue(null);
+        setActiveEditorIssue(null);
       }
       setGenerationStatus(`已同步 ${sceneId} 到 YAML`);
     } catch (error) {
@@ -291,12 +313,26 @@ export default function App() {
 
   function handleSelectScene(sceneId: string) {
     setSelectedSceneId(sceneId);
-    setActiveQualityIssue(null);
+    setActiveEditorIssue(null);
   }
 
   function handleSelectQualityIssue(issue: SceneQualityIssue) {
     setSelectedSceneId(issue.sceneId);
-    setActiveQualityIssue(issue);
+    setActiveEditorIssue(issue);
+  }
+
+  function handleSelectYamlIssue(issue: ScreenplayYamlDiagnostic) {
+    if (!issue.sceneId || !issue.targetField) return;
+
+    setSelectedSceneId(issue.sceneId);
+    setActiveEditorIssue({
+      sceneId: issue.sceneId,
+      label: issue.fieldLabel,
+      detail: issue.suggestion,
+      severity: "error",
+      targetField: issue.targetField,
+      actionHint: issue.actionHint
+    });
   }
 
   function handleSaveRevision() {
@@ -600,7 +636,7 @@ export default function App() {
           <ScreenplayReview
             screenplay={preview}
             selectedSceneId={selectedScene?.id ?? null}
-            activeQualityIssue={activeQualityIssue}
+            activeEditorIssue={activeEditorIssue}
             onSelectScene={handleSelectScene}
             onSelectIssue={handleSelectQualityIssue}
           />
@@ -648,8 +684,15 @@ export default function App() {
                   <ul className="validation-issue-list">
                     {validation.issues.slice(0, 3).map((issue) => (
                       <li key={`${issue.path}-${issue.message}`}>
-                        <span>{issue.sceneId ? `${issue.sceneId} / ` : ""}{issue.fieldLabel}</span>
+                        {issue.sceneId && issue.targetField ? (
+                          <button type="button" onClick={() => handleSelectYamlIssue(issue)}>
+                            {issue.sceneId} / {issue.fieldLabel}
+                          </button>
+                        ) : (
+                          <span>{issue.sceneId ? `${issue.sceneId} / ` : ""}{issue.fieldLabel}</span>
+                        )}
                         <p>{issue.suggestion}</p>
+                        <small>{issue.actionHint}</small>
                       </li>
                     ))}
                   </ul>
@@ -669,7 +712,7 @@ export default function App() {
           {selectedScene ? (
             <SceneInspector
               scene={selectedScene}
-              activeQualityIssue={activeQualityIssue?.sceneId === selectedScene.id ? activeQualityIssue : null}
+              activeEditorIssue={activeEditorIssue?.sceneId === selectedScene.id ? activeEditorIssue : null}
               onPatch={(patch) => handleScenePatch(selectedScene.id, patch)}
               onRegenerate={handleRegenerateSelectedScene}
             />
@@ -685,9 +728,37 @@ export default function App() {
   );
 }
 
-function patchTouchesQualityField(patch: ScenePatch, targetField: SceneQualityIssue["targetField"]): boolean {
+function patchTouchesEditorIssueField(patch: ScenePatch, targetField: EditorIssueTargetField): boolean {
   if (targetField === "source") return false;
   return Object.prototype.hasOwnProperty.call(patch, targetField);
+}
+
+function isEditorReadyScene(scene: unknown): scene is Scene {
+  if (!scene || typeof scene !== "object") return false;
+
+  const candidate = scene as Partial<Scene>;
+  return (
+    typeof candidate.id === "string" &&
+    typeof candidate.title === "string" &&
+    typeof candidate.goal === "string" &&
+    typeof candidate.location === "string" &&
+    typeof candidate.time === "string" &&
+    Array.isArray(candidate.characters) &&
+    Array.isArray(candidate.action) &&
+    Array.isArray(candidate.dialogue) &&
+    typeof candidate.narrationOrTransition === "string" &&
+    typeof candidate.emotion === "string" &&
+    typeof candidate.pacing === "string" &&
+    Boolean(candidate.conflict) &&
+    typeof candidate.conflict?.level === "number" &&
+    typeof candidate.conflict?.reason === "string" &&
+    Array.isArray(candidate.revisionNotes) &&
+    Boolean(candidate.source) &&
+    typeof candidate.source?.chapterIndex === "number" &&
+    Array.isArray(candidate.source?.paragraphIndexes) &&
+    typeof candidate.source?.lineStart === "number" &&
+    typeof candidate.source?.lineEnd === "number"
+  );
 }
 
 function formatAiProgress(event: AiGenerationProgress, model: string): string {
@@ -927,13 +998,13 @@ function RevisionDiffRow({ item }: { item: RevisionDiffItem }) {
 function ScreenplayReview({
   screenplay,
   selectedSceneId,
-  activeQualityIssue,
+  activeEditorIssue,
   onSelectScene,
   onSelectIssue
 }: {
   screenplay: ScreenplayYaml | null;
   selectedSceneId: string | null;
-  activeQualityIssue: SceneQualityIssue | null;
+  activeEditorIssue: ActiveEditorIssue | null;
   onSelectScene: (sceneId: string) => void;
   onSelectIssue: (issue: SceneQualityIssue) => void;
 }) {
@@ -1025,7 +1096,7 @@ function ScreenplayReview({
       <StoryAnalysisPanel
         analysis={analysis}
         selectedSceneId={selectedScene.id}
-        activeQualityIssue={activeQualityIssue}
+        activeEditorIssue={activeEditorIssue}
         onSelectScene={onSelectScene}
         onSelectIssue={onSelectIssue}
       />
@@ -1081,17 +1152,17 @@ function ScreenplayReview({
 
 function SceneInspector({
   scene,
-  activeQualityIssue,
+  activeEditorIssue,
   onPatch,
   onRegenerate
 }: {
   scene: Scene;
-  activeQualityIssue: SceneQualityIssue | null;
+  activeEditorIssue: ActiveEditorIssue | null;
   onPatch: (patch: ScenePatch) => void;
   onRegenerate: () => void;
 }) {
-  const highlightClass = (targetField: SceneQualityIssue["targetField"]) =>
-    activeQualityIssue?.targetField === targetField ? "inspector-field highlighted" : "inspector-field";
+  const highlightClass = (targetField: EditorIssueTargetField) =>
+    activeEditorIssue?.targetField === targetField ? "inspector-field highlighted" : "inspector-field";
 
   return (
     <section className="scene-inspector">
@@ -1107,11 +1178,11 @@ function SceneInspector({
         </button>
       </div>
       <p className="sync-note">修改会立即同步到 YAML，并触发 Schema 校验。</p>
-      {activeQualityIssue ? (
-        <div className={`active-quality-callout ${activeQualityIssue.severity}`}>
-          <strong>{activeQualityIssue.label}</strong>
-          <p>{activeQualityIssue.detail}</p>
-          <span>{activeQualityIssue.actionHint}</span>
+      {activeEditorIssue ? (
+        <div className={`active-quality-callout ${activeEditorIssue.severity}`}>
+          <strong>{activeEditorIssue.label}</strong>
+          <p>{activeEditorIssue.detail}</p>
+          <span>{activeEditorIssue.actionHint}</span>
         </div>
       ) : null}
 
@@ -1245,13 +1316,13 @@ function SceneInspector({
 function StoryAnalysisPanel({
   analysis,
   selectedSceneId,
-  activeQualityIssue,
+  activeEditorIssue,
   onSelectScene,
   onSelectIssue
 }: {
   analysis: StoryAnalysis;
   selectedSceneId: string;
-  activeQualityIssue: SceneQualityIssue | null;
+  activeEditorIssue: ActiveEditorIssue | null;
   onSelectScene: (sceneId: string) => void;
   onSelectIssue: (issue: SceneQualityIssue) => void;
 }) {
@@ -1319,7 +1390,7 @@ function StoryAnalysisPanel({
               <button
                 key={`${issue.sceneId}-${issue.label}`}
                 className={`quality-item ${issue.severity} ${
-                  activeQualityIssue?.sceneId === issue.sceneId && activeQualityIssue.label === issue.label
+                  activeEditorIssue?.sceneId === issue.sceneId && activeEditorIssue.label === issue.label
                     ? "active"
                     : ""
                 }`}

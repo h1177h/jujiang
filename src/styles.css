@@ -785,6 +785,7 @@ select:focus,
   padding: 6px 8px;
 }
 
+.validation-issue-list button,
 .validation-issue-list span {
   color: #7c2d12;
   display: block;
@@ -792,8 +793,28 @@ select:focus,
   font-weight: 850;
 }
 
+.validation-issue-list button {
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  padding: 0;
+  text-align: left;
+}
+
+.validation-issue-list button:hover {
+  color: #1d4ed8;
+}
+
 .validation-issue-list p {
   margin: 2px 0 0;
+}
+
+.validation-issue-list small {
+  color: #9a3412;
+  display: block;
+  font-size: 11px;
+  line-height: 1.35;
+  margin-top: 4px;
 }
 
 .validation-box.ok {
