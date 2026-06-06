@@ -10,15 +10,16 @@
 2. `npm run dev`
 3. 打开 Vite 本地地址。
 4. 使用内置多章示例，上传 `examples/sample-novel.md`，或直接粘贴一段短篇素材。
-5. 如果展示真实 API，先设置 `JUJIANG_API_KEY` 并运行 `npm run proxy`，页面勾选“使用本地 proxy”。
-6. 点击“生成结构化剧本 YAML”。
-7. 查看页面底部作者审稿台：改编计划、故事诊断、角色关系、节奏指标、章节映射、冲突曲线和质量检查。
-8. 点击章节映射、冲突柱或质量检查项，定位到对应场景。
-9. 在场景编辑器里修改目标、地点、对白、冲突等级或修订建议，确认 YAML 同步更新。
-10. 手动编辑右侧 YAML，观察 Schema 校验提示。
-11. 点击复制或下载 YAML。
-12. 对照 `docs/yaml-schema.md` 讲字段设计。
-13. 对照 `docs/reference-analysis.md` 讲参考项目借鉴和独立改写。
+5. 如果展示真实 API，先运行 `npm run proxy`，页面勾选“AI 生成”和“本地 proxy”，填写 API Key 或让 proxy 从 `JUJIANG_API_KEY` 读取。
+6. 点击“测试连接”，确认本地 proxy 已启动、上游地址和 key 状态正常。
+7. 点击“生成结构化剧本 YAML”。
+8. 查看页面底部作者审稿台：改编计划、故事诊断、角色关系、节奏指标、章节映射、冲突曲线和质量检查。
+9. 点击章节映射、冲突柱或质量检查项，定位到对应场景。
+10. 在场景编辑器里修改目标、地点、对白、冲突等级或修订建议，确认 YAML 同步更新。
+11. 手动编辑右侧 YAML，观察 Schema 校验提示。
+12. 点击复制或下载 YAML。
+13. 对照 `docs/yaml-schema.md` 讲字段设计。
+14. 对照 `docs/reference-analysis.md` 讲参考项目借鉴和独立改写。
 
 ## 评分点对应
 
@@ -32,8 +33,9 @@
 - 故事分析区支持章节事件图谱、章节到场景映射、冲突曲线和质量检查，点击即可定位场景。
 - 无 API key 时保留示例 YAML 的编辑、校验、复制和下载，不伪造剧情生成。
 - OpenAI-compatible API 接入，可配置 Base URL、API Key 和 Model。
-- 前端直连模式可选择把 API 设置记住在本机浏览器，减少本地反复调试时的输入成本。
-- 本地 API proxy 可从环境变量读取 key，前端不必直接保存真实 key。
+- API 设置可选择记住在本机浏览器，减少本地反复调试时的输入成本。
+- 本地 API proxy 是推荐调用链路，可使用页面提供的 key，也可从环境变量读取 key，避免浏览器直连 provider 时被 CORS 或系统代理拦截。
+- 生成前提供连接测试，能区分 proxy 未启动、proxy 未读到 key 和浏览器直连失败。
 - 可操作创新点：两阶段 AI 改编、章节事件图谱、场景级工作台编辑、章节到场景映射、冲突曲线、质量检查、角色关系摘要、原文追溯、改编风格选择、节奏统计。
 
 40% 开发过程与质量：
@@ -68,20 +70,26 @@
 - PR #13 `feat(ui): refresh workbench design`：第一次工作台视觉整理。
 - PR #14 `feat(ui): rebuild studio layout`：重建作者审稿台、YAML 交付和场景编辑布局。
 - PR #15 `style(ui): loosen studio layout density`：降低界面密度，让输入、审稿和交付区更有层次。
-- 本轮产品打磨：修正 AI-first 生成链路、移除本地规则剧情生成、补空输入和 AI 失败错误态、同步产品文案。
+- PR #16 `fix(workflow): require ai for screenplay generation`：移除本地规则剧情生成，AI 不可用时不伪造剧本。
+- PR #17 `fix(api): add proxy env support`：补本地 proxy、网络代理和重复章节清洗。
+- PR #18 `fix(parser): align chapter recognition with generation`：修正章节识别与生成上下文不一致。
+- PR #19 `feat(api): add staged story generation`：加入章节事件图谱、故事圣经和两阶段 AI 改编。
+- PR #20 `feat(api): persist provider settings`：本机浏览器记住 API 设置。
+- 本轮产品打磨：把本地 proxy 调整为推荐 AI 调用链路，补连接测试和 `Failed to fetch` 分层诊断。
 
 ## 已运行验证
 
 - `npm audit`：found 0 vulnerabilities。
-- `npm test`：5 个测试文件、20 个测试用例通过。
+- `npm test`：6 个测试文件、28 个测试用例通过。
 - `npm run build`：通过。
 - proxy health check：`http://127.0.0.1:8787/health` 返回 `ok:true`，可显示 target 和 key 加载状态。
 - 本地浏览器 QA：1440px 和 390px 视口检查过，场景编辑器、故事分析区和 YAML 区没有横向溢出。
-- Playwright 交互 QA：点击质量检查项可定位到对应场景；勾选“使用本地 proxy”会自动启用 API 生成、切换 Base URL 并禁用页面 API Key 输入框。
+- Playwright 交互 QA：点击质量检查项可定位到对应场景；勾选“本地 proxy”会自动启用 AI 生成并切换 Base URL。
 
 ## 剩余风险
 
 - 自动生成质量依赖真实 AI provider；当前没有离线剧情生成能力。
-- 浏览器直连模式可记住 API Key，但只适合个人本机调试；正式展示真实 key 时建议使用本地 proxy。
+- 本地 proxy 可读取环境变量 key，也可使用页面填写并保存在本机浏览器的 key；公开演示或共享电脑上建议使用环境变量。
+- 浏览器直连 provider 仍可能被 CORS 或网络策略拦截，正式演示建议使用本地 proxy。
 - 当前已支持一章多场和场景级内容编辑，但复杂小说仍需要作者继续调整分场边界。
 - 角色抽取已经为示例做了回归，但面对更复杂小说仍可能需要 AI 或更强 NLP 补充。

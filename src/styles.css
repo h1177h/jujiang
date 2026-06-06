@@ -383,6 +383,7 @@ select:focus,
 }
 
 .primary-action,
+.secondary-action,
 .icon-button {
   align-items: center;
   border: 0;
@@ -402,7 +403,14 @@ select:focus,
   padding: 0 16px;
 }
 
+.secondary-action {
+  background: #e0f2fe;
+  color: #075985;
+  padding: 0 12px;
+}
+
 .primary-action:hover,
+.secondary-action:hover,
 .icon-button:hover,
 .scene-chip:hover,
 .quality-item:hover,

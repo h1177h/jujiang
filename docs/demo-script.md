@@ -34,11 +34,12 @@ npm run build
 如果现场有 API key，优先展示本地 proxy 模式：
 
 ```bash
-$env:JUJIANG_API_KEY="..."
 npm run proxy
 ```
 
-然后在页面勾选“AI 生成”和“本地 proxy”。如果没有 key，只展示示例 YAML 的查看、编辑和校验，不演示自动生成。前端直连模式保留给临时测试，但公开部署不建议把 key 填在浏览器里。
+然后在页面勾选“AI 生成”和“本地 proxy”，填写 API Key，按需勾选“记住 API Key”，再点击“测试连接”。如果不想在页面填 key，也可以先设置 `$env:JUJIANG_API_KEY="..."` 再启动 proxy。前端直连模式保留给临时测试，但很多 provider 会因为 CORS 或网络策略拒绝浏览器直连。
+
+如果没有 key，只展示示例 YAML 的查看、编辑和校验，不演示自动生成。
 
 ### 3. 生成 YAML
 
@@ -101,7 +102,7 @@ npm run proxy
 最后展示命令验证结果：
 
 - `npm audit`：0 vulnerabilities。
-- `npm test`：测试通过。
+- `npm test`：6 个测试文件、28 个测试用例通过。
 - `npm run build`：构建通过。
 
 ## 评分点对应
@@ -112,4 +113,4 @@ npm run proxy
 
 ## 备用说明
 
-如果网络或 API key 不可用，只演示示例 YAML 的编辑、校验、复制和下载。自动生成必须依赖 AI，剧匠不使用本地规则伪造剧情理解。
+如果网络或 API key 不可用，只演示示例 YAML 的编辑、校验、复制和下载。自动生成必须依赖 AI，剧匠不使用本地规则伪造剧情理解。若页面提示 `浏览器直连失败`，切回本地 proxy；若提示 proxy 未连接，先启动 `npm run proxy` 并点击“测试连接”确认。

@@ -40,10 +40,11 @@ export function createApiProxyServer(config = getProxyConfig()) {
     }
 
     if (request.method === "GET" && request.url === "/health") {
+      const requestApiKey = readBearerToken(request.headers.authorization);
       writeJson(response, 200, {
         ok: true,
         targetBaseUrl: config.targetBaseUrl,
-        hasApiKey: Boolean(config.apiKey),
+        hasApiKey: Boolean(config.apiKey || requestApiKey),
         networkProxy: config.networkProxyUrl || ""
       });
       return;
@@ -56,16 +57,18 @@ export function createApiProxyServer(config = getProxyConfig()) {
       return;
     }
 
-    if (!config.apiKey) {
+    const requestApiKey = readBearerToken(request.headers.authorization);
+    const apiKey = config.apiKey || requestApiKey;
+    if (!apiKey) {
       writeJson(response, 500, {
-        error: "请先设置 JUJIANG_API_KEY 或 OPENAI_API_KEY 环境变量。"
+        error: "请先设置 JUJIANG_API_KEY / OPENAI_API_KEY，或在页面填写 API Key 后通过本地 proxy 调用。"
       });
       return;
     }
 
     try {
       const body = await readBody(request);
-      const upstream = await requestUpstreamChatCompletions(config, body);
+      const upstream = await requestUpstreamChatCompletions(config, body, apiKey);
       const text = await upstream.text();
 
       response.writeHead(upstream.status, {
@@ -80,18 +83,23 @@ export function createApiProxyServer(config = getProxyConfig()) {
   });
 }
 
-export function requestUpstreamChatCompletions(config, body) {
+export function requestUpstreamChatCompletions(config, body, apiKey = config.apiKey) {
   const dispatcher = config.networkProxyUrl ? new ProxyAgent(config.networkProxyUrl) : undefined;
 
   return undiciFetch(`${config.targetBaseUrl}/chat/completions`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${config.apiKey}`
+          Authorization: `Bearer ${apiKey}`
         },
         body,
         dispatcher
   });
+}
+
+function readBearerToken(authorization = "") {
+  const match = authorization.match(/^Bearer\s+(.+)$/i);
+  return match?.[1]?.trim() || "";
 }
 
 function setCorsHeaders(response) {

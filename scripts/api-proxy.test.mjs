@@ -1,5 +1,26 @@
-import { describe, expect, it } from "vitest";
-import { getProxyConfig, normalizeTargetBaseUrl } from "./api-proxy.mjs";
+import { createServer } from "node:http";
+import { afterEach, describe, expect, it } from "vitest";
+import { createApiProxyServer, getProxyConfig, normalizeTargetBaseUrl } from "./api-proxy.mjs";
+
+const servers = [];
+
+afterEach(async () => {
+  await Promise.all(
+    servers.splice(0).map(
+      (server) =>
+        new Promise((resolve, reject) => {
+          server.close((error) => (error ? reject(error) : resolve()));
+        })
+    )
+  );
+});
+
+async function listen(server) {
+  servers.push(server);
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const address = server.address();
+  return `http://127.0.0.1:${address.port}`;
+}
 
 describe("api proxy config", () => {
   it("normalizes compatible API base URLs", () => {
@@ -33,5 +54,54 @@ describe("api proxy config", () => {
     });
 
     expect(config.networkProxyUrl).toBe("http://127.0.0.1:7897");
+  });
+
+  it("accepts a browser-provided API key during health checks", async () => {
+    const proxy = createApiProxyServer({
+      port: 0,
+      targetBaseUrl: "https://api.example.com/v1",
+      apiKey: "",
+      networkProxyUrl: ""
+    });
+    const proxyBaseUrl = await listen(proxy);
+
+    const response = await fetch(`${proxyBaseUrl}/health`, {
+      headers: {
+        Authorization: "Bearer browser-key"
+      }
+    });
+    const payload = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(payload.hasApiKey).toBe(true);
+  });
+
+  it("forwards the browser-provided API key when no environment key is configured", async () => {
+    let upstreamAuthorization = "";
+    const upstream = createServer((request, response) => {
+      upstreamAuthorization = request.headers.authorization || "";
+      response.writeHead(200, { "Content-Type": "application/json" });
+      response.end(JSON.stringify({ choices: [{ message: { content: "{\"ok\":true}" } }] }));
+    });
+    const upstreamBaseUrl = await listen(upstream);
+    const proxy = createApiProxyServer({
+      port: 0,
+      targetBaseUrl: `${upstreamBaseUrl}/v1`,
+      apiKey: "",
+      networkProxyUrl: ""
+    });
+    const proxyBaseUrl = await listen(proxy);
+
+    const response = await fetch(`${proxyBaseUrl}/v1/chat/completions`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: "Bearer browser-key"
+      },
+      body: JSON.stringify({ model: "test-model", messages: [] })
+    });
+
+    expect(response.status).toBe(200);
+    expect(upstreamAuthorization).toBe("Bearer browser-key");
   });
 });
