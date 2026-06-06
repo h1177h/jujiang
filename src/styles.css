@@ -199,7 +199,7 @@ h3 {
   grid-column: 1;
 }
 
-.input-panel .novel-editor {
+.input-panel .source-editor-column {
   grid-column: 2;
   grid-row: 2 / span 3;
 }
@@ -383,6 +383,92 @@ select:focus,
 .status-note.strong {
   color: #1d4ed8;
   font-weight: 800;
+}
+
+.source-editor-column {
+  display: grid;
+  gap: 12px;
+  min-height: 0;
+}
+
+.source-health {
+  background: #f8fafc;
+  border: 1px solid #d8e0eb;
+  border-radius: 8px;
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+}
+
+.source-health.ready {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+}
+
+.source-health.short {
+  background: #fff7ed;
+  border-color: #fed7aa;
+}
+
+.source-health.empty {
+  background: #fef2f2;
+  border-color: #fecaca;
+}
+
+.source-health-head {
+  align-items: flex-start;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.source-health-head strong {
+  color: #0f172a;
+  display: block;
+  font-size: 13px;
+  line-height: 1.3;
+}
+
+.source-health-head p {
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.45;
+  margin-top: 3px;
+}
+
+.source-health-head > span {
+  background: #ffffff;
+  border: 1px solid #d8e0eb;
+  border-radius: 999px;
+  color: #334155;
+  flex: none;
+  font-size: 11px;
+  font-weight: 900;
+  padding: 4px 9px;
+}
+
+.source-stat-grid {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.source-stat-grid span {
+  background: rgb(255 255 255 / 72%);
+  border: 1px solid #dbe4f0;
+  border-radius: 8px;
+  color: #64748b;
+  display: grid;
+  font-size: 11px;
+  gap: 2px;
+  min-height: 52px;
+  padding: 8px 10px;
+}
+
+.source-stat-grid strong {
+  color: #111827;
+  font-size: 20px;
+  line-height: 1.1;
 }
 
 .generation-run {
@@ -1619,7 +1705,7 @@ select:focus,
   .input-panel .field-row,
   .input-panel .api-box,
   .input-panel .primary-action,
-  .input-panel .novel-editor {
+  .input-panel .source-editor-column {
     grid-column: auto;
     grid-row: auto;
   }
@@ -1651,7 +1737,8 @@ select:focus,
   .scene-grid,
   .api-grid,
   .quality-items,
-  .character-rail {
+  .character-rail,
+  .source-stat-grid {
     grid-template-columns: 1fr;
     width: 100%;
   }

@@ -74,6 +74,60 @@ export function countChapters(input: string): number {
   return parseChapters(input).length;
 }
 
+export type SourceDraftStatus = "ready" | "short" | "empty";
+
+export interface SourceDraftSummary {
+  status: SourceDraftStatus;
+  chapterCount: number;
+  paragraphCount: number;
+  lineCount: number;
+  canGenerate: boolean;
+  headline: string;
+  detail: string;
+}
+
+export function summarizeSourceDraft(input: string): SourceDraftSummary {
+  const text = normalizeNovelText(input);
+  if (!text) {
+    return {
+      status: "empty",
+      chapterCount: 0,
+      paragraphCount: 0,
+      lineCount: 0,
+      canGenerate: false,
+      headline: "等待原文",
+      detail: "请粘贴或上传小说正文后再调用 AI。"
+    };
+  }
+
+  const chapters = parseChapters(text);
+  const paragraphCount = chapters.reduce((sum, chapter) => sum + chapter.paragraphs.length, 0);
+  const lineCount = text.split("\n").length;
+  const status: SourceDraftStatus = chapterCountIsReady(chapters.length, paragraphCount, lineCount) ? "ready" : "short";
+
+  if (status === "short") {
+    return {
+      status,
+      chapterCount: chapters.length,
+      paragraphCount,
+      lineCount,
+      canGenerate: true,
+      headline: "短素材草稿",
+      detail: "素材偏短，仍可生成草稿；如果要稳定拆分人物、事件和场景，建议补充更多正文段落。"
+    };
+  }
+
+  return {
+    status,
+    chapterCount: chapters.length,
+    paragraphCount,
+    lineCount,
+    canGenerate: true,
+    headline: "原文可用于生成",
+    detail: "已识别出可分段的小说正文，生成时会按章节和段落推进。"
+  };
+}
+
 function mergeDuplicatedHeadings(headings: ChapterHeading[], lines: string[]): ChapterHeading[] {
   const merged: ChapterHeading[] = [];
 
@@ -113,6 +167,10 @@ function mergeDuplicatedHeadings(headings: ChapterHeading[], lines: string[]): C
 
 function normalizeChapterMarker(value: string): string {
   return value.replace(/\s+/g, "").toLowerCase();
+}
+
+function chapterCountIsReady(chapterCount: number, paragraphCount: number, lineCount: number): boolean {
+  return chapterCount >= 3 || paragraphCount >= 6 || lineCount >= 12;
 }
 
 function buildChapter(

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { parse, stringify } from "yaml";
-import { countChapters, parseChapters } from "../chapters";
+import { countChapters, parseChapters, summarizeSourceDraft } from "../chapters";
 import { editorIssueFromYamlDiagnostic, patchTouchesEditorIssueField } from "../editorIssues";
 import { sampleNovel } from "../sampleNovel";
 import { isEditorReadyScene, updateScreenplaySceneYaml } from "../sceneEditor";
@@ -56,6 +56,41 @@ describe("chapter parsing", () => {
     );
 
     expect(count).toBe(3);
+  });
+
+  it("summarizes source draft readiness without blocking short drafts", () => {
+    expect(summarizeSourceDraft(sampleNovel)).toEqual(
+      expect.objectContaining({
+        status: "ready",
+        chapterCount: 3,
+        paragraphCount: 12,
+        lineCount: 19,
+        canGenerate: true
+      })
+    );
+
+    const shortDraft = summarizeSourceDraft("她推开门。\n\n屋里没有灯。");
+
+    expect(shortDraft).toEqual(
+      expect.objectContaining({
+        status: "short",
+        chapterCount: 1,
+        paragraphCount: 2,
+        lineCount: 3,
+        canGenerate: true
+      })
+    );
+    expect(shortDraft.detail).toContain("素材偏短");
+
+    expect(summarizeSourceDraft("   \n\n ")).toEqual(
+      expect.objectContaining({
+        status: "empty",
+        chapterCount: 0,
+        paragraphCount: 0,
+        lineCount: 0,
+        canGenerate: false
+      })
+    );
   });
 });
 
