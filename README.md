@@ -19,7 +19,7 @@
 - 工作区草稿会自动保存在本机浏览器：小说正文、标题、改编风格、YAML、选中场景、版本历史和生成记录刷新后仍可恢复，也可以一键重置工作区。
 - 内置多章示例小说《雾港来信》和示例 YAML，无 API key 也能演示编辑、校验、复制和下载。
 - 可填写 Base URL、API Key 和 Model，调用兼容 `/v1/chat/completions` 的模型生成剧本；API 设置可记住在本机浏览器。
-- 推荐使用本地 API proxy：前端请求 `http://127.0.0.1:8787/v1`，避免浏览器直连 provider 时被 CORS 或系统代理拦截。
+- 推荐使用本地 API proxy：前端请求 `http://127.0.0.1:18787/v1`，避免浏览器直连 provider 时被 CORS 或系统代理拦截。
 - 支持“测试连接”：生成前会检查本地 proxy 是否启动、是否能读到页面或环境变量里的 API Key。
 - API 返回结构不完整时，会把 Schema 错误反馈给模型尝试修复一次，不直接吞掉坏结果。
 - 创新点：长篇逐章事件抽取、故事圣经合并、Schema 修复回合、生成任务面板、单场 AI 补强、轻量版本历史与版本对比、工作区草稿自动保存、章节事件图谱、场景级工作台编辑、章节到场景映射、冲突曲线、质量检查、角色关系摘要、原文追溯、改编风格选择、节奏统计、改编计划。
@@ -66,6 +66,15 @@ npm run proxy
 
 `JUJIANG_NETWORK_PROXY` 优先级高于 `HTTPS_PROXY` / `HTTP_PROXY`。生成前可以先点击“测试连接”，确认 proxy 已启动、上游地址和 key 状态正常。
 
+如果 `18787` 端口被其他本地服务占用，可以改端口启动 proxy：
+
+```bash
+$env:JUJIANG_PROXY_PORT="18788"
+npm run proxy
+```
+
+然后把页面 Base URL 改成 `http://127.0.0.1:18788/v1`。剧匠的健康检查会识别端口上跑的是不是剧匠 proxy，避免误连到其他本地服务。
+
 前端直连模式仍保留给临时调试，但很多 provider 不允许浏览器跨域直连，遇到 `Failed to fetch` 时应切回本地 proxy。勾选“记住 API Key”后，剧匠会把 Base URL、Model 和 API Key 写入本机浏览器的 `localStorage`，下次打开同一浏览器会自动带出；也可以随时点击“清除”删除保存的设置。公开演示或共享电脑上建议使用环境变量 key。
 
 创作工作区也会自动保存到同一浏览器的 `localStorage`：标题、原文、改编风格、YAML、当前场景和版本历史都会随编辑更新。页面右上角的重置按钮只重置工作区草稿，不会清除 API 设置。
@@ -81,7 +90,7 @@ npm run build
 当前已验证结果：
 
 - `npm audit`：found 0 vulnerabilities。
-- `npm test`：9 个测试文件、43 个测试用例通过。
+- `npm test`：9 个测试文件、46 个测试用例通过。
 - `npm run build`：TypeScript 检查和 Vite 生产构建通过。
 
 ## 架构

@@ -91,20 +91,21 @@
 - PR #25 `feat(ai): add generation run panel`：参考成熟项目的任务队列和状态反馈，把 AI 生成过程改成可见的任务面板。
 - PR #26 `feat(ai): persist generation run history`：把生成任务记录纳入本机工作区草稿，失败后可保留阶段信息并直接重试。
 - PR #27 `feat(workspace): add revision diff panel`：把版本历史从“只能恢复”补成可对比的修订面板，展示当前 YAML 相比旧版的新增、删除和变更行。
+- PR #28 `fix(api): harden local proxy transport`：修复 proxy 模式仍可能走浏览器直连的问题，并把默认 proxy 端口迁移到 18787，避开常见本地端口冲突。
 
 ## 已运行验证
 
 - `npm audit`：found 0 vulnerabilities。
-- `npm test`：9 个测试文件、43 个测试用例通过。
+- `npm test`：9 个测试文件、46 个测试用例通过。
 - `npm run build`：通过。
-- proxy health check：`http://127.0.0.1:8787/health` 返回 `ok:true`，可显示 target 和 key 加载状态。
+- proxy health check：`http://127.0.0.1:18787/health` 返回 `ok:true` 和 `service:"jujiang-api-proxy"`，可显示 target 和 key 加载状态。
 - 本地浏览器 QA：1440px 和 390px 视口检查过，场景编辑器、故事分析区和 YAML 区没有横向溢出。
 - Playwright 交互 QA：点击质量检查项可定位到对应场景；勾选“本地 proxy”会自动启用 AI 生成并切换 Base URL。
 
 ## 剩余风险
 
 - 自动生成质量依赖真实 AI provider；当前没有离线剧情生成能力。
-- 本地 proxy 可读取环境变量 key，也可使用页面填写并保存在本机浏览器的 key；公开演示或共享电脑上建议使用环境变量。
+- 本地 proxy 可读取环境变量 key，也可使用页面填写并保存在本机浏览器的 key；公开演示或共享电脑上建议使用环境变量。默认端口是 18787，如被占用可用 `JUJIANG_PROXY_PORT` 改端口并同步页面 Base URL。
 - 浏览器直连 provider 仍可能被 CORS 或网络策略拦截，正式演示建议使用本地 proxy。
 - 当前已支持长篇逐章事件抽取和单场补强，但复杂小说仍需要作者继续调整分场边界。
 - 版本历史目前是轻量行级对比，还没有做逐字段语义 diff。

@@ -37,7 +37,7 @@ npm run build
 npm run proxy
 ```
 
-然后在页面勾选“AI 生成”和“本地 proxy”，填写 API Key，按需勾选“记住 API Key”，再点击“测试连接”。如果不想在页面填 key，也可以先设置 `$env:JUJIANG_API_KEY="..."` 再启动 proxy。前端直连模式保留给临时测试，但很多 provider 会因为 CORS 或网络策略拒绝浏览器直连。
+然后在页面勾选“AI 生成”和“本地 proxy”，填写 API Key，按需勾选“记住 API Key”，再点击“测试连接”。默认 proxy 地址是 `http://127.0.0.1:18787/v1`；如果端口被占用，可以用 `JUJIANG_PROXY_PORT` 改端口，并同步页面 Base URL。如果不想在页面填 key，也可以先设置 `$env:JUJIANG_API_KEY="..."` 再启动 proxy。前端直连模式保留给临时测试，但很多 provider 会因为 CORS 或网络策略拒绝浏览器直连。
 
 如果没有 key，只展示示例 YAML 的查看、编辑和校验，不演示自动生成。
 
@@ -112,7 +112,7 @@ npm run proxy
 最后展示命令验证结果：
 
 - `npm audit`：0 vulnerabilities。
-- `npm test`：9 个测试文件、43 个测试用例通过。
+- `npm test`：9 个测试文件、46 个测试用例通过。
 - `npm run build`：构建通过。
 
 ## 评分点对应

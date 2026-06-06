@@ -9,6 +9,9 @@ export interface AiConnectionResult {
   message: string;
 }
 
+export const defaultLocalProxyBaseUrl = "http://127.0.0.1:18787/v1";
+const oldDefaultLocalProxyBaseUrl = "http://127.0.0.1:8787/v1";
+
 type FetchLike = (input: string, init?: RequestInit) => Promise<{
   ok: boolean;
   status?: number;
@@ -21,6 +24,23 @@ export function deriveProxyHealthUrl(baseUrl: string): string {
   url.search = "";
   url.hash = "";
   return url.toString();
+}
+
+export function resolveAiRequestBaseUrl(baseUrl: string, useLocalProxy: boolean): string {
+  const normalized = baseUrl.trim().replace(/\/+$/, "");
+  if (!useLocalProxy) {
+    return normalized;
+  }
+
+  if (normalized === oldDefaultLocalProxyBaseUrl) {
+    return defaultLocalProxyBaseUrl;
+  }
+
+  if (/^https?:\/\/(127\.0\.0\.1|localhost)(:\d+)?(\/|$)/i.test(normalized)) {
+    return normalized;
+  }
+
+  return defaultLocalProxyBaseUrl;
 }
 
 export async function diagnoseAiConnection(
@@ -48,6 +68,8 @@ export async function diagnoseAiConnection(
   try {
     const response = await fetcher(healthUrl, init);
     const payload = (await response.json().catch(() => ({}))) as {
+      ok?: boolean;
+      service?: string;
       hasApiKey?: boolean;
       targetBaseUrl?: string;
       networkProxy?: string;
@@ -57,6 +79,13 @@ export async function diagnoseAiConnection(
       return {
         ok: false,
         message: `本地 proxy 健康检查失败：HTTP ${response.status ?? "非 2xx"}。请重启 npm run proxy。`
+      };
+    }
+
+    if (payload.service !== "jujiang-api-proxy") {
+      return {
+        ok: false,
+        message: "本地 proxy 端口返回的不是剧匠 proxy：请关闭占用端口的其他服务，或用 JUJIANG_PROXY_PORT 启动剧匠 proxy 并同步页面 Base URL。"
       };
     }
 
