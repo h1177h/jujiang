@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parse } from "yaml";
+import { parse, stringify } from "yaml";
 import { countChapters, parseChapters } from "../chapters";
 import { sampleNovel } from "../sampleNovel";
 import { updateScreenplaySceneYaml } from "../sceneEditor";
@@ -87,6 +87,35 @@ describe("screenplay schema and review helpers", () => {
 
     expect(result.ok).toBe(false);
     expect(result.errors.join("\n")).toContain("Required");
+  });
+
+  it("returns structured diagnostics that point authors to the broken scene field", () => {
+    const parsed = parse(sampleOutputYaml);
+    parsed.scenes[0].goal = "";
+    delete parsed.scenes[0].source.excerpt;
+
+    const result = validateScreenplayYaml(stringify(parsed));
+
+    expect(result.ok).toBe(false);
+    expect(result.issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          path: "scenes.0.goal",
+          sceneId: "scene-01",
+          fieldLabel: "场景目标",
+          severity: "error",
+          suggestion: "补充这一场的戏剧目标，让作者知道本场要推动什么。"
+        }),
+        expect.objectContaining({
+          path: "scenes.0.source.excerpt",
+          sceneId: "scene-01",
+          fieldLabel: "原文摘录",
+          severity: "error",
+          suggestion: "补充可追溯的原文摘录，避免场景失去改编依据。"
+        })
+      ])
+    );
+    expect(result.errors.join("\n")).toContain("scene-01");
   });
 
   it("syncs scene editor changes back into valid YAML", () => {

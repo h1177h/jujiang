@@ -770,6 +770,32 @@ select:focus,
   line-height: 1.45;
 }
 
+.validation-issue-list {
+  display: grid;
+  gap: 6px;
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+}
+
+.validation-issue-list li {
+  background: rgb(255 255 255 / 62%);
+  border: 1px solid #fed7aa;
+  border-radius: 8px;
+  padding: 6px 8px;
+}
+
+.validation-issue-list span {
+  color: #7c2d12;
+  display: block;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.validation-issue-list p {
+  margin: 2px 0 0;
+}
+
 .validation-box.ok {
   background: #ecfdf5;
   color: #166534;
