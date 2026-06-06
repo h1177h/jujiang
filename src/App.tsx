@@ -49,6 +49,7 @@ import {
   saveWorkspaceDraft
 } from "./core/workspaceDraft";
 import {
+  buildGenerationRunDiagnostic,
   completeGenerationRun,
   createGenerationRun,
   failGenerationRun,
@@ -781,6 +782,7 @@ function GenerationRunPanel({
   onRetry: () => void;
   onSelectRun: (run: GenerationRun) => void;
 }) {
+  const [diagnosticCopied, setDiagnosticCopied] = useState(false);
   const activeRun = run ?? history[0] ?? null;
   if (!activeRun) return null;
 
@@ -796,6 +798,12 @@ function GenerationRunPanel({
   );
   const recentRuns = history.slice(0, 4);
 
+  async function handleCopyDiagnostic() {
+    await navigator.clipboard.writeText(buildGenerationRunDiagnostic(activeRun));
+    setDiagnosticCopied(true);
+    window.setTimeout(() => setDiagnosticCopied(false), 1600);
+  }
+
   return (
     <div className={`generation-run ${activeRun.status}`}>
       <div className="generation-run-head">
@@ -807,10 +815,16 @@ function GenerationRunPanel({
         </div>
         <div className="generation-run-actions">
           {activeRun.status === "failed" ? (
-            <button type="button" onClick={onRetry} title="重新调用当前 AI 配置">
-              <RefreshCw size={13} />
-              重试
-            </button>
+            <>
+              <button type="button" onClick={handleCopyDiagnostic} title="复制生成诊断">
+                <Clipboard size={13} />
+                {diagnosticCopied ? "已复制" : "诊断"}
+              </button>
+              <button type="button" onClick={onRetry} title="重新调用当前 AI 配置">
+                <RefreshCw size={13} />
+                重试
+              </button>
+            </>
           ) : null}
           <em>{statusLabel}</em>
         </div>

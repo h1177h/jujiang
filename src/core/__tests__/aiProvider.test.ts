@@ -64,10 +64,16 @@ describe("AI provider", () => {
     );
   });
 
-  it("extracts a story blueprint before asking for final screenplay YAML", async () => {
+  it("extracts a story blueprint before asking for final screenplay YAML on short text", async () => {
     const validation = validateScreenplay(parse(sampleOutputYaml));
     expect(validation.success).toBe(true);
     if (!validation.success) return;
+    const shortNovel = [
+      "第一章 雾港",
+      "沈知夏收到匿名信。",
+      "第二章 旧账",
+      "林砚发现账册被调包。"
+    ].join("\n");
 
     const fetchMock = vi
       .fn()
@@ -110,7 +116,7 @@ describe("AI provider", () => {
       {
         title: "雾港来信",
         style: "cinematic",
-        novelText: sampleNovel
+        novelText: shortNovel
       }
     );
 
@@ -120,7 +126,7 @@ describe("AI provider", () => {
     const firstBody = JSON.parse(String((fetchMock.mock.calls[0][1] as RequestInit).body));
     const firstPayload = JSON.parse(firstBody.messages[1].content);
     expect(firstPayload.pipelineStage).toBe("event_extract");
-    expect(firstPayload.sourceChapters).toHaveLength(3);
+    expect(firstPayload.sourceChapters).toHaveLength(2);
 
     const secondBody = JSON.parse(String((fetchMock.mock.calls[1][1] as RequestInit).body));
     const secondPayload = JSON.parse(secondBody.messages[1].content);
@@ -128,10 +134,198 @@ describe("AI provider", () => {
     expect(secondPayload.storyBlueprint.chapterEvents[0].events[0].id).toBe("event-01-01");
   });
 
+  it("uses staged chapter extraction for exactly three chapters", async () => {
+    const validation = validateScreenplay(parse(sampleOutputYaml));
+    expect(validation.success).toBe(true);
+    if (!validation.success) return;
+
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      json: async () => {
+        const callIndex = fetchMock.mock.calls.length;
+        if (callIndex <= 3) {
+          return {
+            choices: [
+              {
+                message: {
+                  content: JSON.stringify({
+                    chapterEvents: [validation.data.chapterEvents[Math.min(callIndex - 1, 2)]]
+                  })
+                }
+              }
+            ]
+          };
+        }
+
+        if (callIndex === 4) {
+          return {
+            choices: [
+              {
+                message: {
+                  content: JSON.stringify({
+                    chapterEvents: validation.data.chapterEvents,
+                    storyBible: validation.data.storyBible,
+                    adaptationStrategy: validation.data.adaptationStrategy
+                  })
+                }
+              }
+            ]
+          };
+        }
+
+        return {
+          choices: [
+            {
+              message: {
+                content: JSON.stringify(validation.data)
+              }
+            }
+          ]
+        };
+      }
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await generateScreenplayWithApi(
+      {
+        baseUrl: "https://api.example.com",
+        apiKey: "test-key",
+        model: "test-model"
+      },
+      {
+        title: "雾港来信",
+        style: "cinematic",
+        novelText: sampleNovel
+      }
+    );
+
+    expect(fetchMock).toHaveBeenCalledTimes(5);
+    const firstBody = JSON.parse(String(((fetchMock.mock.calls[0] as unknown as [string, RequestInit])[1]).body));
+    const firstPayload = JSON.parse(firstBody.messages[1].content);
+    expect(firstPayload.pipelineStage).toBe("chapter_event_extract");
+    expect(firstPayload.sourceChapter.chapterIndex).toBe(1);
+
+    const finalBody = JSON.parse(String(((fetchMock.mock.calls[4] as unknown as [string, RequestInit])[1]).body));
+    const finalPayload = JSON.parse(finalBody.messages[1].content);
+    expect(finalPayload.pipelineStage).toBe("screenplay_generate");
+    expect(finalPayload.sourceChapters).toHaveLength(3);
+    expect(finalPayload.sourceChapters[0].paragraphs).toBeUndefined();
+  });
+
+  it("retries transient HTTP 504 responses before failing a stage", async () => {
+    const validation = validateScreenplay(parse(sampleOutputYaml));
+    expect(validation.success).toBe(true);
+    if (!validation.success) return;
+
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => {
+        const callIndex = fetchMock.mock.calls.length;
+        if (callIndex === 1) {
+          return {};
+        }
+        if (callIndex <= 4) {
+          return {
+            choices: [
+              {
+                message: {
+                  content: JSON.stringify({
+                    chapterEvents: [validation.data.chapterEvents[Math.min(callIndex - 2, 2)]]
+                  })
+                }
+              }
+            ]
+          };
+        }
+        if (callIndex === 5) {
+          return {
+            choices: [
+              {
+                message: {
+                  content: JSON.stringify({
+                    chapterEvents: validation.data.chapterEvents,
+                    storyBible: validation.data.storyBible,
+                    adaptationStrategy: validation.data.adaptationStrategy
+                  })
+                }
+              }
+            ]
+          };
+        }
+
+        return {
+          choices: [
+            {
+              message: {
+                content: JSON.stringify(validation.data)
+              }
+            }
+          ]
+        };
+      }
+    }));
+    fetchMock.mockResolvedValueOnce({
+      ok: false,
+      status: 504,
+      json: async () => ({})
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await generateScreenplayWithApi(
+      {
+        baseUrl: "https://api.example.com",
+        apiKey: "test-key",
+        model: "test-model"
+      },
+      {
+        title: "三章重试",
+        style: "cinematic",
+        novelText: sampleNovel
+      }
+    );
+
+    expect(result.scenes).toHaveLength(6);
+    expect(fetchMock).toHaveBeenCalledTimes(6);
+    const firstBody = JSON.parse(String(((fetchMock.mock.calls[0] as unknown as [string, RequestInit])[1]).body));
+    const firstPayload = JSON.parse(firstBody.messages[1].content);
+    expect(firstPayload.pipelineStage).toBe("chapter_event_extract");
+  });
+
+  it("reports the failed AI stage when transient HTTP 504 retries are exhausted", async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: false,
+      status: 504,
+      json: async () => ({})
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      generateScreenplayWithApi(
+        {
+          baseUrl: "https://api.example.com",
+          apiKey: "test-key",
+          model: "test-model"
+        },
+        {
+          title: "三章失败",
+          style: "cinematic",
+          novelText: sampleNovel
+        }
+      )
+    ).rejects.toThrow("chapter_event_extract 阶段请求失败：HTTP 504");
+  });
+
   it("sends structured chapter context instead of an undifferentiated novel blob", async () => {
     const validation = validateScreenplay(parse(sampleOutputYaml));
     expect(validation.success).toBe(true);
     if (!validation.success) return;
+    const shortNovel = [
+      "第一章 迟到的渡船",
+      "夜色压在雾港的石桥上，林砚抱着旧皮箱，听见钟楼敲过十下。",
+      "第二章 账册",
+      "沈知夏拿到账册。"
+    ].join("\n");
 
     const fetchMock = vi.fn(async () => ({
       ok: true,
@@ -156,7 +350,7 @@ describe("AI provider", () => {
       {
         title: "雾港来信",
         style: "cinematic",
-        novelText: sampleNovel
+        novelText: shortNovel
       }
     );
 
@@ -165,12 +359,12 @@ describe("AI provider", () => {
     const userPayload = JSON.parse(requestBody.messages[1].content);
 
     expect(userPayload.novelText).toBeUndefined();
-    expect(userPayload.sourceChapters).toHaveLength(3);
+    expect(userPayload.sourceChapters).toHaveLength(2);
     expect(userPayload.sourceChapters[0]).toEqual(
       expect.objectContaining({
         chapterIndex: 1,
         chapterTitle: "迟到的渡船",
-        lineStart: 4
+        lineStart: 2
       })
     );
     expect(userPayload.sourceChapters[0].paragraphs[0]).toEqual({
@@ -288,6 +482,12 @@ describe("AI provider", () => {
     const validation = validateScreenplay(parse(sampleOutputYaml));
     expect(validation.success).toBe(true);
     if (!validation.success) return;
+    const shortNovel = [
+      "第一章 迟到的渡船",
+      "夜色压在雾港的石桥上，林砚抱着旧皮箱，听见钟楼敲过十下。",
+      "第二章 账册",
+      "沈知夏拿到账册。"
+    ].join("\n");
 
     const invalidScreenplay = {
       ...validation.data,
@@ -346,7 +546,7 @@ describe("AI provider", () => {
       {
         title: "雾港来信",
         style: "cinematic",
-        novelText: sampleNovel
+        novelText: shortNovel
       }
     );
 
