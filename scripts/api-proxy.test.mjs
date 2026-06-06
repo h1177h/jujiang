@@ -48,6 +48,10 @@ describe("api proxy config", () => {
     });
   });
 
+  it("uses a Jujiang-specific default port", () => {
+    expect(getProxyConfig({}).port).toBe(18787);
+  });
+
   it("reads HTTPS proxy settings for Node upstream requests", () => {
     const config = getProxyConfig({
       JUJIANG_API_KEY: "key",

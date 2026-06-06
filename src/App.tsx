@@ -19,7 +19,11 @@ import {
   loadSavedAiSettings,
   saveAiSettings
 } from "./core/apiSettings";
-import { diagnoseAiConnection } from "./core/apiConnection";
+import {
+  defaultLocalProxyBaseUrl,
+  diagnoseAiConnection,
+  resolveAiRequestBaseUrl
+} from "./core/apiConnection";
 import { countChapters } from "./core/chapters";
 import type { AdaptationStyle, Scene, ScreenplayYaml } from "./core/types";
 import {
@@ -69,7 +73,7 @@ const styles: { value: AdaptationStyle; label: string }[] = [
   { value: "short_drama", label: "短剧" }
 ];
 const directApiBaseUrl = "https://api.openai.com/v1";
-const localProxyBaseUrl = "http://127.0.0.1:8787/v1";
+const localProxyBaseUrl = defaultLocalProxyBaseUrl;
 
 export default function App() {
   const [initialAiSettings] = useState(() => loadSavedAiSettings(getBrowserStorage()));
@@ -79,7 +83,9 @@ export default function App() {
   const [style, setStyle] = useState<AdaptationStyle>(initialWorkspaceDraft?.style ?? "cinematic");
   const [useApi, setUseApi] = useState(initialAiSettings?.useApi ?? false);
   const [useLocalProxy, setUseLocalProxy] = useState(initialAiSettings?.useLocalProxy ?? true);
-  const [apiBaseUrl, setApiBaseUrl] = useState(initialAiSettings?.baseUrl ?? localProxyBaseUrl);
+  const [apiBaseUrl, setApiBaseUrl] = useState(
+    resolveAiRequestBaseUrl(initialAiSettings?.baseUrl ?? localProxyBaseUrl, initialAiSettings?.useLocalProxy ?? true)
+  );
   const [apiModel, setApiModel] = useState(initialAiSettings?.model ?? "gpt-4.1-mini");
   const [apiKey, setApiKey] = useState(initialAiSettings?.apiKey ?? "");
   const [rememberApiKey, setRememberApiKey] = useState(Boolean(initialAiSettings?.apiKey));
@@ -140,6 +146,13 @@ export default function App() {
   }, [apiBaseUrl, apiKey, apiModel, rememberApiKey, useApi, useLocalProxy]);
 
   useEffect(() => {
+    const resolvedBaseUrl = resolveAiRequestBaseUrl(apiBaseUrl, useLocalProxy);
+    if (useLocalProxy && resolvedBaseUrl !== apiBaseUrl) {
+      setApiBaseUrl(resolvedBaseUrl);
+    }
+  }, [apiBaseUrl, useLocalProxy]);
+
+  useEffect(() => {
     saveWorkspaceDraft(
       {
         title,
@@ -162,6 +175,7 @@ export default function App() {
   async function handleGenerate() {
     const apiKeyForRequest = apiKey.trim();
     const apiReady = useLocalProxy ? true : Boolean(apiKeyForRequest);
+    const requestBaseUrl = resolveAiRequestBaseUrl(apiBaseUrl, useLocalProxy);
     const run = createGenerationRun({
       title,
       model: apiModel,
@@ -173,7 +187,7 @@ export default function App() {
 
     if (useApi && apiReady) {
       const connection = await diagnoseAiConnection({
-        baseUrl: apiBaseUrl,
+        baseUrl: requestBaseUrl,
         useLocalProxy,
         apiKey: apiKeyForRequest
       });
@@ -204,7 +218,7 @@ export default function App() {
       () =>
         generateScreenplayWithApi(
           {
-            baseUrl: apiBaseUrl,
+            baseUrl: requestBaseUrl,
             apiKey: apiKeyForRequest,
             model: apiModel
           },
@@ -294,13 +308,14 @@ export default function App() {
     }
 
     const apiKeyForRequest = apiKey.trim();
+    const requestBaseUrl = resolveAiRequestBaseUrl(apiBaseUrl, useLocalProxy);
     if (!useLocalProxy && !apiKeyForRequest) {
       setGenerationStatus("请先填写 API Key。");
       return;
     }
 
     const connection = await diagnoseAiConnection({
-      baseUrl: apiBaseUrl,
+      baseUrl: requestBaseUrl,
       useLocalProxy,
       apiKey: apiKeyForRequest
     });
@@ -313,7 +328,7 @@ export default function App() {
     try {
       const revisedScene = await regenerateSceneWithApi(
         {
-          baseUrl: apiBaseUrl,
+          baseUrl: requestBaseUrl,
           apiKey: apiKeyForRequest,
           model: apiModel
         },
@@ -342,9 +357,8 @@ export default function App() {
     setUseLocalProxy(checked);
     if (checked) {
       setUseApi(true);
-    }
-    if (checked && apiBaseUrl === directApiBaseUrl) {
       setApiBaseUrl(localProxyBaseUrl);
+      return;
     }
     if (!checked && apiBaseUrl === localProxyBaseUrl) {
       setApiBaseUrl(directApiBaseUrl);
@@ -397,6 +411,7 @@ export default function App() {
 
   async function handleCheckConnection() {
     const apiKeyForRequest = apiKey.trim();
+    const requestBaseUrl = resolveAiRequestBaseUrl(apiBaseUrl, useLocalProxy);
     if (!useApi || !apiKeyForRequest) {
       if (!useLocalProxy) {
         setGenerationStatus("请先开启 AI 生成并填写 API Key。");
@@ -406,7 +421,7 @@ export default function App() {
 
     setGenerationStatus("正在检查 AI 连接...");
     const connection = await diagnoseAiConnection({
-      baseUrl: apiBaseUrl,
+      baseUrl: requestBaseUrl,
       useLocalProxy,
       apiKey: apiKeyForRequest
     });

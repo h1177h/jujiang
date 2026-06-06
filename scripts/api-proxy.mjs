@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 import { ProxyAgent, fetch as undiciFetch } from "undici";
 
 const DEFAULT_TARGET_BASE_URL = "https://api.openai.com/v1";
-const DEFAULT_PORT = 8787;
+const DEFAULT_PORT = 18787;
 const MAX_BODY_BYTES = 2 * 1024 * 1024;
 
 export function normalizeTargetBaseUrl(value = DEFAULT_TARGET_BASE_URL) {
@@ -43,6 +43,7 @@ export function createApiProxyServer(config = getProxyConfig()) {
       const requestApiKey = readBearerToken(request.headers.authorization);
       writeJson(response, 200, {
         ok: true,
+        service: "jujiang-api-proxy",
         targetBaseUrl: config.targetBaseUrl,
         hasApiKey: Boolean(config.apiKey || requestApiKey),
         networkProxy: config.networkProxyUrl || ""
