@@ -356,6 +356,82 @@ select:focus,
   line-height: 1.45;
 }
 
+.generation-plan-card {
+  background: #ffffff;
+  border: 1px solid #dbe4f0;
+  border-radius: 8px;
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+}
+
+.generation-plan-card.chunked {
+  background: #fffaf0;
+  border-color: #f6d58f;
+}
+
+.generation-plan-card > div:first-child {
+  display: grid;
+  gap: 6px;
+}
+
+.generation-plan-card span {
+  color: #2563eb;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.generation-plan-card.chunked span {
+  color: #a16207;
+}
+
+.generation-plan-card strong {
+  color: #0f172a;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.generation-plan-card dl {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.generation-plan-card dl div {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: 9px;
+}
+
+.generation-plan-card dt,
+.generation-plan-card dd {
+  margin: 0;
+}
+
+.generation-plan-card dt {
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.generation-plan-card dd {
+  color: #0f172a;
+  font-size: 16px;
+  font-weight: 900;
+}
+
+.generation-plan-card p {
+  color: #854d0e;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
 .settings-overlay {
   inset: 0;
   pointer-events: none;

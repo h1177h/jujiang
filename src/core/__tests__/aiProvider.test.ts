@@ -620,6 +620,109 @@ describe("AI provider", () => {
     expect(finalPayload.sourceChapters[0].paragraphs).toBeUndefined();
   });
 
+  it("splits oversized chapters into paragraph chunks before event extraction", async () => {
+    const validation = validateScreenplay(parse(sampleOutputYaml));
+    expect(validation.success).toBe(true);
+    if (!validation.success) return;
+
+    const longParagraphs = Array.from(
+      { length: 18 },
+      (_, index) => `第 ${index + 1} 段，林砚和沈知夏在雾港追查账册，冲突继续升级。${"线索".repeat(30)}`
+    );
+    const longNovel = [
+      "第一章 起风",
+      ...longParagraphs,
+      "第二章 账册",
+      ...longParagraphs,
+      "第三章 钟楼",
+      ...longParagraphs
+    ].join("\n");
+
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => {
+        const latestCall = fetchMock.mock.calls[fetchMock.mock.calls.length - 1] as unknown as [string, RequestInit];
+        const requestBody = JSON.parse(String(latestCall[1].body));
+        const payload = JSON.parse(requestBody.messages[1].content);
+        if (payload.pipelineStage === "chapter_event_extract") {
+          return {
+            choices: [
+              {
+                message: {
+                  content: JSON.stringify({
+                    chapterEvents: [validation.data.chapterEvents[(payload.sourceChunk.chapterIndex - 1) % 3]]
+                  })
+                }
+              }
+            ]
+          };
+        }
+        if (payload.pipelineStage === "story_bible_generate") {
+          return {
+            choices: [
+              {
+                message: {
+                  content: JSON.stringify({
+                    chapterEvents: validation.data.chapterEvents,
+                    storyBible: validation.data.storyBible,
+                    adaptationStrategy: validation.data.adaptationStrategy
+                  })
+                }
+              }
+            ]
+          };
+        }
+        return {
+          choices: [
+            {
+              message: {
+                content: JSON.stringify({
+                  ...validation.data,
+                  work: {
+                    ...validation.data.work,
+                    sourceChapterCount: 3
+                  }
+                })
+              }
+            }
+          ]
+        };
+      }
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await generateScreenplayWithApi(
+      {
+        baseUrl: "https://api.example.com",
+        apiKey: "test-key",
+        model: "test-model"
+      },
+      {
+        title: "长章节测试",
+        style: "cinematic",
+        novelText: longNovel
+      }
+    );
+
+    const extractionPayloads = fetchMock.mock.calls
+      .map((call) => {
+        const [, init] = call as unknown as [string, RequestInit];
+        return JSON.parse(JSON.parse(String(init.body)).messages[1].content);
+      })
+      .filter((payload) => payload.pipelineStage === "chapter_event_extract");
+
+    expect(extractionPayloads.length).toBeGreaterThan(3);
+    expect(extractionPayloads[0].sourceChapter).toBeUndefined();
+    expect(extractionPayloads[0].sourceChunk).toEqual(
+      expect.objectContaining({
+        chapterIndex: 1,
+        chunkIndex: 1
+      })
+    );
+    expect(extractionPayloads[0].sourceChunk.paragraphs.length).toBeLessThan(longParagraphs.length);
+  });
+
   it("asks the model to repair screenplay JSON when schema validation fails", async () => {
     const validation = validateScreenplay(parse(sampleOutputYaml));
     expect(validation.success).toBe(true);

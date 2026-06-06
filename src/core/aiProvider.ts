@@ -1,6 +1,7 @@
 import type { AdaptationStyle, Scene, ScreenplayYaml, StoryBlueprint } from "./types";
 import { buildAiGatewayHeaders, classifyFetchFailure } from "./apiConnection";
 import { parseChapters } from "./chapters";
+import { splitParagraphsForGeneration } from "./generationPlan";
 import { storyBlueprintSchema, validateScene, validateScreenplay, validateStoryBlueprint } from "./schema";
 
 const longFormChapterThreshold = 3;
@@ -171,13 +172,15 @@ async function generateLongFormScreenplay(
   sourceChapters: ReturnType<typeof buildSourceChapters>
 ): Promise<ScreenplayYaml> {
   const chapterEvents = [];
+  const extractionUnits = buildChapterExtractionUnits(sourceChapters);
 
-  for (const [index, sourceChapter] of sourceChapters.entries()) {
+  for (const [index, unit] of extractionUnits.entries()) {
+    const chunkSuffix = unit.totalChunks > 1 ? `（片段 ${unit.chunkIndex}/${unit.totalChunks}）` : "";
     options.onProgress?.({
       stage: "chapter_event_extract",
-      message: `正在抽取第 ${sourceChapter.chapterIndex} 章事件`,
+      message: `正在抽取第 ${unit.chapterIndex} 章事件${chunkSuffix}`,
       current: index + 1,
-      total: sourceChapters.length
+      total: extractionUnits.length
     });
     const content = await requestChatCompletion(settings, baseUrl, {
       stage: "chapter_event_extract",
@@ -189,7 +192,7 @@ async function generateLongFormScreenplay(
         },
         {
           role: "user",
-          content: buildChapterEventUserPrompt(options, sourceChapter, sourceChapters.length)
+          content: buildChapterEventUserPrompt(options, unit, sourceChapters.length)
         }
       ],
       signal: options.signal
@@ -211,7 +214,7 @@ async function generateLongFormScreenplay(
       },
       {
         role: "user",
-        content: buildBlueprintMergeUserPrompt(options, sourceChapters, chapterEvents)
+        content: buildBlueprintMergeUserPrompt(options, sourceChapters, mergeChapterEventGroups(chapterEvents))
       }
     ],
     signal: options.signal
@@ -516,6 +519,38 @@ function buildSourceChapters(novelText: string) {
   }));
 }
 
+function buildChapterExtractionUnits(sourceChapters: ReturnType<typeof buildSourceChapters>) {
+  return sourceChapters.flatMap((chapter) => {
+    const chunks = splitChapterParagraphs(chapter.paragraphs);
+    if (chunks.length === 1) {
+      return [
+        {
+          ...chapter,
+          chunkIndex: 1,
+          totalChunks: 1,
+          paragraphOffset: 0
+        }
+      ];
+    }
+
+    return chunks.map((paragraphs, index) => ({
+      chapterIndex: chapter.chapterIndex,
+      chapterTitle: chapter.chapterTitle,
+      heading: chapter.heading,
+      lineStart: chapter.lineStart,
+      lineEnd: chapter.lineEnd,
+      chunkIndex: index + 1,
+      totalChunks: chunks.length,
+      paragraphOffset: chunks.slice(0, index).reduce((total, chunk) => total + chunk.length, 0),
+      paragraphs
+    }));
+  });
+}
+
+function splitChapterParagraphs<T extends { paragraphIndex: number; text: string }>(paragraphs: T[]): T[][] {
+  return splitParagraphsForGeneration(paragraphs);
+}
+
 function buildBlueprintUserPrompt(
   options: AiGenerationOptions,
   sourceChapters: ReturnType<typeof buildSourceChapters>
@@ -536,21 +571,70 @@ function buildBlueprintUserPrompt(
 
 function buildChapterEventUserPrompt(
   options: AiGenerationOptions,
-  sourceChapter: ReturnType<typeof buildSourceChapters>[number],
+  sourceUnit: ReturnType<typeof buildChapterExtractionUnits>[number],
   sourceChapterCount: number
 ): string {
+  const isChunked = sourceUnit.totalChunks > 1;
+  const sourceKey = isChunked ? "sourceChunk" : "sourceChapter";
+  const sourceValue = isChunked
+    ? {
+        chapterIndex: sourceUnit.chapterIndex,
+        chapterTitle: sourceUnit.chapterTitle,
+        heading: sourceUnit.heading,
+        lineStart: sourceUnit.lineStart,
+        lineEnd: sourceUnit.lineEnd,
+        chunkIndex: sourceUnit.chunkIndex,
+        totalChunks: sourceUnit.totalChunks,
+        paragraphOffset: sourceUnit.paragraphOffset,
+        paragraphs: sourceUnit.paragraphs
+      }
+    : {
+        chapterIndex: sourceUnit.chapterIndex,
+        chapterTitle: sourceUnit.chapterTitle,
+        heading: sourceUnit.heading,
+        lineStart: sourceUnit.lineStart,
+        lineEnd: sourceUnit.lineEnd,
+        paragraphs: sourceUnit.paragraphs
+      };
+
   return JSON.stringify({
     pipelineStage: "chapter_event_extract",
     title: options.title,
     adaptationStyle: options.style,
     sourceChapterCount,
-    sourceChapter,
+    [sourceKey]: sourceValue,
     extractionRules: [
-      "只处理 sourceChapter 中的 paragraphs。",
+      isChunked ? "只处理 sourceChunk 中的 paragraphs。" : "只处理 sourceChapter 中的 paragraphs。",
       "按人物目标、阻碍、转折、线索和场尾钩子提取事件。",
-      "同一章节可以有多个事件；事件数量应由剧情变化决定，不要机械固定。"
+      "同一章节可以有多个事件；事件数量应由剧情变化决定，不要机械固定。",
+      "如果当前输入是 sourceChunk，事件 source.paragraphIndexes 仍使用原章节段落编号，不要从 1 重新编号。"
     ]
   });
+}
+
+function mergeChapterEventGroups(chapterEvents: StoryBlueprint["chapterEvents"]): StoryBlueprint["chapterEvents"] {
+  const merged = new Map<number, StoryBlueprint["chapterEvents"][number]>();
+
+  for (const group of chapterEvents) {
+    const existing = merged.get(group.chapterIndex);
+    if (!existing) {
+      merged.set(group.chapterIndex, { ...group, events: [...group.events] });
+      continue;
+    }
+
+    const existingIds = new Set(existing.events.map((event) => event.id));
+    for (const event of group.events) {
+      if (!existingIds.has(event.id)) {
+        existing.events.push(event);
+        existingIds.add(event.id);
+      }
+    }
+    if (group.chapterGoal.length > existing.chapterGoal.length) {
+      existing.chapterGoal = group.chapterGoal;
+    }
+  }
+
+  return Array.from(merged.values()).sort((left, right) => left.chapterIndex - right.chapterIndex);
 }
 
 function buildBlueprintMergeUserPrompt(
