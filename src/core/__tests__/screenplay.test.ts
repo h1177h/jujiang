@@ -5,6 +5,7 @@ import { editorIssueFromYamlDiagnostic, patchTouchesEditorIssueField } from "../
 import { sampleNovel } from "../sampleNovel";
 import { isEditorReadyScene, updateScreenplaySceneYaml } from "../sceneEditor";
 import { validateScreenplay } from "../schema";
+import { buildSourceTrace } from "../sourceTrace";
 import { analyzeScreenplay, formatStoryAnalysisPanelLabels } from "../storyAnalysis";
 import { validateScreenplayYaml } from "../yaml";
 import sampleOutputYaml from "../../../examples/sample-output.yaml?raw";
@@ -157,6 +158,22 @@ describe("screenplay schema and review helpers", () => {
     expect(validation.data.scenes[0].dialogue[0].speaker).toBe("林砚");
     expect(validation.data.rhythmStats.highConflictSceneIds).toContain("scene-01");
     expect(validateScreenplayYaml(updatedYaml)).toEqual({ ok: true, errors: [] });
+  });
+
+  it("builds line-level source trace evidence for a selected scene", () => {
+    const validation = validateScreenplay(parse(sampleOutputYaml));
+    expect(validation.success).toBe(true);
+    if (!validation.success) return;
+
+    const trace = buildSourceTrace(validation.data.scenes[0].source, sampleNovel);
+
+    expect(trace.locationLabel).toBe("第 1 章 迟到的渡船 · 段落 1、2 · 行 3-8");
+    expect(trace.lines.map((line) => line.lineNumber)).toEqual([3, 4, 5, 6, 7, 8]);
+    expect(trace.lines.filter((line) => line.isMatched).map((line) => line.text)).toEqual([
+      "夜色压在雾港的石桥上，林砚抱着旧皮箱，听见钟楼敲过十下。",
+      "沈知夏从灯下走来，低声说：“你不该回来。”"
+    ]);
+    expect(trace.matchedLineCount).toBe(2);
   });
 
   it("accepts schema-invalid scenes only when they are still safe to edit", () => {
