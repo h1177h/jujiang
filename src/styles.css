@@ -1249,8 +1249,19 @@ select:focus,
   border-left-color: #dc2626;
 }
 
+.quality-item.active {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgb(37 99 235 / 12%);
+}
+
 .quality-item strong {
   font-size: 12px;
+}
+
+.quality-item small {
+  color: #475569;
+  font-size: 11px;
+  line-height: 1.4;
 }
 
 .review-board {
@@ -1446,6 +1457,45 @@ select:focus,
   font-size: 12px;
   line-height: 1.45;
   padding-bottom: 14px;
+}
+
+.active-quality-callout {
+  background: rgb(245 158 11 / 12%);
+  border: 1px solid rgb(245 158 11 / 45%);
+  border-radius: 8px;
+  display: grid;
+  gap: 6px;
+  margin: 12px 0 4px;
+  padding: 12px;
+}
+
+.active-quality-callout.risk {
+  background: rgb(220 38 38 / 12%);
+  border-color: rgb(220 38 38 / 45%);
+}
+
+.active-quality-callout strong {
+  color: #ffffff;
+  font-size: 13px;
+}
+
+.active-quality-callout p,
+.active-quality-callout span {
+  color: #cbd5e1;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.active-quality-callout p {
+  margin: 0;
+}
+
+.inspector-field.highlighted {
+  background: rgb(37 99 235 / 14%);
+  border: 1px solid rgb(96 165 250 / 55%);
+  border-radius: 8px;
+  margin-top: 14px;
+  padding: 10px;
 }
 
 .inspector-grid {

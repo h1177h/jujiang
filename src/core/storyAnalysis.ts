@@ -22,6 +22,8 @@ export interface SceneQualityIssue {
   label: string;
   detail: string;
   severity: "warning" | "risk";
+  targetField: "goal" | "characters" | "dialogue" | "conflict" | "source" | "revisionNotes";
+  actionHint: string;
 }
 
 export interface StoryAnalysis {
@@ -95,7 +97,9 @@ function buildSceneIssues(scene: Scene): SceneQualityIssue[] {
       sceneId: scene.id,
       label: "冲突偏低",
       detail: "这一场的阻碍或选择压力还不够明显，适合补人物目标或时间压力。",
-      severity: "warning"
+      severity: "warning",
+      targetField: "conflict",
+      actionHint: "调整冲突等级和冲突说明，补充本场的阻碍、选择压力或时间压力。"
     });
   }
 
@@ -104,7 +108,9 @@ function buildSceneIssues(scene: Scene): SceneQualityIssue[] {
       sceneId: scene.id,
       label: "缺少对白",
       detail: "如果这是关键场，建议补一句人物选择、试探或场尾钩子。",
-      severity: "warning"
+      severity: "warning",
+      targetField: "dialogue",
+      actionHint: "在对白区补入人物、台词和意图，优先让对白承担选择或信息转折。"
     });
   }
 
@@ -113,7 +119,9 @@ function buildSceneIssues(scene: Scene): SceneQualityIssue[] {
       sceneId: scene.id,
       label: "人物关系弱",
       detail: "单人场需要更强动作目标；否则可以加入对手、同盟或压力来源。",
-      severity: "warning"
+      severity: "warning",
+      targetField: "characters",
+      actionHint: "检查出场人物列表，再决定是加入对手/同盟，还是强化单人场的动作目标。"
     });
   }
 
@@ -122,7 +130,9 @@ function buildSceneIssues(scene: Scene): SceneQualityIssue[] {
       sceneId: scene.id,
       label: "来源依据不足",
       detail: "source.excerpt 太短，评审时不容易看出改编依据。",
-      severity: "risk"
+      severity: "risk",
+      targetField: "source",
+      actionHint: "回到原文依据区核对摘录和行号，必要时用真实 AI 重新生成带完整来源的版本。"
     });
   }
 
@@ -131,7 +141,9 @@ function buildSceneIssues(scene: Scene): SceneQualityIssue[] {
       sceneId: scene.id,
       label: "缺少修订建议",
       detail: "建议给作者留下下一轮打磨方向。",
-      severity: "risk"
+      severity: "risk",
+      targetField: "revisionNotes",
+      actionHint: "在修订建议中写下下一轮要补强的方向，例如对白、转场或冲突节点。"
     });
   }
 

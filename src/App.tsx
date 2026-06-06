@@ -63,7 +63,7 @@ import {
   updateScreenplaySceneYaml,
   type ScenePatch
 } from "./core/sceneEditor";
-import { analyzeScreenplay, type StoryAnalysis } from "./core/storyAnalysis";
+import { analyzeScreenplay, type SceneQualityIssue, type StoryAnalysis } from "./core/storyAnalysis";
 import { screenplayToYaml, validateScreenplayYaml } from "./core/yaml";
 import sampleOutputYaml from "../examples/sample-output.yaml?raw";
 
@@ -111,6 +111,7 @@ export default function App() {
   const [selectedSceneId, setSelectedSceneId] = useState<string | null>(
     initialWorkspaceDraft?.selectedSceneId ?? null
   );
+  const [activeQualityIssue, setActiveQualityIssue] = useState<SceneQualityIssue | null>(null);
   const [generationRunHistory, setGenerationRunHistory] = useState<GenerationRun[]>(
     initialWorkspaceDraft?.generationRuns ?? []
   );
@@ -275,11 +276,27 @@ export default function App() {
     try {
       setYamlText((current) => updateScreenplaySceneYaml(current, sceneId, patch));
       setSelectedSceneId(sceneId);
+      if (
+        activeQualityIssue?.sceneId === sceneId &&
+        patchTouchesQualityField(patch, activeQualityIssue.targetField)
+      ) {
+        setActiveQualityIssue(null);
+      }
       setGenerationStatus(`已同步 ${sceneId} 到 YAML`);
     } catch (error) {
       const message = error instanceof Error ? error.message : "场景同步失败";
       setGenerationStatus(message);
     }
+  }
+
+  function handleSelectScene(sceneId: string) {
+    setSelectedSceneId(sceneId);
+    setActiveQualityIssue(null);
+  }
+
+  function handleSelectQualityIssue(issue: SceneQualityIssue) {
+    setSelectedSceneId(issue.sceneId);
+    setActiveQualityIssue(issue);
   }
 
   function handleSaveRevision() {
@@ -583,7 +600,9 @@ export default function App() {
           <ScreenplayReview
             screenplay={preview}
             selectedSceneId={selectedScene?.id ?? null}
-            onSelectScene={setSelectedSceneId}
+            activeQualityIssue={activeQualityIssue}
+            onSelectScene={handleSelectScene}
+            onSelectIssue={handleSelectQualityIssue}
           />
         </section>
 
@@ -650,6 +669,7 @@ export default function App() {
           {selectedScene ? (
             <SceneInspector
               scene={selectedScene}
+              activeQualityIssue={activeQualityIssue?.sceneId === selectedScene.id ? activeQualityIssue : null}
               onPatch={(patch) => handleScenePatch(selectedScene.id, patch)}
               onRegenerate={handleRegenerateSelectedScene}
             />
@@ -663,6 +683,11 @@ export default function App() {
       </section>
     </main>
   );
+}
+
+function patchTouchesQualityField(patch: ScenePatch, targetField: SceneQualityIssue["targetField"]): boolean {
+  if (targetField === "source") return false;
+  return Object.prototype.hasOwnProperty.call(patch, targetField);
 }
 
 function formatAiProgress(event: AiGenerationProgress, model: string): string {
@@ -902,11 +927,15 @@ function RevisionDiffRow({ item }: { item: RevisionDiffItem }) {
 function ScreenplayReview({
   screenplay,
   selectedSceneId,
-  onSelectScene
+  activeQualityIssue,
+  onSelectScene,
+  onSelectIssue
 }: {
   screenplay: ScreenplayYaml | null;
   selectedSceneId: string | null;
+  activeQualityIssue: SceneQualityIssue | null;
   onSelectScene: (sceneId: string) => void;
+  onSelectIssue: (issue: SceneQualityIssue) => void;
 }) {
   const analysis = useMemo(() => (screenplay ? analyzeScreenplay(screenplay) : null), [screenplay]);
 
@@ -996,7 +1025,9 @@ function ScreenplayReview({
       <StoryAnalysisPanel
         analysis={analysis}
         selectedSceneId={selectedScene.id}
+        activeQualityIssue={activeQualityIssue}
         onSelectScene={onSelectScene}
+        onSelectIssue={onSelectIssue}
       />
 
       <div className="review-board">
@@ -1050,13 +1081,18 @@ function ScreenplayReview({
 
 function SceneInspector({
   scene,
+  activeQualityIssue,
   onPatch,
   onRegenerate
 }: {
   scene: Scene;
+  activeQualityIssue: SceneQualityIssue | null;
   onPatch: (patch: ScenePatch) => void;
   onRegenerate: () => void;
 }) {
+  const highlightClass = (targetField: SceneQualityIssue["targetField"]) =>
+    activeQualityIssue?.targetField === targetField ? "inspector-field highlighted" : "inspector-field";
+
   return (
     <section className="scene-inspector">
       <div className="scene-card-top">
@@ -1071,12 +1107,19 @@ function SceneInspector({
         </button>
       </div>
       <p className="sync-note">修改会立即同步到 YAML，并触发 Schema 校验。</p>
+      {activeQualityIssue ? (
+        <div className={`active-quality-callout ${activeQualityIssue.severity}`}>
+          <strong>{activeQualityIssue.label}</strong>
+          <p>{activeQualityIssue.detail}</p>
+          <span>{activeQualityIssue.actionHint}</span>
+        </div>
+      ) : null}
 
-      <label>
+      <label className="inspector-field">
         场景标题
         <input value={scene.title} onChange={(event) => onPatch({ title: event.target.value })} />
       </label>
-      <label>
+      <label className={highlightClass("goal")}>
         场景目标
         <textarea
           className="compact-editor"
@@ -1085,17 +1128,17 @@ function SceneInspector({
         />
       </label>
       <div className="inspector-grid">
-        <label>
+        <label className="inspector-field">
           地点
           <input value={scene.location} onChange={(event) => onPatch({ location: event.target.value })} />
         </label>
-        <label>
+        <label className="inspector-field">
           时间
           <input value={scene.time} onChange={(event) => onPatch({ time: event.target.value })} />
         </label>
       </div>
       <div className="inspector-grid">
-        <label>
+        <label className={highlightClass("conflict")}>
           冲突等级
           <select
             value={scene.conflict.level}
@@ -1115,7 +1158,7 @@ function SceneInspector({
             ))}
           </select>
         </label>
-        <label>
+        <label className="inspector-field">
           节奏
           <select
             value={scene.pacing}
@@ -1128,7 +1171,7 @@ function SceneInspector({
           </select>
         </label>
       </div>
-      <label>
+      <label className={highlightClass("conflict")}>
         冲突说明
         <textarea
           className="compact-editor"
@@ -1143,7 +1186,7 @@ function SceneInspector({
           }
         />
       </label>
-      <label>
+      <label className={highlightClass("characters")}>
         出场人物
         <textarea
           className="compact-editor"
@@ -1151,7 +1194,7 @@ function SceneInspector({
           onChange={(event) => onPatch({ characters: parseListInput(event.target.value) })}
         />
       </label>
-      <label>
+      <label className="inspector-field">
         动作描写
         <textarea
           className="compact-editor tall"
@@ -1159,7 +1202,7 @@ function SceneInspector({
           onChange={(event) => onPatch({ action: parseListInput(event.target.value) })}
         />
       </label>
-      <label>
+      <label className={highlightClass("dialogue")}>
         对白
         <textarea
           className="compact-editor tall"
@@ -1167,7 +1210,7 @@ function SceneInspector({
           onChange={(event) => onPatch({ dialogue: parseDialogueInput(event.target.value, scene) })}
         />
       </label>
-      <label>
+      <label className="inspector-field">
         旁白 / 转场
         <textarea
           className="compact-editor"
@@ -1175,11 +1218,11 @@ function SceneInspector({
           onChange={(event) => onPatch({ narrationOrTransition: event.target.value })}
         />
       </label>
-      <label>
+      <label className="inspector-field">
         情绪
         <input value={scene.emotion} onChange={(event) => onPatch({ emotion: event.target.value })} />
       </label>
-      <label>
+      <label className={highlightClass("revisionNotes")}>
         修订建议
         <textarea
           className="compact-editor tall"
@@ -1187,12 +1230,14 @@ function SceneInspector({
           onChange={(event) => onPatch({ revisionNotes: parseListInput(event.target.value) })}
         />
       </label>
-      <h4>原文依据</h4>
-      <p className="source-note">
-        第 {scene.source.chapterIndex} 章，段落 {scene.source.paragraphIndexes.join("、")}，行 {scene.source.lineStart}-
-        {scene.source.lineEnd}
-      </p>
-      <blockquote className="source-excerpt">{scene.source.excerpt}</blockquote>
+      <div className={highlightClass("source")}>
+        <h4>原文依据</h4>
+        <p className="source-note">
+          第 {scene.source.chapterIndex} 章，段落 {scene.source.paragraphIndexes.join("、")}，行 {scene.source.lineStart}-
+          {scene.source.lineEnd}
+        </p>
+        <blockquote className="source-excerpt">{scene.source.excerpt}</blockquote>
+      </div>
     </section>
   );
 }
@@ -1200,11 +1245,15 @@ function SceneInspector({
 function StoryAnalysisPanel({
   analysis,
   selectedSceneId,
-  onSelectScene
+  activeQualityIssue,
+  onSelectScene,
+  onSelectIssue
 }: {
   analysis: StoryAnalysis;
   selectedSceneId: string;
+  activeQualityIssue: SceneQualityIssue | null;
   onSelectScene: (sceneId: string) => void;
+  onSelectIssue: (issue: SceneQualityIssue) => void;
 }) {
   return (
     <div className="analysis-board" aria-label="故事分析区">
@@ -1269,12 +1318,17 @@ function StoryAnalysisPanel({
             {analysis.qualityIssues.slice(0, 6).map((issue) => (
               <button
                 key={`${issue.sceneId}-${issue.label}`}
-                className={`quality-item ${issue.severity}`}
+                className={`quality-item ${issue.severity} ${
+                  activeQualityIssue?.sceneId === issue.sceneId && activeQualityIssue.label === issue.label
+                    ? "active"
+                    : ""
+                }`}
                 type="button"
-                onClick={() => onSelectScene(issue.sceneId)}
+                onClick={() => onSelectIssue(issue)}
               >
                 <strong>{issue.sceneId} / {issue.label}</strong>
                 <span>{issue.detail}</span>
+                <small>{issue.actionHint}</small>
               </button>
             ))}
           </div>
