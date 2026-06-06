@@ -796,8 +796,12 @@ function formatHttpFailure(
 
 function formatEmptyContentFailure(
   stage: AiGenerationProgress["stage"] | "scene_regenerate",
-  payload: ChatCompletionResponse
+  payload: ChatCompletionResponse & { rawText?: string }
 ): string {
+  if (!payload.choices?.length && payload.rawText?.trim()) {
+    return `${labelProviderStage(stage)} 阶段返回了非 JSON 响应。Provider 返回：${truncateDiagnostic(payload.rawText)}`;
+  }
+
   const finishReason = payload.choices?.[0]?.finish_reason;
   const suffix = finishReason ? `finish_reason=${finishReason}` : "choices[0].message.content 为空";
   return `${labelProviderStage(stage)} 阶段返回空内容。${suffix}`;

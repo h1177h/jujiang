@@ -314,6 +314,38 @@ describe("AI provider", () => {
     ).rejects.toThrow("event_extract 阶段返回空内容。finish_reason=length");
   });
 
+  it("reports successful non-json provider responses with a raw response excerpt", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({
+        ok: true,
+        status: 200,
+        headers: new Headers({ "content-type": "text/html" }),
+        json: async () => {
+          throw new Error("not json");
+        },
+        text: async () => "<html><body>Provider login page</body></html>"
+      }))
+    );
+
+    await expect(
+      generateScreenplayWithApi(
+        {
+          baseUrl: "https://api.example.com",
+          apiKey: "test-key",
+          model: "test-model"
+        },
+        {
+          title: "雾港来信",
+          style: "cinematic",
+          novelText: sampleNovel
+        }
+      )
+    ).rejects.toThrow(
+      "event_extract 阶段返回了非 JSON 响应。Provider 返回：<html><body>Provider login page</body></html>"
+    );
+  });
+
   it("sends structured chapter context instead of an undifferentiated novel blob", async () => {
     const validation = validateScreenplay(parse(sampleOutputYaml));
     expect(validation.success).toBe(true);
