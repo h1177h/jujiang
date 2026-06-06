@@ -113,6 +113,8 @@ function isGenerationRun(value: unknown): value is GenerationRun {
     typeof run.startedAt === "string" &&
     (run.completedAt === undefined || typeof run.completedAt === "string") &&
     (run.error === undefined || typeof run.error === "string") &&
+    (run.canRetry === undefined || typeof run.canRetry === "boolean") &&
+    (run.recoveryHint === undefined || typeof run.recoveryHint === "string") &&
     Array.isArray(run.stages) &&
     run.stages.every(isGenerationRunStage)
   );
@@ -128,6 +130,17 @@ function isGenerationRunStage(value: unknown): value is GenerationRunStage {
     typeof stage.message === "string" &&
     (stage.current === undefined || typeof stage.current === "number") &&
     (stage.total === undefined || typeof stage.total === "number") &&
+    (stage.artifacts === undefined ||
+      (Array.isArray(stage.artifacts) &&
+        stage.artifacts.every(
+          (artifact) =>
+            artifact &&
+            typeof artifact === "object" &&
+            typeof artifact.kind === "string" &&
+            typeof artifact.summary === "string" &&
+            (artifact.detail === undefined || typeof artifact.detail === "string") &&
+            typeof artifact.createdAt === "string"
+        ))) &&
     typeof stage.updatedAt === "string"
   );
 }

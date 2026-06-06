@@ -46,12 +46,22 @@ describe("workspace draft persistence", () => {
             startedAt: "2026-06-06T00:03:00.000Z",
             completedAt: "2026-06-06T00:03:12.000Z",
             error: "AI 生成失败",
+            canRetry: true,
+            recoveryHint: "可以保留当前原文、AI 配置和已保存的阶段记录后重试。",
             stages: [
               {
                 id: "connection_check",
                 label: "连接 AI",
                 status: "failed",
                 message: "AI 生成失败",
+                artifacts: [
+                  {
+                    kind: "story_blueprint",
+                    summary: "3 个章节事件组",
+                    detail: "6 个事件",
+                    createdAt: "2026-06-06T00:03:08.000Z"
+                  }
+                ],
                 updatedAt: "2026-06-06T00:03:12.000Z"
               }
             ]
@@ -86,12 +96,22 @@ describe("workspace draft persistence", () => {
             startedAt: "2026-06-06T00:03:00.000Z",
             completedAt: "2026-06-06T00:03:12.000Z",
             error: "AI 生成失败",
+            canRetry: true,
+            recoveryHint: "可以保留当前原文、AI 配置和已保存的阶段记录后重试。",
             stages: [
               {
                 id: "connection_check",
                 label: "连接 AI",
                 status: "failed",
                 message: "AI 生成失败",
+                artifacts: [
+                  {
+                    kind: "story_blueprint",
+                    summary: "3 个章节事件组",
+                    detail: "6 个事件",
+                    createdAt: "2026-06-06T00:03:08.000Z"
+                  }
+                ],
                 updatedAt: "2026-06-06T00:03:12.000Z"
               }
             ]

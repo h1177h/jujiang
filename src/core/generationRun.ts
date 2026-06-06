@@ -1,4 +1,4 @@
-import type { AiGenerationProgress } from "./aiProvider";
+import type { AiGenerationArtifact, AiGenerationProgress } from "./aiProvider";
 
 export type GenerationRunStatus = "idle" | "running" | "completed" | "failed";
 
@@ -15,7 +15,12 @@ export interface GenerationRunStage {
   message: string;
   current?: number;
   total?: number;
+  artifacts?: GenerationRunArtifact[];
   updatedAt: string;
+}
+
+export interface GenerationRunArtifact extends AiGenerationArtifact {
+  createdAt: string;
 }
 
 export interface GenerationRun {
@@ -27,6 +32,8 @@ export interface GenerationRun {
   startedAt: string;
   completedAt?: string;
   error?: string;
+  canRetry?: boolean;
+  recoveryHint?: string;
   stages: GenerationRunStage[];
 }
 
@@ -74,6 +81,17 @@ export function updateGenerationRunStage(
     message: event.message,
     current: event.current,
     total: event.total,
+    artifacts: event.artifact
+      ? [
+          ...((existingIndex >= 0 ? stages[existingIndex].artifacts : undefined) ?? []),
+          {
+            ...event.artifact,
+            createdAt: now
+          }
+        ]
+      : existingIndex >= 0
+        ? stages[existingIndex].artifacts
+        : undefined,
     updatedAt: now
   };
 
@@ -127,6 +145,7 @@ export function completeGenerationRun(run: GenerationRun, date = new Date()): Ge
 
 export function failGenerationRun(run: GenerationRun, error: string, date = new Date()): GenerationRun {
   const now = date.toISOString();
+  const canRetry = isRetryableGenerationError(error);
   let marked = false;
   const stages = run.stages.map((stage) => {
     if (stage.status === "running") {
@@ -140,6 +159,8 @@ export function failGenerationRun(run: GenerationRun, error: string, date = new 
     ...run,
     status: "failed",
     error,
+    canRetry,
+    recoveryHint: canRetry ? "可以保留当前原文、AI 配置和已保存的阶段记录后重试。" : undefined,
     completedAt: now,
     stages: marked ? stages : [...stages, createStage("yaml_ready", "写入 YAML", error, "failed", now)]
   };
@@ -181,6 +202,10 @@ function labelStage(stage: GenerationRunStageId): string {
     yaml_ready: "写入 YAML"
   };
   return labels[stage];
+}
+
+function isRetryableGenerationError(error: string): boolean {
+  return /可重试|HTTP (408|429|500|502|503|504|524)|timeout|timed out|rate limit|temporarily/i.test(error);
 }
 
 function slug(value: string): string {

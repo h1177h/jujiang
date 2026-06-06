@@ -723,15 +723,32 @@ function GenerationRunPanel({
                 {stage.message}
                 {stage.total ? ` · ${stage.current ?? 0}/${stage.total}` : ""}
               </p>
+              {stage.artifacts?.length ? (
+                <div className="stage-artifacts">
+                  {stage.artifacts.slice(-3).map((artifact) => (
+                    <span key={`${artifact.kind}-${artifact.createdAt}`}>
+                      {artifact.summary}
+                      {artifact.detail ? <small>{artifact.detail}</small> : null}
+                    </span>
+                  ))}
+                </div>
+              ) : null}
             </div>
           </div>
         ))}
       </div>
       {activeRun.error ? (
-        <p className="generation-error">
-          <TriangleAlert size={14} />
-          {activeRun.error}
-        </p>
+        <div className="generation-error-block">
+          <p className="generation-error">
+            <TriangleAlert size={14} />
+            {activeRun.error}
+          </p>
+          <p>
+            {activeRun.canRetry
+              ? activeRun.recoveryHint
+              : "请先处理当前阶段提示的问题，再重新生成。"}
+          </p>
+        </div>
       ) : (
         <p className="generation-meta">
           <Clock3 size={14} />
