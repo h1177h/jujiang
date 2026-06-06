@@ -174,6 +174,29 @@ export function pushGenerationRunHistory(
   return [run, ...history.filter((item) => item.id !== run.id)].slice(0, limit);
 }
 
+export function formatAiGenerationProgress(event: AiGenerationProgress, model: string): string {
+  if (event.stage === "chapter_event_extract") {
+    return `正在用 ${model} 抽取章节事件：${event.current}/${event.total}`;
+  }
+
+  if (event.stage === "story_bible_generate") {
+    return `正在用 ${model} 合并故事圣经和改编策略`;
+  }
+
+  if (event.stage === "schema_repair") {
+    return `正在用 ${model} 修复剧本结构`;
+  }
+
+  return `${event.message}：${model}`;
+}
+
+export function formatGenerationRunStatus(status: GenerationRun["status"]): string {
+  if (status === "completed") return "完成";
+  if (status === "failed") return "失败";
+  if (status === "running") return "运行中";
+  return "待开始";
+}
+
 function createStage(
   id: GenerationRunStageId,
   label: string,
