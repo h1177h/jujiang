@@ -1,6 +1,6 @@
 import type { AiGenerationProgress } from "./aiProvider";
 
-export type GenerationRunStatus = "idle" | "running" | "completed" | "failed";
+export type GenerationRunStatus = "idle" | "running" | "completed" | "failed" | "cancelled";
 
 export type GenerationRunStageId =
   | "source_check"
@@ -142,6 +142,26 @@ export function failGenerationRun(run: GenerationRun, error: string, date = new 
     error,
     completedAt: now,
     stages: marked ? stages : [...stages, createStage("yaml_ready", "写入 YAML", error, "failed", now)]
+  };
+}
+
+export function cancelGenerationRun(run: GenerationRun, date = new Date()): GenerationRun {
+  const now = date.toISOString();
+  let marked = false;
+  const stages = run.stages.map((stage) => {
+    if (stage.status === "running") {
+      marked = true;
+      return { ...stage, status: "failed" as const, message: "生成任务已取消", updatedAt: now };
+    }
+    return stage;
+  });
+
+  return {
+    ...run,
+    status: "cancelled",
+    error: "生成任务已取消",
+    completedAt: now,
+    stages: marked ? stages : [...stages, createStage("yaml_ready", "写入 YAML", "生成任务已取消", "failed", now)]
   };
 }
 

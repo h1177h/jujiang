@@ -35,6 +35,8 @@ export function getNetworkProxyUrl(env = process.env) {
 }
 
 export function createApiProxyServer(config = getProxyConfig()) {
+  const taskStore = createGenerationTaskStore(config);
+
   return createServer(async (request, response) => {
     setCorsHeaders(response);
 
@@ -64,6 +66,11 @@ export function createApiProxyServer(config = getProxyConfig()) {
         hasApiKey: Boolean(config.apiKey || requestApiKey),
         networkProxy: config.networkProxyUrl || ""
       });
+      return;
+    }
+
+    if (request.url?.startsWith("/v1/generation-tasks")) {
+      await handleGenerationTaskRequest(config, taskStore, request, response);
       return;
     }
 
@@ -125,8 +132,192 @@ export function requestUpstreamChatCompletions(config, body, apiKey = config.api
           Authorization: `Bearer ${apiKey}`
         },
         body,
-        dispatcher
+        dispatcher,
+        signal: config.signal
   });
+}
+
+function createGenerationTaskStore(config) {
+  const tasks = new Map();
+
+  function get(id) {
+    return tasks.get(id) || null;
+  }
+
+  function create({ body, apiKey, targetBaseUrl }) {
+    const now = new Date().toISOString();
+    const task = {
+      id: createTaskId(),
+      requestId: createRequestId(),
+      status: "queued",
+      targetBaseUrl,
+      createdAt: now,
+      updatedAt: now,
+      response: null,
+      error: null,
+      abortController: new AbortController()
+    };
+    tasks.set(task.id, task);
+    queueMicrotask(() => runGenerationTask(config, task, body, apiKey));
+    return task;
+  }
+
+  function cancel(id) {
+    const task = get(id);
+    if (!task) {
+      return null;
+    }
+    if (task.status === "queued" || task.status === "running") {
+      task.abortController.abort();
+      updateTask(task, {
+        status: "cancelled",
+        error: {
+          message: "生成任务已取消"
+        }
+      });
+    }
+    return task;
+  }
+
+  return { create, get, cancel };
+}
+
+async function handleGenerationTaskRequest(config, taskStore, request, response) {
+  const url = new URL(request.url || "/", "http://127.0.0.1");
+  const taskId = url.pathname.match(/^\/v1\/generation-tasks\/([^/]+)$/)?.[1] || "";
+
+  if (request.method === "GET" && taskId) {
+    const task = taskStore.get(taskId);
+    if (!task) {
+      writeJson(response, 404, { error: "生成任务不存在" });
+      return;
+    }
+    writeJson(response, 200, { task: serializeTask(task) });
+    return;
+  }
+
+  if (request.method === "DELETE" && taskId) {
+    const task = taskStore.cancel(taskId);
+    if (!task) {
+      writeJson(response, 404, { error: "生成任务不存在" });
+      return;
+    }
+    writeJson(response, 200, { task: serializeTask(task) });
+    return;
+  }
+
+  if (request.method !== "POST" || url.pathname !== "/v1/generation-tasks") {
+    writeJson(response, 404, { error: "生成任务接口不存在" });
+    return;
+  }
+
+  const requestApiKey = readBearerToken(request.headers.authorization);
+  const apiKey = config.apiKey || requestApiKey;
+  if (!apiKey) {
+    writeJson(response, 500, {
+      error: "请先设置 JUJIANG_API_KEY / OPENAI_API_KEY，或在页面填写并保存 API Key 后再生成。"
+    });
+    return;
+  }
+
+  try {
+    const body = await readBody(request);
+    const targetBaseUrl = resolveRequestTargetBaseUrl(config, request);
+    const task = taskStore.create({ body, apiKey, targetBaseUrl });
+    response.setHeader("X-Jujiang-Request-Id", task.requestId);
+    writeJson(response, 202, { task: serializeTask(task) });
+  } catch (error) {
+    writeJson(response, 500, {
+      error: error instanceof Error ? error.message : "创建生成任务失败。"
+    });
+  }
+}
+
+async function runGenerationTask(config, task, body, apiKey) {
+  if (task.status === "cancelled") return;
+  updateTask(task, { status: "running" });
+
+  try {
+    const upstream = await requestUpstreamChatCompletions(
+      { ...config, signal: task.abortController.signal },
+      body,
+      apiKey,
+      task.targetBaseUrl
+    );
+    const text = await upstream.text();
+    if (task.status === "cancelled") return;
+
+    if (!upstream.ok) {
+      updateTask(task, {
+        status: "failed",
+        error: buildUpstreamTaskError(text, upstream.status, task.requestId, task.targetBaseUrl)
+      });
+      return;
+    }
+
+    updateTask(task, {
+      status: "completed",
+      response: parseJsonOrText(text)
+    });
+  } catch (error) {
+    if (task.status === "cancelled") return;
+    updateTask(task, {
+      status: "failed",
+      error: {
+        message: error instanceof Error ? error.message : "生成任务请求失败"
+      }
+    });
+  }
+}
+
+function updateTask(task, patch) {
+  Object.assign(task, patch, {
+    updatedAt: new Date().toISOString()
+  });
+}
+
+function serializeTask(task) {
+  return {
+    id: task.id,
+    requestId: task.requestId,
+    status: task.status,
+    targetBaseUrl: task.targetBaseUrl,
+    createdAt: task.createdAt,
+    updatedAt: task.updatedAt,
+    response: task.response,
+    error: task.error
+  };
+}
+
+function buildUpstreamTaskError(text, status, requestId, targetBaseUrl) {
+  try {
+    const payload = JSON.parse(text);
+    return {
+      message: payload?.error?.message || payload?.message || `上游 AI 服务返回 HTTP ${status}`,
+      requestId,
+      upstreamStatus: status,
+      targetBaseUrl
+    };
+  } catch {
+    return {
+      message: `上游 AI 服务返回 HTTP ${status}`,
+      requestId,
+      upstreamStatus: status,
+      targetBaseUrl
+    };
+  }
+}
+
+function parseJsonOrText(text) {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return { text };
+  }
+}
+
+function createTaskId() {
+  return `task-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
 function resolveRequestTargetBaseUrl(config, request) {
@@ -158,7 +349,7 @@ function hasProviderErrorMessage(text) {
 
 function setCorsHeaders(response) {
   response.setHeader("Access-Control-Allow-Origin", "*");
-  response.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS, GET");
+  response.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS, GET, DELETE");
   response.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Jujiang-Target-Base-Url");
 }
 

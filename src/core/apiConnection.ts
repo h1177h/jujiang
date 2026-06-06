@@ -130,9 +130,8 @@ export function isActionableConnectionMessage(message: string): boolean {
     message.startsWith("还没有可用的 API Key") ||
     message.startsWith("当前端口不是剧匠 AI 服务") ||
     message.startsWith("AI 服务连接检查失败") ||
-    message.startsWith("浏览器直连失败") ||
-    message.startsWith("本地 proxy 未连接") ||
-    message.includes("阶段请求失败")
+    message.includes("阶段请求失败") ||
+    message.includes("生成任务已取消")
   );
 }
 

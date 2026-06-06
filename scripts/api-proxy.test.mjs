@@ -196,4 +196,116 @@ describe("api proxy config", () => {
     expect(payload.error.requestId).toBe(response.headers.get("x-jujiang-request-id"));
     expect(payload.error.upstreamStatus).toBe(504);
   });
+
+  it("runs chat completions through a pollable task", async () => {
+    const upstream = createServer((request, response) => {
+      response.writeHead(200, { "Content-Type": "application/json" });
+      response.end(JSON.stringify({ choices: [{ message: { content: "{\"ok\":true}" } }] }));
+    });
+    const upstreamBaseUrl = await listen(upstream);
+    const proxy = createApiProxyServer({
+      port: 0,
+      targetBaseUrl: `${upstreamBaseUrl}/v1`,
+      apiKey: "",
+      networkProxyUrl: ""
+    });
+    const proxyBaseUrl = await listen(proxy);
+
+    const createResponse = await fetch(`${proxyBaseUrl}/v1/generation-tasks`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: "Bearer browser-key"
+      },
+      body: JSON.stringify({ model: "test-model", messages: [] })
+    });
+    const created = await createResponse.json();
+
+    expect(createResponse.status).toBe(202);
+    expect(created.task.id).toMatch(/^task-/);
+    expect(created.task.status).toMatch(/queued|running|completed/);
+
+    const task = await waitForTask(proxyBaseUrl, created.task.id);
+
+    expect(task.status).toBe("completed");
+    expect(task.response.choices[0].message.content).toBe("{\"ok\":true}");
+  });
+
+  it("keeps provider errors on failed generation tasks", async () => {
+    const upstream = createServer((request, response) => {
+      response.writeHead(504, { "Content-Type": "text/plain" });
+      response.end("Gateway Timeout");
+    });
+    const upstreamBaseUrl = await listen(upstream);
+    const proxy = createApiProxyServer({
+      port: 0,
+      targetBaseUrl: `${upstreamBaseUrl}/v1`,
+      apiKey: "",
+      networkProxyUrl: ""
+    });
+    const proxyBaseUrl = await listen(proxy);
+
+    const createResponse = await fetch(`${proxyBaseUrl}/v1/generation-tasks`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: "Bearer browser-key"
+      },
+      body: JSON.stringify({ model: "test-model", messages: [] })
+    });
+    const created = await createResponse.json();
+    const task = await waitForTask(proxyBaseUrl, created.task.id);
+
+    expect(task.status).toBe("failed");
+    expect(task.error.message).toBe("上游 AI 服务返回 HTTP 504");
+    expect(task.error.upstreamStatus).toBe(504);
+    expect(task.requestId).toMatch(/^jj-/);
+  });
+
+  it("cancels a queued or running generation task", async () => {
+    const upstream = createServer((request, response) => {
+      setTimeout(() => {
+        response.writeHead(200, { "Content-Type": "application/json" });
+        response.end(JSON.stringify({ choices: [{ message: { content: "{\"ok\":true}" } }] }));
+      }, 100);
+    });
+    const upstreamBaseUrl = await listen(upstream);
+    const proxy = createApiProxyServer({
+      port: 0,
+      targetBaseUrl: `${upstreamBaseUrl}/v1`,
+      apiKey: "",
+      networkProxyUrl: ""
+    });
+    const proxyBaseUrl = await listen(proxy);
+
+    const createResponse = await fetch(`${proxyBaseUrl}/v1/generation-tasks`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: "Bearer browser-key"
+      },
+      body: JSON.stringify({ model: "test-model", messages: [] })
+    });
+    const created = await createResponse.json();
+
+    const cancelResponse = await fetch(`${proxyBaseUrl}/v1/generation-tasks/${created.task.id}`, {
+      method: "DELETE"
+    });
+    const cancelled = await cancelResponse.json();
+
+    expect(cancelResponse.status).toBe(200);
+    expect(cancelled.task.status).toBe("cancelled");
+  });
 });
+
+async function waitForTask(proxyBaseUrl, taskId) {
+  for (let attempt = 0; attempt < 20; attempt++) {
+    const response = await fetch(`${proxyBaseUrl}/v1/generation-tasks/${taskId}`);
+    const payload = await response.json();
+    if (payload.task.status !== "queued" && payload.task.status !== "running") {
+      return payload.task;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  throw new Error(`Task ${taskId} did not finish`);
+}
