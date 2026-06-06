@@ -17,6 +17,7 @@ import {
   loadSavedAiSettings,
   saveAiSettings
 } from "./core/apiSettings";
+import { diagnoseAiConnection } from "./core/apiConnection";
 import { countChapters } from "./core/chapters";
 import type { AdaptationStyle, Scene, ScreenplayYaml } from "./core/types";
 import { generateScreenplayWithApi } from "./core/aiProvider";
@@ -49,13 +50,11 @@ export default function App() {
   const [title, setTitle] = useState("雾港来信");
   const [style, setStyle] = useState<AdaptationStyle>("cinematic");
   const [useApi, setUseApi] = useState(initialAiSettings?.useApi ?? false);
-  const [useLocalProxy, setUseLocalProxy] = useState(initialAiSettings?.useLocalProxy ?? false);
-  const [apiBaseUrl, setApiBaseUrl] = useState(initialAiSettings?.baseUrl ?? directApiBaseUrl);
+  const [useLocalProxy, setUseLocalProxy] = useState(initialAiSettings?.useLocalProxy ?? true);
+  const [apiBaseUrl, setApiBaseUrl] = useState(initialAiSettings?.baseUrl ?? localProxyBaseUrl);
   const [apiModel, setApiModel] = useState(initialAiSettings?.model ?? "gpt-4.1-mini");
   const [apiKey, setApiKey] = useState(initialAiSettings?.apiKey ?? "");
-  const [rememberApiKey, setRememberApiKey] = useState(
-    Boolean(initialAiSettings?.apiKey && !initialAiSettings.useLocalProxy)
-  );
+  const [rememberApiKey, setRememberApiKey] = useState(Boolean(initialAiSettings?.apiKey));
   const [generationStatus, setGenerationStatus] = useState(
     initialAiSettings ? "已载入已保存的 AI 设置" : "请配置 AI 后生成剧本"
   );
@@ -81,7 +80,7 @@ export default function App() {
     preview?.scenes.find((scene) => scene.id === selectedSceneId) ?? preview?.scenes[0] ?? null;
 
   useEffect(() => {
-    if (!rememberApiKey || useLocalProxy || !apiKey.trim()) return;
+    if (!rememberApiKey || !apiKey.trim()) return;
 
     saveAiSettings(
       {
@@ -96,9 +95,26 @@ export default function App() {
   }, [apiBaseUrl, apiKey, apiModel, rememberApiKey, useApi, useLocalProxy]);
 
   async function handleGenerate() {
-    const apiKeyForRequest = useLocalProxy ? "proxy-managed-key" : apiKey.trim();
-    const apiReady = Boolean(apiKeyForRequest);
+    const apiKeyForRequest = apiKey.trim();
+    const apiReady = useLocalProxy ? true : Boolean(apiKeyForRequest);
     setGenerationStatus(useApi && apiReady ? `正在调用 ${apiModel}...` : "等待 AI 配置...");
+
+    if (useApi && apiReady) {
+      const connection = await diagnoseAiConnection({
+        baseUrl: apiBaseUrl,
+        useLocalProxy,
+        apiKey: apiKeyForRequest
+      });
+
+      if (!connection.ok) {
+        setGenerationStatus(connection.message);
+        return;
+      }
+
+      if (useLocalProxy) {
+        setGenerationStatus(`${connection.message}，正在调用 ${apiModel}...`);
+      }
+    }
 
     const result = await generateWorkspaceDraft(
       {
@@ -185,7 +201,7 @@ export default function App() {
       return;
     }
 
-    if (apiKey.trim() && !useLocalProxy) {
+    if (apiKey.trim()) {
       saveAiSettings(
         {
           useApi,
@@ -205,6 +221,24 @@ export default function App() {
     setRememberApiKey(false);
     setApiKey("");
     setGenerationStatus("已清除浏览器保存的 API 设置");
+  }
+
+  async function handleCheckConnection() {
+    const apiKeyForRequest = apiKey.trim();
+    if (!useApi || !apiKeyForRequest) {
+      if (!useLocalProxy) {
+        setGenerationStatus("请先开启 AI 生成并填写 API Key。");
+        return;
+      }
+    }
+
+    setGenerationStatus("正在检查 AI 连接...");
+    const connection = await diagnoseAiConnection({
+      baseUrl: apiBaseUrl,
+      useLocalProxy,
+      apiKey: apiKeyForRequest
+    });
+    setGenerationStatus(connection.message);
   }
 
   return (
@@ -287,8 +321,7 @@ export default function App() {
                     type="password"
                     value={apiKey}
                     onChange={(event) => setApiKey(event.target.value)}
-                    disabled={useLocalProxy}
-                    placeholder={useLocalProxy ? "由本地 proxy 从环境变量读取" : "可选择记住在本机浏览器"}
+                    placeholder={useLocalProxy ? "可由页面提供，或留空使用 proxy 环境变量" : "可选择记住在本机浏览器"}
                   />
                 </div>
               </label>
@@ -297,7 +330,6 @@ export default function App() {
                   <input
                     type="checkbox"
                     checked={rememberApiKey}
-                    disabled={useLocalProxy}
                     onChange={(event) => handleRememberApiKey(event.target.checked)}
                   />
                   <span>记住 API Key</span>
@@ -306,10 +338,13 @@ export default function App() {
                   清除
                 </button>
               </div>
+              <button className="secondary-action" type="button" onClick={handleCheckConnection}>
+                测试连接
+              </button>
               <p className="status-note">
                 {useLocalProxy
-                  ? "本地 proxy 需先运行 npm run proxy，并设置 JUJIANG_API_KEY 或 OPENAI_API_KEY。"
-                  : "勾选记住后，Base URL、Model 和 API Key 会保存在本机浏览器。"}
+                  ? "推荐使用本地 proxy：先运行 npm run proxy，再由页面填写 key 或让 proxy 读取环境变量。"
+                  : "前端直连可能被浏览器或服务商 CORS 拦截，仅建议临时调试。"}
               </p>
               <p className="status-note strong">{generationStatus}</p>
             </div>

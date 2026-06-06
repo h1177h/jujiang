@@ -1,5 +1,6 @@
 import type { AdaptationStyle, ScreenplayYaml } from "./types";
 import { normalizeNovelText } from "./chapters";
+import { isActionableConnectionMessage } from "./apiConnection";
 
 export interface WorkspaceGenerationRequest {
   title: string;
@@ -42,7 +43,9 @@ export async function generateWorkspaceDraft(
       const message = error instanceof Error ? error.message : "API 请求失败";
       return {
         source: "error",
-        status: `AI 生成失败：${message}。请检查 API key、代理或稍后重试。`,
+        status: isActionableConnectionMessage(message)
+          ? `AI 生成失败：${message}`
+          : `AI 生成失败：${message}。请检查 API key、代理或稍后重试。`,
         screenplay: null
       };
     }

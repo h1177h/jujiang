@@ -1,4 +1,5 @@
 import type { AdaptationStyle, ScreenplayYaml, StoryBlueprint } from "./types";
+import { classifyFetchFailure } from "./apiConnection";
 import { parseChapters } from "./chapters";
 import { validateScreenplay, validateStoryBlueprint } from "./schema";
 
@@ -82,20 +83,25 @@ async function requestChatCompletion(
     signal?: AbortSignal;
   }
 ): Promise<string> {
-  const response = await fetch(`${baseUrl}/chat/completions`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${settings.apiKey}`
-    },
-    body: JSON.stringify({
-      model: settings.model,
-      temperature: request.temperature,
-      response_format: { type: "json_object" },
-      messages: request.messages
-    }),
-    signal: request.signal
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${baseUrl}/chat/completions`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${settings.apiKey}`
+      },
+      body: JSON.stringify({
+        model: settings.model,
+        temperature: request.temperature,
+        response_format: { type: "json_object" },
+        messages: request.messages
+      }),
+      signal: request.signal
+    });
+  } catch (error) {
+    throw new Error(classifyFetchFailure(error, baseUrl));
+  }
 
   const payload = (await response.json().catch(() => ({}))) as ChatCompletionResponse;
   if (!response.ok) {

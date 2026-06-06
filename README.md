@@ -15,8 +15,9 @@
 - 提供可编辑 YAML 区域，编辑后实时 Schema 校验。
 - 支持复制和下载 YAML。
 - 内置多章示例小说《雾港来信》和示例 YAML，无 API key 也能演示编辑、校验、复制和下载。
-- 可填写 Base URL、API Key 和 Model，调用兼容 `/v1/chat/completions` 的模型生成剧本；前端直连模式可勾选“记住 API Key”，保存到本机浏览器。
-- 可选本地 API proxy：API key 放在环境变量里，前端只请求 `http://127.0.0.1:8787/v1`。
+- 可填写 Base URL、API Key 和 Model，调用兼容 `/v1/chat/completions` 的模型生成剧本；API 设置可记住在本机浏览器。
+- 推荐使用本地 API proxy：前端请求 `http://127.0.0.1:8787/v1`，避免浏览器直连 provider 时被 CORS 或系统代理拦截。
+- 支持“测试连接”：生成前会检查本地 proxy 是否启动、是否能读到页面或环境变量里的 API Key。
 - 创新点：两阶段 AI 改编、章节事件图谱、场景级工作台编辑、章节到场景映射、冲突曲线、质量检查、角色关系摘要、原文追溯、改编风格选择、节奏统计、改编计划。
 
 ## 技术栈
@@ -35,7 +36,16 @@ npm run dev
 
 浏览器打开 Vite 输出的本地地址后，可以先查看和编辑内置示例 YAML。自动生成需要配置 AI。
 
-如需通过本地 proxy 调用真实模型：
+推荐通过本地 proxy 调用真实模型：
+
+```bash
+$env:JUJIANG_API_BASE_URL="https://api.openai.com/v1"
+npm run proxy
+```
+
+然后在页面里勾选“AI 生成”和“本地 proxy”，填写 API Key 并按需勾选“记住 API Key”。剧匠会把 key 发给本机 proxy，再由 proxy 转发给 provider，避免浏览器直接请求 OpenAI-compatible API。
+
+如果不想把 key 填在页面，也可以让 proxy 从环境变量读取：
 
 ```bash
 $env:JUJIANG_API_KEY="你的 API Key"
@@ -50,9 +60,9 @@ $env:JUJIANG_NETWORK_PROXY="http://127.0.0.1:7897"
 npm run proxy
 ```
 
-`JUJIANG_NETWORK_PROXY` 优先级高于 `HTTPS_PROXY` / `HTTP_PROXY`。然后在页面里勾选“AI 生成”和“本地 proxy”。前端会请求 `http://127.0.0.1:8787/v1/chat/completions`，真实 key 不会填进浏览器表单。
+`JUJIANG_NETWORK_PROXY` 优先级高于 `HTTPS_PROXY` / `HTTP_PROXY`。生成前可以先点击“测试连接”，确认 proxy 已启动、上游地址和 key 状态正常。
 
-如果使用前端直连模式，可以在页面勾选“记住 API Key”。剧匠会把 Base URL、Model 和 API Key 写入本机浏览器的 `localStorage`，下次打开同一浏览器会自动带出；也可以随时点击“清除”删除保存的设置。公开演示或共享电脑上建议使用本地 proxy。
+前端直连模式仍保留给临时调试，但很多 provider 不允许浏览器跨域直连，遇到 `Failed to fetch` 时应切回本地 proxy。勾选“记住 API Key”后，剧匠会把 Base URL、Model 和 API Key 写入本机浏览器的 `localStorage`，下次打开同一浏览器会自动带出；也可以随时点击“清除”删除保存的设置。公开演示或共享电脑上建议使用环境变量 key。
 
 ## 验证命令
 
@@ -65,7 +75,7 @@ npm run build
 当前已验证结果：
 
 - `npm audit`：found 0 vulnerabilities。
-- `npm test`：5 个测试文件、20 个测试用例通过。
+- `npm test`：6 个测试文件、28 个测试用例通过。
 - `npm run build`：TypeScript 检查和 Vite 生产构建通过。
 
 ## 架构
@@ -96,7 +106,7 @@ docs/
 1. 运行 `npm run dev`。
 2. 打开本地页面，确认左侧已有示例小说，也可以直接粘贴短篇片段。
 3. 切换改编风格，例如“影视感”或“短剧”。
-4. 如需真实 AI 生成，可直接填写 Base URL、API Key 和 Model；也可以先运行 `npm run proxy`，再勾选“使用本地 proxy”。
+4. 如需真实 AI 生成，先运行 `npm run proxy`，页面勾选“AI 生成”和“本地 proxy”，填写 API Key 或让 proxy 读取环境变量。
 5. 点击“生成结构化剧本 YAML”。
 6. 在右侧查看并编辑 YAML，确认校验状态实时变化。
 7. 查看页面底部作者审稿台：改编计划、章节事件图谱、故事诊断、角色关系和节奏指标。
