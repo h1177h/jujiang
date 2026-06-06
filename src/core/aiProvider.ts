@@ -4,6 +4,8 @@ import { parseChapters } from "./chapters";
 import { storyBlueprintSchema, validateScene, validateScreenplay, validateStoryBlueprint } from "./schema";
 
 const longFormChapterThreshold = 3;
+const transientHttpStatuses = new Set([408, 429, 500, 502, 503, 504]);
+const chatCompletionMaxAttempts = 3;
 
 export interface AiProviderSettings {
   baseUrl: string;
@@ -226,37 +228,80 @@ async function requestChatCompletion(
     signal?: AbortSignal;
   }
 ): Promise<string> {
-  let response: Response;
-  try {
-    response = await fetch(`${baseUrl}/chat/completions`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...buildAiGatewayHeaders(settings.apiKey, settings.providerBaseUrl)
-      },
-      body: JSON.stringify({
-        model: settings.model,
-        temperature: request.temperature,
-        response_format: { type: "json_object" },
-        messages: request.messages
-      }),
-      signal: request.signal
-    });
-  } catch (error) {
-    throw new Error(classifyFetchFailure(error, baseUrl));
+  for (let attempt = 1; attempt <= chatCompletionMaxAttempts; attempt += 1) {
+    let response: Response;
+    try {
+      response = await fetch(`${baseUrl}/chat/completions`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...buildAiGatewayHeaders(settings.apiKey, settings.providerBaseUrl)
+        },
+        body: JSON.stringify({
+          model: settings.model,
+          temperature: request.temperature,
+          response_format: { type: "json_object" },
+          messages: request.messages
+        }),
+        signal: request.signal
+      });
+    } catch (error) {
+      throw new Error(classifyFetchFailure(error, baseUrl));
+    }
+
+    const payload = (await response.json().catch(() => ({}))) as ChatCompletionResponse;
+    if (!response.ok) {
+      if (shouldRetryHttpStatus(response.status) && attempt < chatCompletionMaxAttempts) {
+        await waitForRetry(attempt);
+        continue;
+      }
+      throw new Error(formatHttpFailure(response.status, payload, attempt));
+    }
+
+    const content = payload.choices?.[0]?.message?.content;
+    if (!content) {
+      throw new Error("API 没有返回可解析的剧本内容。");
+    }
+
+    return content;
   }
 
-  const payload = (await response.json().catch(() => ({}))) as ChatCompletionResponse;
-  if (!response.ok) {
-    throw new Error(payload.error?.message || `API 请求失败：HTTP ${response.status}`);
-  }
+  throw new Error("API 请求失败。");
+}
 
-  const content = payload.choices?.[0]?.message?.content;
-  if (!content) {
-    throw new Error("API 没有返回可解析的剧本内容。");
-  }
+function shouldRetryHttpStatus(status: number): boolean {
+  return transientHttpStatuses.has(status);
+}
 
-  return content;
+function formatHttpFailure(
+  status: number,
+  payload: ChatCompletionResponse,
+  attempts: number
+): string {
+  const upstreamMessage = payload.error?.message?.trim();
+  if (status === 504 || status === 408) {
+    return [
+      `上游 AI 服务超时：HTTP ${status}。已尝试 ${attempts} 次仍未返回。`,
+      "这通常是模型响应太慢、中转站网关超时或输入过长导致；建议换更快模型、减少本次章节量，或稍后重试。"
+    ].join("");
+  }
+  if (status === 429) {
+    return [
+      `API 调用被限流：HTTP ${status}。已尝试 ${attempts} 次仍失败。`,
+      "请稍后重试，或切换到额度更稳定的 provider。"
+    ].join("");
+  }
+  if (status >= 500 && status < 600) {
+    return [
+      `AI 服务临时不可用：HTTP ${status}。已尝试 ${attempts} 次仍失败。`,
+      upstreamMessage ? `上游返回：${upstreamMessage}` : "请稍后重试，或切换 provider。"
+    ].join("");
+  }
+  return upstreamMessage || `API 请求失败：HTTP ${status}`;
+}
+
+function waitForRetry(attempt: number): Promise<void> {
+  return new Promise((resolve) => globalThis.setTimeout(resolve, attempt * 300));
 }
 
 export function normalizeBaseUrl(baseUrl: string): string {
