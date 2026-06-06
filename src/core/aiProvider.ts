@@ -1,7 +1,7 @@
-import type { AdaptationStyle, ScreenplayYaml, StoryBlueprint } from "./types";
+import type { AdaptationStyle, Scene, ScreenplayYaml, StoryBlueprint } from "./types";
 import { classifyFetchFailure } from "./apiConnection";
 import { parseChapters } from "./chapters";
-import { storyBlueprintSchema, validateScreenplay, validateStoryBlueprint } from "./schema";
+import { storyBlueprintSchema, validateScene, validateScreenplay, validateStoryBlueprint } from "./schema";
 
 const longFormChapterThreshold = 3;
 
@@ -29,6 +29,13 @@ export interface AiGenerationProgress {
   message: string;
   current?: number;
   total?: number;
+}
+
+export interface SceneRegenerationOptions {
+  screenplay: ScreenplayYaml;
+  sceneId: string;
+  instruction: string;
+  signal?: AbortSignal;
 }
 
 interface ChatCompletionResponse {
@@ -94,6 +101,38 @@ export async function generateScreenplayWithApi(
 
   const parsed = parseJsonObject(screenplayContent);
   return validateOrRepairScreenplay(settings, baseUrl, options, sourceChapters, blueprint, parsed);
+}
+
+export async function regenerateSceneWithApi(
+  settings: AiProviderSettings,
+  options: SceneRegenerationOptions
+): Promise<Scene> {
+  const baseUrl = normalizeBaseUrl(settings.baseUrl);
+  const scene = options.screenplay.scenes.find((item) => item.id === options.sceneId);
+  if (!scene) {
+    throw new Error(`未找到场景：${options.sceneId}`);
+  }
+
+  const sceneIndex = options.screenplay.scenes.findIndex((item) => item.id === options.sceneId);
+  const content = await requestChatCompletion(settings, baseUrl, {
+    temperature: 0.35,
+    messages: [
+      {
+        role: "system",
+        content: buildSceneRegenerationSystemPrompt()
+      },
+      {
+        role: "user",
+        content: buildSceneRegenerationUserPrompt(options, scene, {
+          previousScene: options.screenplay.scenes[sceneIndex - 1] ?? null,
+          nextScene: options.screenplay.scenes[sceneIndex + 1] ?? null
+        })
+      }
+    ],
+    signal: options.signal
+  });
+
+  return normalizeRegeneratedScene(parseJsonObject(content), scene);
 }
 
 async function generateLongFormScreenplay(
@@ -445,6 +484,59 @@ function buildRepairUserPrompt(
   });
 }
 
+function buildSceneRegenerationSystemPrompt(): string {
+  return [
+    "你是剧匠的单场修订引擎，只输出 JSON，不要输出 Markdown。",
+    "你只改写用户指定的一场戏，不要重写整篇剧本。",
+    "输出格式必须是 { \"scene\": <Scene> }。",
+    "必须保留 scene.id、chapterIndex、beatIndex、beatType 和 source。",
+    "修订要服务 instruction，并保持与前后场连续。"
+  ].join("\n");
+}
+
+function buildSceneRegenerationUserPrompt(
+  options: SceneRegenerationOptions,
+  scene: Scene,
+  neighbors: { previousScene: Scene | null; nextScene: Scene | null }
+): string {
+  const chapterEvents = options.screenplay.chapterEvents.filter(
+    (chapter) => chapter.chapterIndex === scene.chapterIndex
+  );
+
+  return JSON.stringify({
+    pipelineStage: "scene_regenerate",
+    instruction: options.instruction,
+    work: options.screenplay.work,
+    adaptationPlan: options.screenplay.adaptationPlan,
+    storyBible: options.screenplay.storyBible,
+    adaptationStrategy: options.screenplay.adaptationStrategy,
+    chapterEvents,
+    characters: options.screenplay.characters,
+    scene,
+    previousScene: neighbors.previousScene
+      ? summarizeNeighborScene(neighbors.previousScene)
+      : null,
+    nextScene: neighbors.nextScene ? summarizeNeighborScene(neighbors.nextScene) : null,
+    rewriteRules: [
+      "只返回修订后的 scene，不要返回 screenplay。",
+      "可以补强 goal、action、dialogue、conflict、revisionNotes。",
+      "不要改变 source.excerpt，不要编造原文之外的来源。",
+      "如果补对白，speaker 必须来自 characters 或原场景人物。"
+    ]
+  });
+}
+
+function summarizeNeighborScene(scene: Scene) {
+  return {
+    id: scene.id,
+    title: scene.title,
+    goal: scene.goal,
+    characters: scene.characters,
+    conflict: scene.conflict,
+    source: scene.source
+  };
+}
+
 function parseJsonObject(content: string): unknown {
   const trimmed = content.trim();
   try {
@@ -495,6 +587,28 @@ function normalizeApiScreenplay(value: unknown, model: string, blueprint: StoryB
       generatedBy: screenplay.work?.generatedBy || `api:${model}`
     }
   };
+}
+
+function normalizeRegeneratedScene(value: unknown, sourceScene: Scene): Scene {
+  if (!value || typeof value !== "object") {
+    throw new Error("API 返回 JSON 不是对象。");
+  }
+
+  const candidate = "scene" in value ? (value as { scene?: unknown }).scene : value;
+  const merged = {
+    ...sourceScene,
+    ...(candidate && typeof candidate === "object" ? candidate : {}),
+    id: sourceScene.id,
+    chapterIndex: sourceScene.chapterIndex,
+    beatIndex: sourceScene.beatIndex,
+    beatType: sourceScene.beatType,
+    source: sourceScene.source
+  };
+  const result = validateScene(merged);
+  if (!result.success) {
+    throw new Error(`API 场景修订未通过 Schema：${result.error.issues.map((issue) => issue.path.join(".")).join(", ")}`);
+  }
+  return result.data;
 }
 
 async function validateOrRepairScreenplay(

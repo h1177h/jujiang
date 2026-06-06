@@ -55,6 +55,43 @@ export const storyBlueprintSchema = z.object({
   })
 });
 
+export const sceneSchema = z.object({
+  id: z.string().min(1),
+  chapterIndex: z.number().int().positive(),
+  beatIndex: z.number().int().positive(),
+  beatType: z.enum(["setup", "turning_point", "payoff"]),
+  title: z.string().min(1),
+  goal: z.string().min(1),
+  location: z.string().min(1),
+  time: z.string().min(1),
+  characters: z.array(z.string()).min(1),
+  action: z.array(z.string()).min(1),
+  dialogue: z.array(
+    z.object({
+      speaker: z.string().min(1),
+      line: z.string().min(1),
+      intent: z.string().min(1),
+      emotion: z.string().min(1),
+      source: sourceLocatorSchema
+    })
+  ),
+  narrationOrTransition: z.string().min(1),
+  emotion: z.string().min(1),
+  pacing: z.enum(["quiet", "steady", "tense", "cliffhanger"]),
+  conflict: z.object({
+    level: z.union([
+      z.literal(1),
+      z.literal(2),
+      z.literal(3),
+      z.literal(4),
+      z.literal(5)
+    ]),
+    reason: z.string().min(1)
+  }),
+  revisionNotes: z.array(z.string()).min(1),
+  source: sourceLocatorSchema
+});
+
 export const screenplaySchema = z.object({
   work: z.object({
     title: z.string().min(1),
@@ -96,46 +133,7 @@ export const screenplaySchema = z.object({
       })
     )
     .min(1),
-  scenes: z
-    .array(
-      z.object({
-        id: z.string().min(1),
-        chapterIndex: z.number().int().positive(),
-        beatIndex: z.number().int().positive(),
-        beatType: z.enum(["setup", "turning_point", "payoff"]),
-        title: z.string().min(1),
-        goal: z.string().min(1),
-        location: z.string().min(1),
-        time: z.string().min(1),
-        characters: z.array(z.string()).min(1),
-        action: z.array(z.string()).min(1),
-        dialogue: z.array(
-          z.object({
-            speaker: z.string().min(1),
-            line: z.string().min(1),
-            intent: z.string().min(1),
-            emotion: z.string().min(1),
-            source: sourceLocatorSchema
-          })
-        ),
-        narrationOrTransition: z.string().min(1),
-        emotion: z.string().min(1),
-        pacing: z.enum(["quiet", "steady", "tense", "cliffhanger"]),
-        conflict: z.object({
-          level: z.union([
-            z.literal(1),
-            z.literal(2),
-            z.literal(3),
-            z.literal(4),
-            z.literal(5)
-          ]),
-          reason: z.string().min(1)
-        }),
-        revisionNotes: z.array(z.string()).min(1),
-        source: sourceLocatorSchema
-      })
-    )
-    .min(1),
+  scenes: z.array(sceneSchema).min(1),
   rhythmStats: z.object({
     sceneCount: z.number().int().min(1),
     dialogueCount: z.number().int().nonnegative(),
@@ -161,4 +159,8 @@ export function validateScreenplay(value: unknown) {
 
 export function validateStoryBlueprint(value: unknown) {
   return storyBlueprintSchema.safeParse(value);
+}
+
+export function validateScene(value: unknown) {
+  return sceneSchema.safeParse(value);
 }
