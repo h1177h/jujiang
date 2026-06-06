@@ -28,7 +28,13 @@ import {
   type AiGenerationProgress
 } from "./core/aiProvider";
 import { generateWorkspaceDraft } from "./core/generationWorkflow";
-import { createRevision, pushRevision, type ScreenplayRevision } from "./core/revisionHistory";
+import {
+  compareRevisionToCurrent,
+  createRevision,
+  pushRevision,
+  type RevisionDiffItem,
+  type ScreenplayRevision
+} from "./core/revisionHistory";
 import {
   clearSavedWorkspaceDraft,
   loadSavedWorkspaceDraft,
@@ -598,7 +604,11 @@ export default function App() {
               </div>
             </div>
 
-            <RevisionHistoryPanel history={revisionHistory} onRestore={handleRestoreRevision} />
+            <RevisionHistoryPanel
+              currentYaml={yamlText}
+              history={revisionHistory}
+              onRestore={handleRestoreRevision}
+            />
           </section>
 
           {selectedScene ? (
@@ -761,12 +771,27 @@ function sceneToPatch(scene: Scene): ScenePatch {
 }
 
 function RevisionHistoryPanel({
+  currentYaml,
   history,
   onRestore
 }: {
+  currentYaml: string;
   history: ScreenplayRevision[];
   onRestore: (revision: ScreenplayRevision) => void;
 }) {
+  const [selectedRevisionId, setSelectedRevisionId] = useState(history[0]?.id ?? "");
+  const selectedRevision = history.find((revision) => revision.id === selectedRevisionId) ?? history[0] ?? null;
+  useEffect(() => {
+    if (history.length && !history.some((revision) => revision.id === selectedRevisionId)) {
+      setSelectedRevisionId(history[0].id);
+    }
+  }, [history, selectedRevisionId]);
+  const diff = useMemo(
+    () => (selectedRevision ? compareRevisionToCurrent(selectedRevision, currentYaml) : null),
+    [currentYaml, selectedRevision]
+  );
+  const visibleDiffItems = diff?.items.filter((item) => item.kind !== "unchanged").slice(0, 6) ?? [];
+
   return (
     <div className="revision-history">
       <div className="analysis-card-head">
@@ -775,12 +800,48 @@ function RevisionHistoryPanel({
       </div>
       <div className="revision-list">
         {history.map((revision) => (
-          <button key={revision.id} type="button" onClick={() => onRestore(revision)}>
-            <strong>{revision.label}</strong>
-            <span>{new Date(revision.createdAt).toLocaleString()}</span>
-          </button>
+          <article className={revision.id === selectedRevision?.id ? "selected" : ""} key={revision.id}>
+            <button type="button" onClick={() => setSelectedRevisionId(revision.id)}>
+              <strong>{revision.label}</strong>
+              <span>{new Date(revision.createdAt).toLocaleString()}</span>
+            </button>
+            <button className="restore-revision" type="button" onClick={() => onRestore(revision)}>
+              恢复
+            </button>
+          </article>
         ))}
       </div>
+      {diff ? (
+        <div className="revision-diff">
+          <div className="revision-diff-head">
+            <strong>与当前 YAML 对比</strong>
+            <span>
+              +{diff.summary.added} / -{diff.summary.removed} / 改 {diff.summary.changed}
+            </span>
+          </div>
+          {visibleDiffItems.length ? (
+            <div className="revision-diff-list">
+              {visibleDiffItems.map((item, index) => (
+                <RevisionDiffRow item={item} key={`${item.kind}-${item.lineNumber}-${index}`} />
+              ))}
+            </div>
+          ) : (
+            <p className="revision-diff-empty">当前 YAML 和这个版本没有内容差异。</p>
+          )}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function RevisionDiffRow({ item }: { item: RevisionDiffItem }) {
+  const label = item.kind === "added" ? "新增" : item.kind === "removed" ? "删除" : "变更";
+
+  return (
+    <div className={`revision-diff-row ${item.kind}`}>
+      <span>{label}</span>
+      <code>{item.kind === "added" ? item.after : item.kind === "removed" ? item.before : item.after}</code>
+      {item.kind === "changed" ? <small>原：{item.before}</small> : null}
     </div>
   );
 }

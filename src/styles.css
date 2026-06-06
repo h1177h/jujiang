@@ -738,15 +738,30 @@ select:focus,
   margin-top: 10px;
 }
 
-.revision-list button {
+.revision-list article {
+  align-items: stretch;
   background: #f8fafc;
   border: 1px solid #dbe4f0;
   border-radius: 8px;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding: 8px;
+}
+
+.revision-list article.selected {
+  background: #eef6ff;
+  border-color: #93c5fd;
+}
+
+.revision-list button {
+  background: transparent;
+  border: 0;
   color: #334155;
   cursor: pointer;
   display: grid;
   gap: 3px;
-  padding: 9px 10px;
+  padding: 0;
   text-align: left;
 }
 
@@ -758,6 +773,114 @@ select:focus,
 .revision-list span {
   color: #64748b;
   font-size: 11px;
+}
+
+.revision-list .restore-revision {
+  align-self: center;
+  background: #ffffff;
+  border: 1px solid #dbe4f0;
+  border-radius: 8px;
+  color: #2563eb;
+  font-size: 11px;
+  font-weight: 850;
+  min-height: 30px;
+  padding: 0 9px;
+}
+
+.revision-diff {
+  border-top: 1px solid #d9e2ef;
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 12px;
+}
+
+.revision-diff-head {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+}
+
+.revision-diff-head strong {
+  color: #0f172a;
+  font-size: 12px;
+}
+
+.revision-diff-head span {
+  background: #f8fafc;
+  border: 1px solid #dbe4f0;
+  border-radius: 999px;
+  color: #475569;
+  flex: none;
+  font-size: 11px;
+  font-weight: 850;
+  padding: 3px 8px;
+}
+
+.revision-diff-list {
+  display: grid;
+  gap: 6px;
+}
+
+.revision-diff-row {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  display: grid;
+  gap: 4px;
+  padding: 7px 8px;
+}
+
+.revision-diff-row span {
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.revision-diff-row code,
+.revision-diff-row small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.revision-diff-row code {
+  color: #0f172a;
+  font-family: "Cascadia Code", "JetBrains Mono", Consolas, monospace;
+  font-size: 11px;
+}
+
+.revision-diff-row small,
+.revision-diff-empty {
+  color: #64748b;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.revision-diff-row.added {
+  background: #ecfdf5;
+  border-color: #bbf7d0;
+}
+
+.revision-diff-row.added span {
+  color: #166534;
+}
+
+.revision-diff-row.removed {
+  background: #fff7ed;
+  border-color: #fed7aa;
+}
+
+.revision-diff-row.removed span {
+  color: #9a3412;
+}
+
+.revision-diff-row.changed {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+}
+
+.revision-diff-row.changed span {
+  color: #1d4ed8;
 }
 
 .review-empty {
