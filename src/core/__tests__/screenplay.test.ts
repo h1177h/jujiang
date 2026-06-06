@@ -6,7 +6,7 @@ import { sampleNovel } from "../sampleNovel";
 import { isEditorReadyScene, updateScreenplaySceneYaml } from "../sceneEditor";
 import { validateScreenplay } from "../schema";
 import { buildSourceTrace } from "../sourceTrace";
-import { analyzeScreenplay, formatStoryAnalysisPanelLabels } from "../storyAnalysis";
+import { analyzeScreenplay, findSceneIdForChapterEvent, formatStoryAnalysisPanelLabels } from "../storyAnalysis";
 import { validateScreenplayYaml } from "../yaml";
 import sampleOutputYaml from "../../../examples/sample-output.yaml?raw";
 
@@ -251,5 +251,7 @@ describe("screenplay schema and review helpers", () => {
       readyScenes: "5 场可继续打磨",
       qualityIssues: "3 项"
     });
+    expect(findSceneIdForChapterEvent(screenplay.chapterEvents[0].events[1], screenplay.scenes)).toBe("scene-02");
+    expect(findSceneIdForChapterEvent(screenplay.chapterEvents[0].events[0], screenplay.scenes)).toBe("scene-01");
   });
 });
