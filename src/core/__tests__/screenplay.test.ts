@@ -154,6 +154,18 @@ describe("screenplay schema and review helpers", () => {
     expect(validateScreenplayYaml(updatedYaml)).toEqual({ ok: true, errors: [] });
   });
 
+  it("maps quality issues to editable scene fields", () => {
+    const validation = validateScreenplay(parse(sampleOutputYaml));
+    expect(validation.success).toBe(true);
+    if (!validation.success) return;
+
+    const analysis = analyzeScreenplay(validation.data);
+
+    expect(analysis.qualityIssues.some((issue) => issue.targetField === "dialogue")).toBe(true);
+    expect(analysis.qualityIssues.some((issue) => issue.targetField === "characters")).toBe(true);
+    expect(analysis.qualityIssues.every((issue) => issue.actionHint.length > 0)).toBe(true);
+  });
+
   it("builds actionable story analysis from the screenplay", () => {
     const validation = validateScreenplay(parse(sampleOutputYaml));
     expect(validation.success).toBe(true);
