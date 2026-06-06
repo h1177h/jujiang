@@ -39,6 +39,7 @@ import {
   createGenerationRun,
   failGenerationRun,
   markGenerationRunConnection,
+  pushGenerationRunHistory,
   updateGenerationRunStage,
   type GenerationRun
 } from "./core/generationRun";
@@ -93,7 +94,12 @@ export default function App() {
   const [selectedSceneId, setSelectedSceneId] = useState<string | null>(
     initialWorkspaceDraft?.selectedSceneId ?? null
   );
-  const [generationRun, setGenerationRun] = useState<GenerationRun | null>(null);
+  const [generationRunHistory, setGenerationRunHistory] = useState<GenerationRun[]>(
+    initialWorkspaceDraft?.generationRuns ?? []
+  );
+  const [generationRun, setGenerationRun] = useState<GenerationRun | null>(
+    initialWorkspaceDraft?.generationRuns[0] ?? null
+  );
 
   const validation = useMemo(() => validateScreenplayYaml(yamlText), [yamlText]);
   const preview = useMemo(() => {
@@ -135,11 +141,17 @@ export default function App() {
         novelText,
         yamlText,
         selectedSceneId,
-        revisionHistory
+        revisionHistory,
+        generationRuns: generationRunHistory
       },
       getBrowserStorage()
     );
-  }, [novelText, revisionHistory, selectedSceneId, style, title, yamlText]);
+  }, [generationRunHistory, novelText, revisionHistory, selectedSceneId, style, title, yamlText]);
+
+  useEffect(() => {
+    if (!generationRun) return;
+    setGenerationRunHistory((current) => pushGenerationRunHistory(current, generationRun));
+  }, [generationRun]);
 
   async function handleGenerate() {
     const apiKeyForRequest = apiKey.trim();
@@ -150,6 +162,7 @@ export default function App() {
       chapterCount
     });
     setGenerationRun(run);
+    setGenerationRunHistory((current) => pushGenerationRunHistory(current, run));
     setGenerationStatus(useApi && apiReady ? `正在调用 ${apiModel}...` : "等待 AI 配置...");
 
     if (useApi && apiReady) {
@@ -371,6 +384,8 @@ export default function App() {
     setYamlText(sampleOutputYaml);
     setRevisionHistory(nextHistory);
     setSelectedSceneId(null);
+    setGenerationRun(null);
+    setGenerationRunHistory([]);
     setGenerationStatus("已重置工作区草稿");
   }
 
@@ -507,7 +522,12 @@ export default function App() {
                   : "前端直连可能被浏览器或服务商 CORS 拦截，仅建议临时调试。"}
               </p>
               <p className="status-note strong">{generationStatus}</p>
-              <GenerationRunPanel run={generationRun} />
+              <GenerationRunPanel
+                run={generationRun}
+                history={generationRunHistory}
+                onRetry={handleGenerate}
+                onSelectRun={setGenerationRun}
+              />
             </div>
 
             <textarea
@@ -615,33 +635,53 @@ function formatAiProgress(event: AiGenerationProgress, model: string): string {
   return `${event.message}：${model}`;
 }
 
-function GenerationRunPanel({ run }: { run: GenerationRun | null }) {
-  if (!run) return null;
+function GenerationRunPanel({
+  run,
+  history,
+  onRetry,
+  onSelectRun
+}: {
+  run: GenerationRun | null;
+  history: GenerationRun[];
+  onRetry: () => void;
+  onSelectRun: (run: GenerationRun) => void;
+}) {
+  const activeRun = run ?? history[0] ?? null;
+  if (!activeRun) return null;
 
   const statusLabel =
-    run.status === "completed" ? "已完成" : run.status === "failed" ? "需要处理" : "进行中";
+    activeRun.status === "completed" ? "已完成" : activeRun.status === "failed" ? "需要处理" : "进行中";
   const elapsedSeconds = Math.max(
     0,
     Math.round(
-      ((run.completedAt ? new Date(run.completedAt).getTime() : Date.now()) -
-        new Date(run.startedAt).getTime()) /
+      ((activeRun.completedAt ? new Date(activeRun.completedAt).getTime() : Date.now()) -
+        new Date(activeRun.startedAt).getTime()) /
         1000
     )
   );
+  const recentRuns = history.slice(0, 4);
 
   return (
-    <div className={`generation-run ${run.status}`}>
+    <div className={`generation-run ${activeRun.status}`}>
       <div className="generation-run-head">
         <div>
           <strong>生成任务</strong>
           <span>
-            {run.model} · {run.chapterCount} 章 · {elapsedSeconds}s
+            {activeRun.model} · {activeRun.chapterCount} 章 · {elapsedSeconds}s
           </span>
         </div>
-        <em>{statusLabel}</em>
+        <div className="generation-run-actions">
+          {activeRun.status === "failed" ? (
+            <button type="button" onClick={onRetry} title="重新调用当前 AI 配置">
+              <RefreshCw size={13} />
+              重试
+            </button>
+          ) : null}
+          <em>{statusLabel}</em>
+        </div>
       </div>
       <div className="generation-stages">
-        {run.stages.map((stage) => (
+        {activeRun.stages.map((stage) => (
           <div className={`generation-stage ${stage.status}`} key={stage.id}>
             <span className="stage-dot" />
             <div>
@@ -654,10 +694,10 @@ function GenerationRunPanel({ run }: { run: GenerationRun | null }) {
           </div>
         ))}
       </div>
-      {run.error ? (
+      {activeRun.error ? (
         <p className="generation-error">
           <TriangleAlert size={14} />
-          {run.error}
+          {activeRun.error}
         </p>
       ) : (
         <p className="generation-meta">
@@ -665,8 +705,42 @@ function GenerationRunPanel({ run }: { run: GenerationRun | null }) {
           阶段记录会保留本次调用路径，便于判断卡在连接、事件抽取、结构修复还是 YAML 写入。
         </p>
       )}
+      {recentRuns.length > 1 ? (
+        <div className="generation-history">
+          <div className="generation-history-head">
+            <strong>最近生成</strong>
+            <span>{recentRuns.length} 条</span>
+          </div>
+          <div className="generation-history-list">
+            {recentRuns.map((item) => (
+              <button
+                key={item.id}
+                className={item.id === activeRun.id ? "selected" : ""}
+                type="button"
+                onClick={() => onSelectRun(item)}
+              >
+                <span className={`history-status ${item.status}`} />
+                <div>
+                  <strong>{item.title}</strong>
+                  <span>
+                    {item.model} · {new Date(item.startedAt).toLocaleTimeString()}
+                  </span>
+                </div>
+                <em>{formatRunStatus(item.status)}</em>
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
+}
+
+function formatRunStatus(status: GenerationRun["status"]): string {
+  if (status === "completed") return "完成";
+  if (status === "failed") return "失败";
+  if (status === "running") return "运行中";
+  return "待开始";
 }
 
 function sceneToPatch(scene: Scene): ScenePatch {
