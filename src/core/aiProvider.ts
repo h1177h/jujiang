@@ -1077,6 +1077,7 @@ async function validateOrRepairScreenplay(
         detail: `初次问题：${formatValidationIssues(validationIssues)}；修复后问题：${formatValidationIssues(
           repairedIssues
         )}`,
+        yamlDraft: screenplayToYaml(repaired),
         diagnostic: {
           initialIssues: validationIssues,
           repairedIssues,
