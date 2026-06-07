@@ -144,6 +144,21 @@ export function updateActiveGenerationRun(
   return updater(current);
 }
 
+export function updateGenerationRunHistory(
+  history: GenerationRun[],
+  runId: string,
+  updater: (run: GenerationRun) => GenerationRun
+): GenerationRun[] {
+  let updated = false;
+  const nextHistory = history.map((run) => {
+    if (run.id !== runId) return run;
+    updated = true;
+    return updater(run);
+  });
+
+  return updated ? nextHistory : history;
+}
+
 export function markGenerationRunConnection(run: GenerationRun, message: string, date = new Date()): GenerationRun {
   const now = date.toISOString();
   return {

@@ -43,6 +43,7 @@ import {
   markGenerationRunConnection,
   pushGenerationRunHistory,
   updateActiveGenerationRun,
+  updateGenerationRunHistory,
   updateGenerationRunStage,
   type GenerationRun
 } from "./core/generationRun";
@@ -238,6 +239,11 @@ export default function App() {
             failGenerationRunStage(activeRun, "connection_check", connection.message)
           )
         );
+        setGenerationRunHistory((current) =>
+          updateGenerationRunHistory(current, run.id, (activeRun) =>
+            failGenerationRunStage(activeRun, "connection_check", connection.message)
+          )
+        );
         return;
       }
 
@@ -247,6 +253,11 @@ export default function App() {
       }
       setGenerationRun((current) =>
         updateActiveGenerationRun(current, run.id, (activeRun) =>
+          markGenerationRunConnection(activeRun, connection.message)
+        )
+      );
+      setGenerationRunHistory((current) =>
+        updateGenerationRunHistory(current, run.id, (activeRun) =>
           markGenerationRunConnection(activeRun, connection.message)
         )
       );
@@ -281,6 +292,9 @@ export default function App() {
               setGenerationRun((current) =>
                 updateActiveGenerationRun(current, run.id, (activeRun) => updateGenerationRunStage(activeRun, event))
               );
+              setGenerationRunHistory((current) =>
+                updateGenerationRunHistory(current, run.id, (activeRun) => updateGenerationRunStage(activeRun, event))
+              );
             }
           }
         )
@@ -299,9 +313,15 @@ export default function App() {
       setGenerationRun((current) =>
         updateActiveGenerationRun(current, run.id, (activeRun) => completeGenerationRun(activeRun))
       );
+      setGenerationRunHistory((current) =>
+        updateGenerationRunHistory(current, run.id, (activeRun) => completeGenerationRun(activeRun))
+      );
     } else {
       setGenerationRun((current) =>
         updateActiveGenerationRun(current, run.id, (activeRun) => failGenerationRunWithMessage(activeRun, result.status))
+      );
+      setGenerationRunHistory((current) =>
+        updateGenerationRunHistory(current, run.id, (activeRun) => failGenerationRunWithMessage(activeRun, result.status))
       );
     }
     setGenerationStatus(result.status);
@@ -318,7 +338,7 @@ export default function App() {
       updateActiveGenerationRun(current, activeRunId, (activeRun) => cancelGenerationRun(activeRun, message))
     );
     setGenerationRunHistory((current) =>
-      current.map((run) => (run.id === activeRunId ? cancelGenerationRun(run, message) : run))
+      updateGenerationRunHistory(current, activeRunId, (activeRun) => cancelGenerationRun(activeRun, message))
     );
     setGenerationStatus(message);
   }
