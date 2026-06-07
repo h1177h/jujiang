@@ -891,9 +891,19 @@ async function validateOrRepairScreenplay(
   }
 
   const validationIssues = getValidationIssuePaths(result.error.issues);
+  const initialExcerpt = summarizeReturnedJson(normalized, validationIssues);
   options.onProgress?.({
     stage: "schema_repair",
-    message: "AI 返回结构未通过校验，正在尝试修复"
+    message: "AI 返回结构未通过校验，正在尝试修复",
+    artifact: {
+      kind: "repair",
+      summary: "结构初稿未通过 Schema",
+      detail: `初次问题：${formatValidationIssues(validationIssues)}`,
+      diagnostic: {
+        initialIssues: validationIssues,
+        initialExcerpt
+      }
+    }
   });
   const repairedContent = await requestChatCompletion(settings, baseUrl, {
     temperature: 0.1,
@@ -915,7 +925,6 @@ async function validateOrRepairScreenplay(
   const repairedResult = validateScreenplay(repaired);
   if (!repairedResult.success) {
     const repairedIssues = getValidationIssuePaths(repairedResult.error.issues);
-    const initialExcerpt = summarizeReturnedJson(normalized, validationIssues);
     const repairedExcerpt = summarizeReturnedJson(repaired, repairedIssues);
     options.onProgress?.({
       stage: "schema_repair",
@@ -945,7 +954,6 @@ async function validateOrRepairScreenplay(
     message: "修复后的剧本结构已通过 Schema",
     artifact: describeScreenplayArtifact(repairedResult.data)
   });
-  const initialExcerpt = summarizeReturnedJson(normalized, validationIssues);
   const repairedExcerpt = summarizeReturnedJson(repairedResult.data, validationIssues);
   options.onProgress?.({
     stage: "schema_repair",
