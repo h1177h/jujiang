@@ -152,12 +152,22 @@ export const screenplaySchema = z
 })
   .superRefine((screenplay, ctx) => {
     const sourceChapterCount = screenplay.work.sourceChapterCount;
+    const sceneIds = new Set(screenplay.scenes.map((scene) => scene.id));
     const addChapterRangeIssue = (path: (string | number)[], chapterIndex: number) => {
       if (chapterIndex > sourceChapterCount) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           path,
           message: `chapterIndex must be within sourceChapterCount (${sourceChapterCount})`
+        });
+      }
+    };
+    const addSceneReferenceIssue = (path: (string | number)[], sceneId: string) => {
+      if (!sceneIds.has(sceneId)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path,
+          message: `sceneId must reference an existing scene (${sceneId})`
         });
       }
     };
@@ -178,7 +188,19 @@ export const screenplaySchema = z
 
     screenplay.chapterMappings.forEach((mapping, mappingIndex) => {
       addChapterRangeIssue(["chapterMappings", mappingIndex, "chapterIndex"], mapping.chapterIndex);
+      mapping.sceneIds.forEach((sceneId, sceneIdIndex) => {
+        addSceneReferenceIssue(["chapterMappings", mappingIndex, "sceneIds", sceneIdIndex], sceneId);
+      });
     });
+
+    screenplay.rhythmStats.highConflictSceneIds.forEach((sceneId, sceneIdIndex) => {
+      addSceneReferenceIssue(["rhythmStats", "highConflictSceneIds", sceneIdIndex], sceneId);
+    });
+
+    addSceneReferenceIssue(
+      ["storyDiagnostics", "strongestConflictSceneId"],
+      screenplay.storyDiagnostics.strongestConflictSceneId
+    );
 
     screenplay.scenes.forEach((scene, sceneIndex) => {
       addChapterRangeIssue(["scenes", sceneIndex, "chapterIndex"], scene.chapterIndex);
