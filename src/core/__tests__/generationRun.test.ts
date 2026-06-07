@@ -245,16 +245,16 @@ describe("generation run tracking", () => {
         kind: "repair",
         summary: "Schema repair failed",
         diagnostic: {
-          initialIssues: ["scenes", "characters.0.name"],
-          repairedIssues: ["scenes"],
+          initialIssues: ["scenes.0.goal", "characters.0.name"],
+          repairedIssues: ["chapterMappings.1.sceneIds.0", "storyDiagnostics.strongestConflictSceneId"],
           initialExcerpt: "{\"scenes\":[],\"characters\":[{}]}",
           repairedExcerpt: "{\"scenes\":[],\"validationHints\":[]}"
         },
         createdAt: "2026-06-06T00:00:03.000Z"
       })
     ).toEqual([
-      "初次返回仍有 2 个结构问题：scenes；characters.0.name",
-      "修复后仍有 1 个结构问题：scenes",
+      "初次返回仍有 2 个结构问题：第 1 场 goal；第 1 个角色 name",
+      "修复后仍有 2 个结构问题：第 2 个章节映射 sceneIds.0；故事诊断 strongestConflictSceneId",
       "初次返回片段：{\"scenes\":[],\"characters\":[{}]}",
       "修复返回片段：{\"scenes\":[],\"validationHints\":[]}"
     ]);

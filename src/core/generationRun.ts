@@ -440,7 +440,43 @@ export function selectVisibleGenerationArtifacts(
 }
 
 function formatArtifactIssueLine(label: string, issues: string[]): string {
-  return `${label}仍有 ${issues.length} 个结构问题：${issues.join("；")}`;
+  return `${label}仍有 ${issues.length} 个结构问题：${issues.map(formatSchemaIssuePath).join("；")}`;
+}
+
+function formatSchemaIssuePath(path: string): string {
+  const segments = path.split(".");
+  const [scope, index, ...rest] = segments;
+  const field = rest.join(".");
+
+  if (scope === "scenes" && isNumericIndex(index)) {
+    return `第 ${Number(index) + 1} 场${field ? ` ${field}` : ""}`;
+  }
+
+  if (scope === "characters" && isNumericIndex(index)) {
+    return `第 ${Number(index) + 1} 个角色${field ? ` ${field}` : ""}`;
+  }
+
+  if (scope === "chapterMappings" && isNumericIndex(index)) {
+    return `第 ${Number(index) + 1} 个章节映射${field ? ` ${field}` : ""}`;
+  }
+
+  if (scope === "chapterEvents" && isNumericIndex(index)) {
+    return `第 ${Number(index) + 1} 个章节事件组${field ? ` ${field}` : ""}`;
+  }
+
+  if (scope === "storyDiagnostics") {
+    return `故事诊断${segments[1] ? ` ${segments.slice(1).join(".")}` : ""}`;
+  }
+
+  if (scope === "rhythmStats") {
+    return `节奏统计${segments[1] ? ` ${segments.slice(1).join(".")}` : ""}`;
+  }
+
+  return path;
+}
+
+function isNumericIndex(value: string | undefined): boolean {
+  return value !== undefined && /^\d+$/.test(value);
 }
 
 export function formatAiGenerationProgress(event: AiGenerationProgress, model: string): string {
