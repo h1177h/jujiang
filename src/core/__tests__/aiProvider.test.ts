@@ -500,6 +500,59 @@ describe("AI provider", () => {
     ).rejects.toThrow("event_extract 阶段返回空内容。finish_reason=length");
   });
 
+  it("reports tool call responses when the provider returns no chat text", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({
+        ok: true,
+        status: 200,
+        headers: new Headers({ "content-type": "application/json" }),
+        json: async () => ({
+          choices: [
+            {
+              finish_reason: "tool_calls",
+              message: {
+                content: "",
+                tool_calls: [
+                  {
+                    type: "function",
+                    function: {
+                      name: "make_screenplay",
+                      arguments: "{\"title\":\"Mist Harbor\"}"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        })
+      }))
+    );
+
+    let message = "";
+    try {
+      await generateScreenplayWithApi(
+        {
+          baseUrl: "https://api.example.com",
+          apiKey: "test-key",
+          model: "test-model"
+        },
+        {
+          title: "雾港来信",
+          style: "cinematic",
+          novelText: sampleNovel
+        }
+      );
+    } catch (error) {
+      message = error instanceof Error ? error.message : String(error);
+    }
+
+    expect(message).toContain("event_extract");
+    expect(message).toContain("工具调用");
+    expect(message).toContain("tool_calls");
+    expect(message).toContain("make_screenplay");
+  });
+
   it("uses the first non-empty chat completion choice when earlier choices are blank", async () => {
     const validation = validateScreenplay(parse(sampleOutputYaml));
     expect(validation.success).toBe(true);
