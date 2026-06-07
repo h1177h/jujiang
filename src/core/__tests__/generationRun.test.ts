@@ -155,6 +155,37 @@ describe("generation run tracking", () => {
     expect(failed.recoveryHint).toBe("可以保留当前原文、AI 配置和已保存的阶段记录后重试。");
   });
 
+  it("marks provider format and schema failures as retryable", () => {
+    const run = updateGenerationRunStage(
+      createGenerationRun({
+        title: "雾港来信",
+        model: "gpt-4.1-mini",
+        chapterCount: 3,
+        date: new Date("2026-06-06T00:00:00.000Z")
+      }),
+      {
+        stage: "event_extract",
+        message: "正在抽取事件",
+        date: new Date("2026-06-06T00:00:02.000Z")
+      }
+    );
+
+    const schemaFailed = failGenerationRun(
+      run,
+      "event_extract 阶段故事蓝图未通过 Schema：storyBible。Provider 返回摘要：{\"chapterEvents\":[]}",
+      new Date("2026-06-06T00:00:05.000Z")
+    );
+    const parseFailed = failGenerationRun(
+      run,
+      "event_extract 阶段返回内容不是可解析 JSON。Provider 返回：我先分析一下故事。",
+      new Date("2026-06-06T00:00:06.000Z")
+    );
+
+    expect(schemaFailed.canRetry).toBe(true);
+    expect(parseFailed.canRetry).toBe(true);
+    expect(schemaFailed.recoveryHint).toBe("可以保留当前原文、AI 配置和已保存的阶段记录后重试。");
+  });
+
   it("completes the run and marks all stages done", () => {
     const run = updateGenerationRunStage(
       createGenerationRun({
