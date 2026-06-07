@@ -206,6 +206,56 @@ describe("generation run tracking", () => {
     expect(checkpoint?.chapterEvents?.map((group) => group.chapterIndex)).toEqual([1, 2]);
   });
 
+  it("ignores saved checkpoints that no longer pass schema", () => {
+    const run = updateGenerationRunStage(
+      createGenerationRun({
+        title: "Broken Checkpoint Story",
+        model: "gpt-4.1-mini",
+        chapterCount: 2,
+        date: new Date("2026-06-06T00:00:00.000Z")
+      }),
+      {
+        stage: "chapter_event_extract",
+        message: "Saved malformed chapter events",
+        artifact: {
+          kind: "chapter_events",
+          summary: "1 malformed chapter event group",
+          checkpoint: {
+            chapterEvents: [
+              {
+                chapterIndex: 1,
+                chapterTitle: "Chapter 1",
+                chapterGoal: "Find the clue",
+                events: [
+                  {
+                    id: "event-1",
+                    summary: "Lin finds the clue.",
+                    characters: ["Lin"],
+                    location: "Pier",
+                    conflict: "The clue is hidden.",
+                    emotionalTurn: "Suspicion rises.",
+                    source: {
+                      chapterIndex: 2,
+                      chapterTitle: "Chapter 1",
+                      paragraphIndexes: [1],
+                      lineStart: 1,
+                      lineEnd: 2,
+                      excerpt: "Lin finds the clue."
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        date: new Date("2026-06-06T00:00:03.000Z")
+      }
+    );
+
+    expect(getGenerationRunResumeCheckpoint(run)).toBeNull();
+    expect(formatGenerationRunResumeSummary(run)).toBeNull();
+  });
+
   it("summarizes saved checkpoints before retrying a failed run", () => {
     const run = failGenerationRun(
       updateGenerationRunStage(

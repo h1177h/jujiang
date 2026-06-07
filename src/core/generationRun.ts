@@ -1,4 +1,5 @@
 import type { AiGenerationArtifact, AiGenerationProgress, AiGenerationResumeCheckpoint } from "./aiProvider";
+import { chapterEventsSchema, validateStoryBlueprint } from "./schema";
 
 export type GenerationRunStatus = "idle" | "running" | "completed" | "failed";
 
@@ -206,21 +207,22 @@ export function pushGenerationRunHistory(
 
 export function getGenerationRunResumeCheckpoint(run: GenerationRun): AiGenerationResumeCheckpoint | null {
   const artifacts = run.stages.flatMap((stage) => stage.artifacts ?? []);
-  const latestStoryBlueprint = [...artifacts]
-    .reverse()
-    .map((artifact) => artifact.checkpoint?.storyBlueprint)
-    .find(Boolean);
-
-  if (latestStoryBlueprint) {
-    return {
-      storyBlueprint: latestStoryBlueprint,
-      chapterEvents: latestStoryBlueprint.chapterEvents
-    };
+  for (const artifact of [...artifacts].reverse()) {
+    const result = validateStoryBlueprint(artifact.checkpoint?.storyBlueprint);
+    if (result.success) {
+      return {
+        storyBlueprint: result.data,
+        chapterEvents: result.data.chapterEvents
+      };
+    }
   }
 
   const chapterEventsByIndex = new Map<number, NonNullable<AiGenerationResumeCheckpoint["chapterEvents"]>[number]>();
   artifacts.forEach((artifact) => {
-    artifact.checkpoint?.chapterEvents?.forEach((group) => {
+    const result = chapterEventsSchema.safeParse(artifact.checkpoint?.chapterEvents);
+    if (!result.success) return;
+
+    result.data.forEach((group) => {
       chapterEventsByIndex.set(group.chapterIndex, group);
     });
   });
