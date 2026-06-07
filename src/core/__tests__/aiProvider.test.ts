@@ -1599,9 +1599,10 @@ describe("AI provider", () => {
       errorMessage = error instanceof Error ? error.message : String(error);
     }
 
-    expect(errorMessage).toContain(
-      "API 返回结构修复后仍未通过 Schema：初次问题：scenes；修复后问题：scenes。初次返回摘要："
-    );
+    expect(errorMessage).toContain("API 返回结构修复后仍未通过 Schema");
+    expect(errorMessage).toContain("scenes");
+    expect(errorMessage).toContain("chapterMappings.0.sceneIds.0");
+    expect(errorMessage).toContain("storyDiagnostics.strongestConflictSceneId");
     expect(errorMessage).toContain("修复返回摘要：");
     expect(errorMessage).toContain("\"scenes\":[]");
     expect(repairArtifacts).toEqual(
@@ -1609,8 +1610,16 @@ describe("AI provider", () => {
         expect.objectContaining({
           kind: "repair",
           diagnostic: expect.objectContaining({
-            initialIssues: expect.arrayContaining(["scenes"]),
-            repairedIssues: expect.arrayContaining(["scenes"]),
+            initialIssues: expect.arrayContaining([
+              "scenes",
+              "chapterMappings.0.sceneIds.0",
+              "storyDiagnostics.strongestConflictSceneId"
+            ]),
+            repairedIssues: expect.arrayContaining([
+              "scenes",
+              "chapterMappings.0.sceneIds.0",
+              "storyDiagnostics.strongestConflictSceneId"
+            ]),
             initialExcerpt: expect.stringContaining("\"scenes\":[]"),
             repairedExcerpt: expect.stringContaining("\"scenes\":[]")
           })

@@ -154,6 +154,26 @@ describe("screenplay schema and review helpers", () => {
     );
   });
 
+  it("rejects screenplay references to missing scene ids", () => {
+    const parsed = parse(sampleOutputYaml);
+    parsed.chapterMappings[0].sceneIds = ["missing-scene"];
+    parsed.rhythmStats.highConflictSceneIds = ["missing-conflict-scene"];
+    parsed.storyDiagnostics.strongestConflictSceneId = "missing-strongest-scene";
+
+    const validation = validateScreenplay(parsed);
+
+    expect(validation.success).toBe(false);
+    if (validation.success) return;
+    const paths = validation.error.issues.map((issue) => issue.path.join("."));
+    expect(paths).toEqual(
+      expect.arrayContaining([
+        "chapterMappings.0.sceneIds.0",
+        "rhythmStats.highConflictSceneIds.0",
+        "storyDiagnostics.strongestConflictSceneId"
+      ])
+    );
+  });
+
   it("returns structured diagnostics that point authors to the broken scene field", () => {
     const parsed = parse(sampleOutputYaml);
     parsed.scenes[0].goal = "";
