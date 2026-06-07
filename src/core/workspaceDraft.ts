@@ -39,8 +39,12 @@ export function loadSavedWorkspaceDraft(storage: AiSettingsStorage | null): Save
       return null;
     }
 
+    const updatedAt = parsed.updatedAt;
     const revisionHistory = parsed.revisionHistory.filter(isScreenplayRevision).slice(0, 8);
-    const generationRuns = (parsed.generationRuns ?? []).filter(isGenerationRun).slice(0, 8);
+    const generationRuns = (parsed.generationRuns ?? [])
+      .filter(isGenerationRun)
+      .map((run) => normalizeRestoredGenerationRun(run, updatedAt))
+      .slice(0, 8);
 
     return {
       title: parsed.title,
@@ -119,6 +123,32 @@ function isGenerationRun(value: unknown): value is GenerationRun {
     Array.isArray(run.stages) &&
     run.stages.every(isGenerationRunStage)
   );
+}
+
+function normalizeRestoredGenerationRun(run: GenerationRun, interruptedAt: string): GenerationRun {
+  if (run.status !== "running") {
+    return run;
+  }
+
+  const message = "上次生成在页面关闭或刷新时中断，可从已保存阶段继续。";
+  return {
+    ...run,
+    status: "failed",
+    completedAt: interruptedAt,
+    error: message,
+    canRetry: true,
+    recoveryHint: "保留了本机工作区里的阶段记录，可用当前 AI 配置继续或重试。",
+    stages: run.stages.map((stage) =>
+      stage.status === "running"
+        ? {
+            ...stage,
+            status: "failed" as const,
+            message,
+            updatedAt: interruptedAt
+          }
+        : stage
+    )
+  };
 }
 
 function isGenerationRunStage(value: unknown): value is GenerationRunStage {
