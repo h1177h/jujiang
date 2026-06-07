@@ -5,6 +5,7 @@ import {
   failGenerationRun,
   failGenerationRunStage,
   formatAiGenerationProgress,
+  formatGenerationRunArtifactDiagnostics,
   formatGenerationRunStatus,
   getGenerationRunResumeCheckpoint,
   pushGenerationRunHistory,
@@ -106,6 +107,27 @@ describe("generation run tracking", () => {
         detail: "角色 2 个，风险控制 2 条",
         createdAt: "2026-06-06T00:00:03.000Z"
       }
+    ]);
+  });
+
+  it("formats repair diagnostic artifacts for the task panel", () => {
+    expect(
+      formatGenerationRunArtifactDiagnostics({
+        kind: "repair",
+        summary: "Schema repair failed",
+        diagnostic: {
+          initialIssues: ["scenes", "characters.0.name"],
+          repairedIssues: ["scenes"],
+          initialExcerpt: "{\"scenes\":[],\"characters\":[{}]}",
+          repairedExcerpt: "{\"scenes\":[],\"validationHints\":[]}"
+        },
+        createdAt: "2026-06-06T00:00:03.000Z"
+      })
+    ).toEqual([
+      "初次问题：scenes, characters.0.name",
+      "修复后问题：scenes",
+      "初次返回：{\"scenes\":[],\"characters\":[{}]}",
+      "修复返回：{\"scenes\":[],\"validationHints\":[]}"
     ]);
   });
 

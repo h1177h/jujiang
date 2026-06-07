@@ -1,5 +1,6 @@
 import { Clock3, RefreshCw, TriangleAlert } from "lucide-react";
 import {
+  formatGenerationRunArtifactDiagnostics,
   formatGenerationRunStatus,
   getGenerationRunResumeCheckpoint,
   type GenerationRun
@@ -71,6 +72,9 @@ export function GenerationRunPanel({
                     <span key={`${artifact.kind}-${artifact.createdAt}`}>
                       {artifact.summary}
                       {artifact.detail ? <small>{artifact.detail}</small> : null}
+                      {formatGenerationRunArtifactDiagnostics(artifact).map((line) => (
+                        <small key={line}>{line}</small>
+                      ))}
                     </span>
                   ))}
                 </div>

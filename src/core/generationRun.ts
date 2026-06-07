@@ -234,6 +234,26 @@ export function getGenerationRunResumeCheckpoint(run: GenerationRun): AiGenerati
   };
 }
 
+export function formatGenerationRunArtifactDiagnostics(artifact: GenerationRunArtifact): string[] {
+  const diagnostic = artifact.diagnostic;
+  if (!diagnostic) return [];
+
+  const lines: string[] = [];
+  if (diagnostic.initialIssues?.length) {
+    lines.push(`初次问题：${diagnostic.initialIssues.join(", ")}`);
+  }
+  if (diagnostic.repairedIssues?.length) {
+    lines.push(`修复后问题：${diagnostic.repairedIssues.join(", ")}`);
+  }
+  if (diagnostic.initialExcerpt) {
+    lines.push(`初次返回：${diagnostic.initialExcerpt}`);
+  }
+  if (diagnostic.repairedExcerpt) {
+    lines.push(`修复返回：${diagnostic.repairedExcerpt}`);
+  }
+  return lines;
+}
+
 export function formatAiGenerationProgress(event: AiGenerationProgress, model: string): string {
   if (event.stage === "chapter_event_extract") {
     return `正在用 ${model} 抽取章节事件：${event.current}/${event.total}`;
