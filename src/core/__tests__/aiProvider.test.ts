@@ -346,6 +346,43 @@ describe("AI provider", () => {
     );
   });
 
+  it("reports the provider content excerpt when a chat message is not parseable JSON", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({
+        ok: true,
+        status: 200,
+        headers: new Headers({ "content-type": "application/json" }),
+        json: async () => ({
+          choices: [
+            {
+              message: {
+                content: "我已经理解故事，会先提炼人物关系，然后再生成剧本。"
+              }
+            }
+          ]
+        })
+      }))
+    );
+
+    await expect(
+      generateScreenplayWithApi(
+        {
+          baseUrl: "https://api.example.com",
+          apiKey: "test-key",
+          model: "test-model"
+        },
+        {
+          title: "雾港来信",
+          style: "cinematic",
+          novelText: sampleNovel
+        }
+      )
+    ).rejects.toThrow(
+      "event_extract 阶段返回内容不是可解析 JSON。Provider 返回：我已经理解故事，会先提炼人物关系，然后再生成剧本。"
+    );
+  });
+
   it("retries without response_format when a compatible provider rejects json mode", async () => {
     const validation = validateScreenplay(parse(sampleOutputYaml));
     expect(validation.success).toBe(true);

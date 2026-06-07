@@ -88,7 +88,7 @@ export async function generateScreenplayWithApi(
     signal: options.signal,
     stage: "event_extract"
   });
-  const blueprint = normalizeStoryBlueprint(parseJsonObject(blueprintContent));
+  const blueprint = normalizeStoryBlueprint(parseJsonObject(blueprintContent, "event_extract"));
   options.onProgress?.({
     stage: "event_extract",
     message: "故事蓝图已生成",
@@ -115,7 +115,7 @@ export async function generateScreenplayWithApi(
     stage: "screenplay_generate"
   });
 
-  const parsed = parseJsonObject(screenplayContent);
+  const parsed = parseJsonObject(screenplayContent, "screenplay_generate");
   return validateOrRepairScreenplay(settings, baseUrl, options, sourceChapters, blueprint, parsed);
 }
 
@@ -149,7 +149,7 @@ export async function regenerateSceneWithApi(
     stage: "scene_regenerate"
   });
 
-  return normalizeRegeneratedScene(parseJsonObject(content), scene);
+  return normalizeRegeneratedScene(parseJsonObject(content, "scene_regenerate"), scene);
 }
 
 async function generateLongFormScreenplay(
@@ -182,7 +182,7 @@ async function generateLongFormScreenplay(
       signal: options.signal,
       stage: "chapter_event_extract"
     });
-    const eventGroups = normalizeChapterEventGroups(parseJsonObject(content));
+    const eventGroups = normalizeChapterEventGroups(parseJsonObject(content, "chapter_event_extract"));
     chapterEvents.push(...eventGroups);
     options.onProgress?.({
       stage: "chapter_event_extract",
@@ -212,7 +212,7 @@ async function generateLongFormScreenplay(
     signal: options.signal,
     stage: "story_bible_generate"
   });
-  const blueprint = normalizeStoryBlueprint(parseJsonObject(blueprintContent));
+  const blueprint = normalizeStoryBlueprint(parseJsonObject(blueprintContent, "story_bible_generate"));
   options.onProgress?.({
     stage: "story_bible_generate",
     message: "故事圣经和改编策略已合并",
@@ -245,7 +245,7 @@ async function generateLongFormScreenplay(
     options,
     sourceChapters,
     blueprint,
-    parseJsonObject(screenplayContent)
+    parseJsonObject(screenplayContent, "screenplay_generate")
   );
 }
 
@@ -618,16 +618,27 @@ function summarizeNeighborScene(scene: Scene) {
   };
 }
 
-function parseJsonObject(content: string): unknown {
+function parseJsonObject(
+  content: string,
+  stage: AiGenerationProgress["stage"] | "scene_regenerate"
+): unknown {
   const trimmed = content.trim();
   try {
     return JSON.parse(trimmed);
   } catch {
     const match = trimmed.match(/\{[\s\S]*\}/);
     if (!match) {
-      throw new Error("API 返回不是 JSON。");
+      throw new Error(
+        `${labelProviderStage(stage)} 阶段返回内容不是可解析 JSON。Provider 返回：${truncateDiagnostic(trimmed)}`
+      );
     }
-    return JSON.parse(match[0]);
+    try {
+      return JSON.parse(match[0]);
+    } catch {
+      throw new Error(
+        `${labelProviderStage(stage)} 阶段返回内容不是可解析 JSON。Provider 返回：${truncateDiagnostic(trimmed)}`
+      );
+    }
   }
 }
 
@@ -732,7 +743,7 @@ async function validateOrRepairScreenplay(
     stage: "schema_repair"
   });
 
-  const repaired = normalizeApiScreenplay(parseJsonObject(repairedContent), settings.model, blueprint);
+  const repaired = normalizeApiScreenplay(parseJsonObject(repairedContent, "schema_repair"), settings.model, blueprint);
   const repairedResult = validateScreenplay(repaired);
   if (!repairedResult.success) {
     const repairedIssues = getValidationIssuePaths(repairedResult.error.issues);
