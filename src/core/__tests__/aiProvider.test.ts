@@ -346,6 +346,111 @@ describe("AI provider", () => {
     );
   });
 
+  it("retries without response_format when a compatible provider rejects json mode", async () => {
+    const validation = validateScreenplay(parse(sampleOutputYaml));
+    expect(validation.success).toBe(true);
+    if (!validation.success) return;
+
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 400,
+        headers: new Headers({ "content-type": "application/json" }),
+        text: async () =>
+          JSON.stringify({
+            error: {
+              message: "response_format is not supported by this model"
+            }
+          })
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          choices: [
+            {
+              message: {
+                content: JSON.stringify({
+                  chapterEvents: validation.data.chapterEvents,
+                  storyBible: validation.data.storyBible,
+                  adaptationStrategy: validation.data.adaptationStrategy
+                })
+              }
+            }
+          ]
+        })
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          choices: [
+            {
+              message: {
+                content: JSON.stringify(validation.data)
+              }
+            }
+          ]
+        })
+      });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await generateScreenplayWithApi(
+      {
+        baseUrl: "https://api.example.com",
+        apiKey: "test-key",
+        model: "test-model"
+      },
+      {
+        title: "雾港来信",
+        style: "cinematic",
+        novelText: sampleNovel
+      }
+    );
+
+    expect(result.scenes).toHaveLength(6);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+
+    const rejectedBody = JSON.parse(String((fetchMock.mock.calls[0][1] as RequestInit).body));
+    const retriedBody = JSON.parse(String((fetchMock.mock.calls[1][1] as RequestInit).body));
+    const screenplayBody = JSON.parse(String((fetchMock.mock.calls[2][1] as RequestInit).body));
+
+    expect(rejectedBody.response_format).toEqual({ type: "json_object" });
+    expect(retriedBody.response_format).toBeUndefined();
+    expect(screenplayBody.response_format).toEqual({ type: "json_object" });
+  });
+
+  it("does not retry unrelated HTTP 400 provider failures without response_format", async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: false,
+      status: 400,
+      headers: new Headers({ "content-type": "application/json" }),
+      text: async () =>
+        JSON.stringify({
+          error: {
+            message: "invalid api key"
+          }
+        })
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      generateScreenplayWithApi(
+        {
+          baseUrl: "https://api.example.com",
+          apiKey: "bad-key",
+          model: "test-model"
+        },
+        {
+          title: "雾港来信",
+          style: "cinematic",
+          novelText: sampleNovel
+        }
+      )
+    ).rejects.toThrow("event_extract 阶段请求失败：HTTP 400。Provider 返回：invalid api key");
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it("sends structured chapter context instead of an undifferentiated novel blob", async () => {
     const validation = validateScreenplay(parse(sampleOutputYaml));
     expect(validation.success).toBe(true);

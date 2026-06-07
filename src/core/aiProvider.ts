@@ -259,27 +259,28 @@ async function requestChatCompletion(
     stage: AiGenerationProgress["stage"] | "scene_regenerate";
   }
 ): Promise<string> {
-  let response: Response;
-  try {
-    response = await fetch(`${baseUrl}/chat/completions`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...buildAiGatewayHeaders(settings.apiKey, settings.providerBaseUrl)
-      },
-      body: JSON.stringify({
-        model: settings.model,
-        temperature: request.temperature,
-        response_format: { type: "json_object" },
-        messages: request.messages
-      }),
-      signal: request.signal
-    });
-  } catch (error) {
-    throw new Error(classifyFetchFailure(error, baseUrl));
+  const firstAttempt = await sendChatCompletionRequest(settings, baseUrl, request, true);
+  let response = firstAttempt.response;
+  let payload = firstAttempt.payload;
+
+  if (
+    !response.ok &&
+    isResponseFormatUnsupported(response.status, payload) &&
+    !request.signal?.aborted
+  ) {
+    const retryAttempt = await sendChatCompletionRequest(settings, baseUrl, request, false);
+    response = retryAttempt.response;
+    payload = retryAttempt.payload;
+
+    if (!response.ok) {
+      throw new Error(
+        `${formatHttpFailure(request.stage, response.status, payload)} 已在 Provider 拒绝 response_format 后重试一次。首次 Provider 返回：${truncateDiagnostic(
+          getProviderDiagnostic(firstAttempt.payload)
+        )}`
+      );
+    }
   }
 
-  const payload = await readChatCompletionResponse(response, request.stage);
   if (!response.ok) {
     throw new Error(formatHttpFailure(request.stage, response.status, payload));
   }
@@ -290,6 +291,52 @@ async function requestChatCompletion(
   }
 
   return content;
+}
+
+async function sendChatCompletionRequest(
+  settings: AiProviderSettings,
+  baseUrl: string,
+  request: {
+    temperature: number;
+    messages: Array<{ role: "system" | "user"; content: string }>;
+    signal?: AbortSignal;
+    stage: AiGenerationProgress["stage"] | "scene_regenerate";
+  },
+  includeResponseFormat: boolean
+): Promise<{ response: Response; payload: ChatCompletionResponse & { rawText?: string } }> {
+  let response: Response;
+  try {
+    response = await fetch(`${baseUrl}/chat/completions`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...buildAiGatewayHeaders(settings.apiKey, settings.providerBaseUrl)
+      },
+      body: JSON.stringify(buildChatCompletionBody(settings, request, includeResponseFormat)),
+      signal: request.signal
+    });
+  } catch (error) {
+    throw new Error(classifyFetchFailure(error, baseUrl));
+  }
+
+  const payload = await readChatCompletionResponse(response, request.stage);
+  return { response, payload };
+}
+
+function buildChatCompletionBody(
+  settings: AiProviderSettings,
+  request: {
+    temperature: number;
+    messages: Array<{ role: "system" | "user"; content: string }>;
+  },
+  includeResponseFormat: boolean
+) {
+  return {
+    model: settings.model,
+    temperature: request.temperature,
+    ...(includeResponseFormat ? { response_format: { type: "json_object" } } : {}),
+    messages: request.messages
+  };
 }
 
 export function normalizeBaseUrl(baseUrl: string): string {
@@ -792,6 +839,25 @@ function formatHttpFailure(
     ? `${labelProviderStage(stage)} 阶段请求超时：HTTP ${status}。可重试。`
     : `${labelProviderStage(stage)} 阶段请求失败：HTTP ${status}。`;
   return providerMessage ? `${base}Provider 返回：${truncateDiagnostic(providerMessage)}` : base;
+}
+
+function isResponseFormatUnsupported(
+  status: number,
+  payload: ChatCompletionResponse & { rawText?: string }
+): boolean {
+  if (status !== 400 && status !== 422) {
+    return false;
+  }
+
+  const diagnostic = getProviderDiagnostic(payload);
+  return /response[_\s-]?format|json[_\s-]?mode/i.test(diagnostic)
+    && /not supported|unsupported|unknown parameter|invalid parameter|unrecognized|does not support|不支持/i.test(
+      diagnostic
+    );
+}
+
+function getProviderDiagnostic(payload: ChatCompletionResponse & { rawText?: string }): string {
+  return payload.error?.message || payload.rawText || "";
 }
 
 function formatEmptyContentFailure(
