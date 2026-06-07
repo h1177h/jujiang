@@ -19,6 +19,7 @@ type FetchLike = (input: string, init?: RequestInit) => Promise<{
   ok: boolean;
   status?: number;
   json: () => Promise<unknown>;
+  text?: () => Promise<string>;
 }>;
 
 type ProbeChatCompletionResponse = {
@@ -188,7 +189,7 @@ async function probeAiProvider(
     }),
     signal: settings.signal
   });
-  const payload = (await response.json().catch(() => ({}))) as ProbeChatCompletionResponse;
+  const payload = await readProbeChatCompletionResponse(response);
 
   if (!response.ok) {
     const providerMessage = getProbeProviderMessage(payload);
@@ -212,6 +213,16 @@ async function probeAiProvider(
     ok: true,
     message: `AI provider 已连接：${targetBaseUrl} · ${settings.model?.trim()}`
   };
+}
+
+async function readProbeChatCompletionResponse(response: Awaited<ReturnType<FetchLike>>): Promise<ProbeChatCompletionResponse> {
+  try {
+    const payload = (await response.json()) as ProbeChatCompletionResponse;
+    return payload || {};
+  } catch {
+    const rawText = await response.text?.().catch(() => "");
+    return rawText ? { error: rawText } : {};
+  }
 }
 
 function getProbeProviderMessage(payload: { error?: string | { message?: string } }): string {
