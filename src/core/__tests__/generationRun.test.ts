@@ -15,6 +15,7 @@ import {
   formatGenerationRunStatus,
   getGenerationRunResumeCheckpoint,
   pushGenerationRunHistory,
+  selectVisibleGenerationArtifacts,
   updateActiveGenerationRun,
   updateGenerationRunStage
 } from "../generationRun";
@@ -226,6 +227,45 @@ describe("generation run tracking", () => {
       "修复后仍有 1 个结构问题：scenes",
       "初次返回片段：{\"scenes\":[],\"characters\":[{}]}",
       "修复返回片段：{\"scenes\":[],\"validationHints\":[]}"
+    ]);
+  });
+
+  it("keeps diagnostic artifacts visible when a stage has many artifacts", () => {
+    const artifacts = [
+      {
+        kind: "story_blueprint",
+        summary: "Provider schema failed",
+        diagnostic: {
+          initialExcerpt: "{\"chapterEvents\":[]}"
+        },
+        createdAt: "2026-06-06T00:00:01.000Z"
+      },
+      {
+        kind: "chapter_events",
+        summary: "Chapter 1 saved",
+        createdAt: "2026-06-06T00:00:02.000Z"
+      },
+      {
+        kind: "chapter_events",
+        summary: "Chapter 2 saved",
+        createdAt: "2026-06-06T00:00:03.000Z"
+      },
+      {
+        kind: "chapter_events",
+        summary: "Chapter 3 saved",
+        createdAt: "2026-06-06T00:00:04.000Z"
+      },
+      {
+        kind: "chapter_events",
+        summary: "Chapter 4 saved",
+        createdAt: "2026-06-06T00:00:05.000Z"
+      }
+    ] as const;
+
+    expect(selectVisibleGenerationArtifacts(artifacts)).toEqual([
+      artifacts[0],
+      artifacts[3],
+      artifacts[4]
     ]);
   });
 

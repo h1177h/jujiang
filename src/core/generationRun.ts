@@ -401,6 +401,29 @@ export function formatGenerationRunArtifactDiagnostics(artifact: GenerationRunAr
   return lines;
 }
 
+export function selectVisibleGenerationArtifacts(
+  artifacts: readonly GenerationRunArtifact[],
+  limit = 3
+): GenerationRunArtifact[] {
+  if (limit <= 0) return [];
+  if (artifacts.length <= limit) return [...artifacts];
+
+  const selected = new Set<GenerationRunArtifact>();
+  for (const artifact of [...artifacts].reverse()) {
+    if (selected.size >= limit) break;
+    if (artifact.diagnostic) {
+      selected.add(artifact);
+    }
+  }
+
+  for (const artifact of [...artifacts].reverse()) {
+    if (selected.size >= limit) break;
+    selected.add(artifact);
+  }
+
+  return artifacts.filter((artifact) => selected.has(artifact));
+}
+
 function formatArtifactIssueLine(label: string, issues: string[]): string {
   return `${label}仍有 ${issues.length} 个结构问题：${issues.join("；")}`;
 }
