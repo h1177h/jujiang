@@ -828,9 +828,9 @@ function normalizeApiScreenplay(value: unknown, model: string, blueprint: StoryB
   const screenplay = value as ScreenplayYaml;
   return {
     ...screenplay,
-    chapterEvents: screenplay.chapterEvents || blueprint.chapterEvents,
-    storyBible: screenplay.storyBible || blueprint.storyBible,
-    adaptationStrategy: screenplay.adaptationStrategy || blueprint.adaptationStrategy,
+    chapterEvents: blueprint.chapterEvents,
+    storyBible: blueprint.storyBible,
+    adaptationStrategy: blueprint.adaptationStrategy,
     work: {
       ...screenplay.work,
       generatedBy: screenplay.work?.generatedBy || `api:${model}`
