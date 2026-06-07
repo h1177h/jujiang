@@ -37,6 +37,7 @@ import {
   failGenerationRun,
   failGenerationRunStage,
   formatAiGenerationProgress,
+  getGenerationRunResumeCheckpoint,
   markGenerationRunConnection,
   pushGenerationRunHistory,
   updateGenerationRunStage,
@@ -178,7 +179,8 @@ export default function App() {
     setGenerationRunHistory((current) => pushGenerationRunHistory(current, generationRun));
   }, [generationRun]);
 
-  async function handleGenerate() {
+  async function handleGenerate(resumeRun?: GenerationRun) {
+    const resumeFrom = resumeRun ? getGenerationRunResumeCheckpoint(resumeRun) : null;
     const apiKeyForRequest = apiKey.trim();
     const apiReady = Boolean(apiKeyForRequest);
     const requestBaseUrl = resolveAiRequestBaseUrl(apiBaseUrl, useLocalProxy);
@@ -246,6 +248,7 @@ export default function App() {
             title,
             style,
             novelText,
+            ...(resumeFrom ? { resumeFrom } : {}),
             onProgress: (event) => {
               setGenerationStatus(formatAiGenerationProgress(event, apiModel));
               setGenerationRun((current) => (current ? updateGenerationRunStage(current, event) : current));
@@ -635,7 +638,7 @@ export default function App() {
               />
             </div>
 
-            <button className="primary-action" type="button" onClick={handleGenerate}>
+            <button className="primary-action" type="button" onClick={() => handleGenerate()}>
               <Sparkles size={18} />
               {useApi ? "调用 AI 生成剧本" : "配置 AI 后生成"}
             </button>
@@ -666,7 +669,7 @@ export default function App() {
             yamlText={yamlText}
             onCopy={handleCopy}
             onDownload={handleDownload}
-            onGenerate={handleGenerate}
+            onGenerate={() => handleGenerate()}
             onRestoreRevision={handleRestoreRevision}
             onSaveRevision={handleSaveRevision}
             onSelectYamlIssue={handleSelectYamlIssue}

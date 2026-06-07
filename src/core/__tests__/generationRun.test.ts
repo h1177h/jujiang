@@ -6,6 +6,7 @@ import {
   failGenerationRunStage,
   formatAiGenerationProgress,
   formatGenerationRunStatus,
+  getGenerationRunResumeCheckpoint,
   pushGenerationRunHistory,
   updateGenerationRunStage
 } from "../generationRun";
@@ -106,6 +107,80 @@ describe("generation run tracking", () => {
         createdAt: "2026-06-06T00:00:03.000Z"
       }
     ]);
+  });
+
+  it("extracts resumable checkpoints from saved stage artifacts", () => {
+    const run = updateGenerationRunStage(
+      createGenerationRun({
+        title: "Checkpoint Story",
+        model: "gpt-4.1-mini",
+        chapterCount: 2,
+        date: new Date("2026-06-06T00:00:00.000Z")
+      }),
+      {
+        stage: "chapter_event_extract",
+        message: "Saved chapter events",
+        artifact: {
+          kind: "chapter_events",
+          summary: "2 chapter event groups",
+          checkpoint: {
+            chapterEvents: [
+              {
+                chapterIndex: 1,
+                chapterTitle: "Chapter 1",
+                chapterGoal: "Find the clue",
+                events: [
+                  {
+                    id: "event-1",
+                    summary: "Lin finds the clue.",
+                    characters: ["Lin"],
+                    location: "Pier",
+                    conflict: "The clue is hidden.",
+                    emotionalTurn: "Suspicion rises.",
+                    source: {
+                      chapterIndex: 1,
+                      chapterTitle: "Chapter 1",
+                      paragraphIndexes: [1],
+                      lineStart: 1,
+                      lineEnd: 2,
+                      excerpt: "Lin finds the clue."
+                    }
+                  }
+                ]
+              },
+              {
+                chapterIndex: 2,
+                chapterTitle: "Chapter 2",
+                chapterGoal: "Keep the clue safe",
+                events: [
+                  {
+                    id: "event-2",
+                    summary: "Shen hides the clue.",
+                    characters: ["Shen"],
+                    location: "Archive",
+                    conflict: "Someone is watching.",
+                    emotionalTurn: "Fear sharpens.",
+                    source: {
+                      chapterIndex: 2,
+                      chapterTitle: "Chapter 2",
+                      paragraphIndexes: [1],
+                      lineStart: 3,
+                      lineEnd: 4,
+                      excerpt: "Shen hides the clue."
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        date: new Date("2026-06-06T00:00:03.000Z")
+      }
+    );
+
+    const checkpoint = getGenerationRunResumeCheckpoint(run);
+
+    expect(checkpoint?.chapterEvents?.map((group) => group.chapterIndex)).toEqual([1, 2]);
   });
 
   it("records failure on the active stage without losing prior context", () => {

@@ -1,4 +1,4 @@
-import type { AiGenerationArtifact, AiGenerationProgress } from "./aiProvider";
+import type { AiGenerationArtifact, AiGenerationProgress, AiGenerationResumeCheckpoint } from "./aiProvider";
 
 export type GenerationRunStatus = "idle" | "running" | "completed" | "failed";
 
@@ -202,6 +202,36 @@ export function pushGenerationRunHistory(
   limit = 8
 ): GenerationRun[] {
   return [run, ...history.filter((item) => item.id !== run.id)].slice(0, limit);
+}
+
+export function getGenerationRunResumeCheckpoint(run: GenerationRun): AiGenerationResumeCheckpoint | null {
+  const artifacts = run.stages.flatMap((stage) => stage.artifacts ?? []);
+  const latestStoryBlueprint = [...artifacts]
+    .reverse()
+    .map((artifact) => artifact.checkpoint?.storyBlueprint)
+    .find(Boolean);
+
+  if (latestStoryBlueprint) {
+    return {
+      storyBlueprint: latestStoryBlueprint,
+      chapterEvents: latestStoryBlueprint.chapterEvents
+    };
+  }
+
+  const chapterEventsByIndex = new Map<number, NonNullable<AiGenerationResumeCheckpoint["chapterEvents"]>[number]>();
+  artifacts.forEach((artifact) => {
+    artifact.checkpoint?.chapterEvents?.forEach((group) => {
+      chapterEventsByIndex.set(group.chapterIndex, group);
+    });
+  });
+
+  if (!chapterEventsByIndex.size) {
+    return null;
+  }
+
+  return {
+    chapterEvents: [...chapterEventsByIndex.values()].sort((left, right) => left.chapterIndex - right.chapterIndex)
+  };
 }
 
 export function formatAiGenerationProgress(event: AiGenerationProgress, model: string): string {

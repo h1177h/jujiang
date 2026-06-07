@@ -16,8 +16,14 @@ export interface AiGenerationOptions {
   title: string;
   style: AdaptationStyle;
   novelText: string;
+  resumeFrom?: AiGenerationResumeCheckpoint;
   signal?: AbortSignal;
   onProgress?: (event: AiGenerationProgress) => void;
+}
+
+export interface AiGenerationResumeCheckpoint {
+  chapterEvents?: StoryBlueprint["chapterEvents"];
+  storyBlueprint?: StoryBlueprint;
 }
 
 export interface AiGenerationProgress {
@@ -37,6 +43,7 @@ export interface AiGenerationArtifact {
   kind: "chapter_events" | "story_blueprint" | "screenplay" | "repair";
   summary: string;
   detail?: string;
+  checkpoint?: AiGenerationResumeCheckpoint;
 }
 
 export interface SceneRegenerationOptions {
@@ -158,9 +165,57 @@ async function generateLongFormScreenplay(
   options: AiGenerationOptions,
   sourceChapters: ReturnType<typeof buildSourceChapters>
 ): Promise<ScreenplayYaml> {
-  const chapterEvents = [];
+  const resumeCheckpoint = normalizeResumeCheckpoint(options.resumeFrom, sourceChapters.length);
+  if (resumeCheckpoint?.storyBlueprint) {
+    options.onProgress?.({
+      stage: "story_bible_generate",
+      message: "已从保存的故事蓝图续跑",
+      artifact: withCheckpoint(describeStoryBlueprintArtifact(resumeCheckpoint.storyBlueprint), {
+        storyBlueprint: resumeCheckpoint.storyBlueprint,
+        chapterEvents: resumeCheckpoint.storyBlueprint.chapterEvents
+      })
+    });
+
+    options.onProgress?.({
+      stage: "screenplay_generate",
+      message: "正在从检查点继续生成剧本"
+    });
+    const screenplayContent = await requestChatCompletion(settings, baseUrl, {
+      temperature: 0.4,
+      messages: [
+        {
+          role: "system",
+          content: buildScreenplaySystemPrompt()
+        },
+        {
+          role: "user",
+          content: buildLongFormScreenplayUserPrompt(options, sourceChapters, resumeCheckpoint.storyBlueprint)
+        }
+      ],
+      signal: options.signal,
+      stage: "screenplay_generate"
+    });
+
+    return validateOrRepairScreenplay(
+      settings,
+      baseUrl,
+      options,
+      sourceChapters,
+      resumeCheckpoint.storyBlueprint,
+      parseJsonObject(screenplayContent, "screenplay_generate")
+    );
+  }
+
+  const chapterEvents: StoryBlueprint["chapterEvents"] = resumeCheckpoint?.chapterEvents
+    ? [...resumeCheckpoint.chapterEvents]
+    : [];
+  const completedChapterIndexes = new Set(chapterEvents.map((group) => group.chapterIndex));
 
   for (const [index, sourceChapter] of sourceChapters.entries()) {
+    if (completedChapterIndexes.has(sourceChapter.chapterIndex)) {
+      continue;
+    }
+
     options.onProgress?.({
       stage: "chapter_event_extract",
       message: `正在抽取第 ${sourceChapter.chapterIndex} 章事件`,
@@ -192,7 +247,9 @@ async function generateLongFormScreenplay(
       message: `第 ${sourceChapter.chapterIndex} 章事件已保存`,
       current: index + 1,
       total: sourceChapters.length,
-      artifact: describeChapterEventsArtifact(eventGroups, sourceChapter.chapterIndex)
+      artifact: withCheckpoint(describeChapterEventsArtifact(eventGroups, sourceChapter.chapterIndex), {
+        chapterEvents: eventGroups
+      })
     });
   }
 
@@ -222,7 +279,10 @@ async function generateLongFormScreenplay(
   options.onProgress?.({
     stage: "story_bible_generate",
     message: "故事圣经和改编策略已合并",
-    artifact: describeStoryBlueprintArtifact(blueprint)
+    artifact: withCheckpoint(describeStoryBlueprintArtifact(blueprint), {
+      storyBlueprint: blueprint,
+      chapterEvents: blueprint.chapterEvents
+    })
   });
 
   options.onProgress?.({
@@ -685,6 +745,46 @@ function normalizeChapterEventGroups(
     );
   }
   return result.data;
+}
+
+function normalizeResumeCheckpoint(
+  checkpoint: AiGenerationResumeCheckpoint | undefined,
+  sourceChapterCount: number
+): AiGenerationResumeCheckpoint | null {
+  if (!checkpoint) return null;
+
+  if (checkpoint.storyBlueprint) {
+    const result = validateStoryBlueprint(checkpoint.storyBlueprint);
+    if (result.success && coversSourceChapters(result.data.chapterEvents, sourceChapterCount)) {
+      return { storyBlueprint: result.data, chapterEvents: result.data.chapterEvents };
+    }
+  }
+
+  if (checkpoint.chapterEvents) {
+    const result = storyBlueprintSchema.shape.chapterEvents.safeParse(checkpoint.chapterEvents);
+    if (result.success && result.data.length > 0) {
+      return { chapterEvents: result.data };
+    }
+  }
+
+  return null;
+}
+
+function coversSourceChapters(chapterEvents: StoryBlueprint["chapterEvents"], sourceChapterCount: number): boolean {
+  const covered = new Set(chapterEvents.map((group) => group.chapterIndex));
+  return Array.from({ length: sourceChapterCount }, (_, index) => index + 1).every((chapterIndex) =>
+    covered.has(chapterIndex)
+  );
+}
+
+function withCheckpoint(
+  artifact: AiGenerationArtifact,
+  checkpoint: AiGenerationResumeCheckpoint
+): AiGenerationArtifact {
+  return {
+    ...artifact,
+    checkpoint
+  };
 }
 
 function normalizeApiScreenplay(value: unknown, model: string, blueprint: StoryBlueprint): ScreenplayYaml {
