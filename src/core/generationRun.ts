@@ -409,7 +409,7 @@ function labelStage(stage: GenerationRunStageId): string {
 }
 
 function isRetryableGenerationError(error: string): boolean {
-  return /可重试|HTTP (408|429|500|502|503|504|524)|timeout|timed out|rate limit|temporarily|未通过 Schema|不是可解析 JSON|非 JSON 响应|返回空内容/i.test(error);
+  return /可重试|HTTP (408|429|500|502|503|504|524)|timeout|timed out|rate limit|temporarily|未通过 Schema|不是可解析 JSON|非 JSON 响应|返回空内容|工具调用而不是文本 JSON/i.test(error);
 }
 
 function isAiConfigurationError(error: string): boolean {

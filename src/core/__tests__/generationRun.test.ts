@@ -576,9 +576,15 @@ describe("generation run tracking", () => {
       "event_extract 阶段返回内容不是可解析 JSON。Provider 返回：我先分析一下故事。",
       new Date("2026-06-06T00:00:06.000Z")
     );
+    const toolCallFailed = failGenerationRun(
+      run,
+      "event_extract 阶段返回了工具调用而不是文本 JSON。finish_reason=tool_calls。工具：make_screenplay。",
+      new Date("2026-06-06T00:00:07.000Z")
+    );
 
     expect(schemaFailed.canRetry).toBe(true);
     expect(parseFailed.canRetry).toBe(true);
+    expect(toolCallFailed.canRetry).toBe(true);
     expect(schemaFailed.recoveryHint).toBe("可以保留当前原文、AI 配置和已保存的阶段记录后重试。");
   });
 
