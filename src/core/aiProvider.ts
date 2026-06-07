@@ -274,7 +274,11 @@ async function generateLongFormScreenplay(
       },
       {
         role: "user",
-        content: buildBlueprintMergeUserPrompt(options, sourceChapters, chapterEvents)
+        content: buildBlueprintMergeUserPrompt(
+          options,
+          sourceChapters,
+          normalizeCheckpointChapterEvents(chapterEvents, sourceChapters.length)
+        )
       }
     ],
     signal: options.signal,
@@ -766,7 +770,7 @@ function normalizeResumeCheckpoint(
     if (result.success && coversSourceChapters(result.data.chapterEvents, sourceChapterCount)) {
       const storyBlueprint = {
         ...result.data,
-        chapterEvents: filterCheckpointChapterEvents(result.data.chapterEvents, sourceChapterCount)
+        chapterEvents: normalizeCheckpointChapterEvents(result.data.chapterEvents, sourceChapterCount)
       };
       return { storyBlueprint, chapterEvents: storyBlueprint.chapterEvents };
     }
@@ -775,7 +779,7 @@ function normalizeResumeCheckpoint(
   if (checkpoint.chapterEvents) {
     const result = storyBlueprintSchema.shape.chapterEvents.safeParse(checkpoint.chapterEvents);
     if (result.success) {
-      const chapterEvents = filterCheckpointChapterEvents(result.data, sourceChapterCount);
+      const chapterEvents = normalizeCheckpointChapterEvents(result.data, sourceChapterCount);
       if (chapterEvents.length > 0) {
         return { chapterEvents };
       }
@@ -785,11 +789,18 @@ function normalizeResumeCheckpoint(
   return null;
 }
 
-function filterCheckpointChapterEvents(
+function normalizeCheckpointChapterEvents(
   chapterEvents: StoryBlueprint["chapterEvents"],
   sourceChapterCount: number
 ): StoryBlueprint["chapterEvents"] {
-  return chapterEvents.filter((group) => group.chapterIndex >= 1 && group.chapterIndex <= sourceChapterCount);
+  const chapterEventsByIndex = new Map<number, StoryBlueprint["chapterEvents"][number]>();
+  chapterEvents.forEach((group) => {
+    if (group.chapterIndex >= 1 && group.chapterIndex <= sourceChapterCount) {
+      chapterEventsByIndex.set(group.chapterIndex, group);
+    }
+  });
+
+  return [...chapterEventsByIndex.values()].sort((left, right) => left.chapterIndex - right.chapterIndex);
 }
 
 function coversSourceChapters(chapterEvents: StoryBlueprint["chapterEvents"], sourceChapterCount: number): boolean {
