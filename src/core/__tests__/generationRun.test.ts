@@ -3,6 +3,7 @@ import {
   completeGenerationRun,
   createGenerationRun,
   failGenerationRun,
+  failGenerationRunStage,
   formatAiGenerationProgress,
   formatGenerationRunStatus,
   pushGenerationRunHistory,
@@ -128,6 +129,34 @@ describe("generation run tracking", () => {
     expect(failed.error).toBe("API 生成失败");
     expect(failed.completedAt).toBe("2026-06-06T00:00:05.000Z");
     expect(failed.stages.find((stage) => stage.id === "screenplay_generate")?.status).toBe("failed");
+  });
+
+  it("records connection failures on the connection stage after source checks pass", () => {
+    const run = createGenerationRun({
+      title: "Mist Harbor",
+      model: "gpt-4.1-mini",
+      chapterCount: 3,
+      date: new Date("2026-06-06T00:00:00.000Z")
+    });
+
+    const failed = failGenerationRunStage(
+      run,
+      "connection_check",
+      "AI connection probe returned HTTP 504",
+      new Date("2026-06-06T00:00:05.000Z")
+    );
+
+    expect(failed.status).toBe("failed");
+    expect(failed.error).toBe("AI connection probe returned HTTP 504");
+    expect(failed.canRetry).toBe(true);
+    expect(failed.stages.find((stage) => stage.id === "source_check")).toMatchObject({
+      status: "done"
+    });
+    expect(failed.stages.find((stage) => stage.id === "connection_check")).toMatchObject({
+      status: "failed",
+      message: "AI connection probe returned HTTP 504",
+      updatedAt: "2026-06-06T00:00:05.000Z"
+    });
   });
 
   it("marks retryable failures with a recovery hint", () => {

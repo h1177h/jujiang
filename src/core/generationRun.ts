@@ -166,6 +166,36 @@ export function failGenerationRun(run: GenerationRun, error: string, date = new 
   };
 }
 
+export function failGenerationRunStage(
+  run: GenerationRun,
+  stageId: GenerationRunStageId,
+  error: string,
+  date = new Date()
+): GenerationRun {
+  const now = date.toISOString();
+  let reachedFailedStage = false;
+  let marked = false;
+  const stages = run.stages.map((stage) => {
+    if (stage.id === stageId) {
+      reachedFailedStage = true;
+      marked = true;
+      return { ...stage, status: "failed" as const, message: error, updatedAt: now };
+    }
+
+    if (!reachedFailedStage && stage.status === "running") {
+      return { ...stage, status: "done" as const, updatedAt: now };
+    }
+
+    return stage;
+  });
+  const failedRun = failGenerationRun({ ...run, stages: [] }, error, date);
+
+  return {
+    ...failedRun,
+    stages: marked ? stages : [...stages, createStage(stageId, labelStage(stageId), error, "failed", now)]
+  };
+}
+
 export function pushGenerationRunHistory(
   history: GenerationRun[],
   run: GenerationRun,

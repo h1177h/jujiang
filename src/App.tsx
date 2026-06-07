@@ -35,6 +35,7 @@ import {
   completeGenerationRun,
   createGenerationRun,
   failGenerationRun,
+  failGenerationRunStage,
   formatAiGenerationProgress,
   markGenerationRunConnection,
   pushGenerationRunHistory,
@@ -210,7 +211,9 @@ export default function App() {
 
       if (!connection.ok) {
         setGenerationStatus(connection.message);
-        setGenerationRun((current) => (current ? failGenerationRun(current, connection.message) : current));
+        setGenerationRun((current) =>
+          current ? failGenerationRunStage(current, "connection_check", connection.message) : current
+        );
         return;
       }
 
