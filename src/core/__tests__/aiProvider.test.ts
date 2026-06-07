@@ -1610,6 +1610,86 @@ describe("AI provider", () => {
     );
   });
 
+  it("saves initial schema diagnostics before a repair request fails", async () => {
+    const validation = validateScreenplay(parse(sampleOutputYaml));
+    expect(validation.success).toBe(true);
+    if (!validation.success) return;
+
+    const invalidScreenplay = {
+      ...validation.data,
+      scenes: []
+    };
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          choices: [
+            {
+              message: {
+                content: JSON.stringify({
+                  chapterEvents: validation.data.chapterEvents,
+                  storyBible: validation.data.storyBible,
+                  adaptationStrategy: validation.data.adaptationStrategy
+                })
+              }
+            }
+          ]
+        })
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          choices: [
+            {
+              message: {
+                content: JSON.stringify(invalidScreenplay)
+              }
+            }
+          ]
+        })
+      })
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 504,
+        headers: new Headers({ "content-type": "text/plain" }),
+        text: async () => "Gateway Timeout"
+      });
+    vi.stubGlobal("fetch", fetchMock);
+    const repairArtifacts: unknown[] = [];
+
+    await expect(
+      generateScreenplayWithApi(
+        {
+          baseUrl: "https://api.example.com",
+          apiKey: "test-key",
+          model: "test-model"
+        },
+        {
+          title: "雾港来信",
+          style: "cinematic",
+          novelText: sampleNovel,
+          onProgress: (event) => {
+            if (event.stage === "schema_repair" && event.artifact) {
+              repairArtifacts.push(event.artifact);
+            }
+          }
+        }
+      )
+    ).rejects.toThrow("schema_repair 阶段请求超时：HTTP 504。可重试。Provider 返回：Gateway Timeout");
+
+    expect(repairArtifacts).toEqual([
+      expect.objectContaining({
+        kind: "repair",
+        summary: "结构初稿未通过 Schema",
+        diagnostic: expect.objectContaining({
+          initialIssues: expect.arrayContaining(["scenes"]),
+          initialExcerpt: expect.stringContaining("\"scenes\":[]")
+        })
+      })
+    ]);
+  });
+
   it("reports original and repaired JSON excerpts when schema repair still fails", async () => {
     const validation = validateScreenplay(parse(sampleOutputYaml));
     expect(validation.success).toBe(true);
