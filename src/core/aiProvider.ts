@@ -1167,15 +1167,11 @@ function parseSseChatCompletion(rawText: string): {
   let finishReason = "";
   const toolCalls: ChatCompletionToolCall[] = [];
   let functionCall: ChatCompletionFunctionCall | undefined;
-  const content = rawText
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter((line) => line.startsWith("data:"))
-    .map((line) => line.slice(5).trim())
-    .filter((line) => line && line !== "[DONE]")
-    .map((line) => {
+  const content = parseSseDataEvents(rawText)
+    .filter((eventData) => eventData && eventData !== "[DONE]")
+    .map((eventData) => {
       try {
-        const payload = JSON.parse(line) as {
+        const payload = JSON.parse(eventData) as {
           error?: { message?: string } | string;
           choices?: Array<{
             finish_reason?: string;
@@ -1220,7 +1216,7 @@ function parseSseChatCompletion(rawText: string): {
         );
       } catch {
         if (!errorMessage) {
-          errorMessage = line;
+          errorMessage = eventData;
         }
         return "";
       }
@@ -1234,6 +1230,38 @@ function parseSseChatCompletion(rawText: string): {
     toolCalls: toolCalls.length ? toolCalls : undefined,
     functionCall
   };
+}
+
+function parseSseDataEvents(rawText: string): string[] {
+  return rawText
+    .split(/\r?\n\r?\n/)
+    .map((eventBlock) => {
+      const dataLines = eventBlock
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter((line) => line.startsWith("data:"))
+        .map((line) => line.slice(5).trim());
+      if (!dataLines.length) {
+        return "";
+      }
+
+      const eventData = dataLines.join("\n").trim();
+      if (eventData === "[DONE]" || isJsonLike(eventData)) {
+        return eventData;
+      }
+
+      const compactEventData = dataLines.join("").trim();
+      return isJsonLike(compactEventData) ? compactEventData : eventData;
+    });
+}
+
+function isJsonLike(value: string): boolean {
+  try {
+    JSON.parse(value);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function mergeFunctionCall(

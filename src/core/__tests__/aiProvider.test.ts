@@ -400,6 +400,71 @@ describe("AI provider", () => {
     expect(result.scenes).toHaveLength(6);
   });
 
+  it("reads multiline SSE data events as one provider payload", async () => {
+    const validation = validateScreenplay(parse(sampleOutputYaml));
+    expect(validation.success).toBe(true);
+    if (!validation.success) return;
+    const blueprint = {
+      chapterEvents: validation.data.chapterEvents,
+      storyBible: validation.data.storyBible,
+      adaptationStrategy: validation.data.adaptationStrategy
+    };
+
+    const multilineEvent = JSON.stringify({
+      choices: [
+        {
+          message: {
+            content: JSON.stringify(blueprint)
+          }
+        }
+      ]
+    });
+    const splitAt = Math.floor(multilineEvent.length / 2);
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        headers: new Headers({ "content-type": "text/event-stream" }),
+        text: async () =>
+          [
+            `data: ${multilineEvent.slice(0, splitAt)}`,
+            `data: ${multilineEvent.slice(splitAt)}`,
+            "",
+            "data: [DONE]"
+          ].join("\n")
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        headers: new Headers({ "content-type": "application/json" }),
+        json: async () => ({
+          choices: [
+            {
+              message: {
+                content: JSON.stringify(validation.data)
+              }
+            }
+          ]
+        })
+      });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await generateScreenplayWithApi(
+      {
+        baseUrl: "https://api.example.com",
+        apiKey: "test-key",
+        model: "test-model"
+      },
+      {
+        title: "雾港来信",
+        style: "cinematic",
+        novelText: sampleNovel
+      }
+    );
+
+    expect(result.scenes).toHaveLength(6);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
   it("preserves provider diagnostics from SSE error events", async () => {
     vi.stubGlobal(
       "fetch",
