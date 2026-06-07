@@ -42,15 +42,17 @@ export function createGenerationRun({
   title,
   model,
   chapterCount,
+  resumeFrom,
   date = new Date()
 }: {
   title: string;
   model: string;
   chapterCount: number;
+  resumeFrom?: AiGenerationResumeCheckpoint | null;
   date?: Date;
 }): GenerationRun {
   const now = date.toISOString();
-  return {
+  const run: GenerationRun = {
     id: `${now}-${slug(title || "untitled")}`,
     title: title || "未命名作品",
     model,
@@ -62,6 +64,14 @@ export function createGenerationRun({
       createStage("connection_check", "连接 AI", "等待连接检查", "pending", now)
     ]
   };
+  const resumeArtifact = createResumeCheckpointArtifact(resumeFrom, now);
+  if (resumeArtifact) {
+    run.stages[0] = {
+      ...run.stages[0],
+      artifacts: [resumeArtifact]
+    };
+  }
+  return run;
 }
 
 export function updateGenerationRunStage(
@@ -105,6 +115,23 @@ export function updateGenerationRunStage(
   return {
     ...run,
     stages
+  };
+}
+
+function createResumeCheckpointArtifact(
+  resumeFrom: AiGenerationResumeCheckpoint | null | undefined,
+  createdAt: string
+): GenerationRunArtifact | null {
+  const checkpoint = resumeFrom ?? undefined;
+  const chapterEvents = checkpoint?.storyBlueprint?.chapterEvents ?? checkpoint?.chapterEvents;
+  if (!chapterEvents?.length) return null;
+
+  return {
+    kind: checkpoint?.storyBlueprint ? "story_blueprint" : "chapter_events",
+    summary: `继承 ${chapterEvents.length} 个章节事件组`,
+    detail: "来自上次失败任务的续跑检查点。",
+    checkpoint,
+    createdAt
   };
 }
 

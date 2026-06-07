@@ -181,6 +181,33 @@ describe("generation run tracking", () => {
     ]);
   });
 
+  it("seeds resume checkpoints on new retry runs before provider work starts", () => {
+    const resumeFrom = {
+      chapterEvents: [makeChapterEventGroup(1), makeChapterEventGroup(2)]
+    };
+
+    const run = createGenerationRun({
+      title: "Checkpoint Story",
+      model: "gpt-4.1-mini",
+      chapterCount: 3,
+      resumeFrom,
+      date: new Date("2026-06-06T00:00:00.000Z")
+    });
+
+    const sourceStage = run.stages.find((stage) => stage.id === "source_check");
+
+    expect(sourceStage?.artifacts).toEqual([
+      {
+        kind: "chapter_events",
+        summary: "继承 2 个章节事件组",
+        detail: "来自上次失败任务的续跑检查点。",
+        checkpoint: resumeFrom,
+        createdAt: "2026-06-06T00:00:00.000Z"
+      }
+    ]);
+    expect(getGenerationRunResumeCheckpoint(run)?.chapterEvents?.map((group) => group.chapterIndex)).toEqual([1, 2]);
+  });
+
   it("formats repair diagnostic artifacts for the task panel", () => {
     expect(
       formatGenerationRunArtifactDiagnostics({

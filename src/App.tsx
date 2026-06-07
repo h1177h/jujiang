@@ -194,7 +194,8 @@ export default function App() {
     const run = createGenerationRun({
       title,
       model: apiModel,
-      chapterCount: sourceSummary.chapterCount
+      chapterCount: sourceSummary.chapterCount,
+      resumeFrom
     });
     activeGenerationRunIdRef.current = run.id;
     generationAbortRef.current = abortController;
