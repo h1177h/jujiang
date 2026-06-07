@@ -129,6 +129,79 @@ describe("AI provider", () => {
     expect(secondPayload.storyBlueprint.chapterEvents[0].events[0].id).toBe("event-01-01");
   });
 
+  it("reads OpenAI-compatible content parts as chat completion text", async () => {
+    const validation = validateScreenplay(parse(sampleOutputYaml));
+    expect(validation.success).toBe(true);
+    if (!validation.success) return;
+
+    const blueprint = {
+      chapterEvents: validation.data.chapterEvents,
+      storyBible: validation.data.storyBible,
+      adaptationStrategy: validation.data.adaptationStrategy
+    };
+    const screenplayJson = JSON.stringify(validation.data);
+
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        headers: new Headers({ "content-type": "application/json" }),
+        json: async () => ({
+          choices: [
+            {
+              message: {
+                content: [
+                  {
+                    type: "text",
+                    text: JSON.stringify(blueprint)
+                  }
+                ]
+              }
+            }
+          ]
+        })
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        headers: new Headers({ "content-type": "application/json" }),
+        json: async () => ({
+          choices: [
+            {
+              message: {
+                content: [
+                  {
+                    type: "text",
+                    text: screenplayJson.slice(0, 80)
+                  },
+                  {
+                    type: "text",
+                    text: screenplayJson.slice(80)
+                  }
+                ]
+              }
+            }
+          ]
+        })
+      });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await generateScreenplayWithApi(
+      {
+        baseUrl: "https://api.example.com",
+        apiKey: "test-key",
+        model: "test-model"
+      },
+      {
+        title: "雾港来信",
+        style: "cinematic",
+        novelText: sampleNovel
+      }
+    );
+
+    expect(result.scenes).toHaveLength(6);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
   it("preserves the staged story blueprint when the final screenplay response drifts", async () => {
     const validation = validateScreenplay(parse(sampleOutputYaml));
     expect(validation.success).toBe(true);

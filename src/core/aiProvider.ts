@@ -65,13 +65,24 @@ interface ChatCompletionResponse {
   choices?: Array<{
     finish_reason?: string;
     message?: {
-      content?: string;
+      content?: ChatCompletionContent;
     };
   }>;
   error?: {
     message?: string;
   };
 }
+
+type ChatCompletionContent =
+  | string
+  | Array<
+      | string
+      | {
+          type?: string;
+          text?: string;
+          content?: string;
+        }
+    >;
 
 export async function generateScreenplayWithApi(
   settings: AiProviderSettings,
@@ -363,7 +374,7 @@ async function requestChatCompletion(
     throw new Error(formatHttpFailure(request.stage, response.status, payload));
   }
 
-  const content = payload.choices?.[0]?.message?.content;
+  const content = extractChatCompletionText(payload.choices?.[0]?.message?.content);
   if (!content) {
     throw new Error(formatEmptyContentFailure(request.stage, payload));
   }
@@ -1021,8 +1032,8 @@ function parseSseChatCompletion(rawText: string): { content: string; errorMessag
         const payload = JSON.parse(line) as {
           error?: { message?: string } | string;
           choices?: Array<{
-            delta?: { content?: string };
-            message?: { content?: string };
+            delta?: { content?: ChatCompletionContent };
+            message?: { content?: ChatCompletionContent };
           }>;
         };
         const streamError =
@@ -1030,7 +1041,10 @@ function parseSseChatCompletion(rawText: string): { content: string; errorMessag
         if (streamError && !errorMessage) {
           errorMessage = streamError;
         }
-        return payload.choices?.[0]?.delta?.content || payload.choices?.[0]?.message?.content || "";
+        return (
+          extractChatCompletionText(payload.choices?.[0]?.delta?.content) ||
+          extractChatCompletionText(payload.choices?.[0]?.message?.content)
+        );
       } catch {
         if (!errorMessage) {
           errorMessage = line;
@@ -1041,6 +1055,25 @@ function parseSseChatCompletion(rawText: string): { content: string; errorMessag
     .join("");
 
   return { content, errorMessage: errorMessage || undefined };
+}
+
+function extractChatCompletionText(content: ChatCompletionContent | undefined): string {
+  if (typeof content === "string") {
+    return content;
+  }
+
+  if (!Array.isArray(content)) {
+    return "";
+  }
+
+  return content
+    .map((part) => {
+      if (typeof part === "string") {
+        return part;
+      }
+      return part.text || part.content || "";
+    })
+    .join("");
 }
 
 function formatHttpFailure(
