@@ -978,6 +978,19 @@ async function validateOrRepairScreenplay(
   const validationIssues = getValidationIssuePaths(result.error.issues);
   const initialExcerpt = summarizeReturnedJson(normalized, validationIssues);
   options.onProgress?.({
+    stage: "screenplay_generate",
+    message: "剧本初稿未通过 Schema，已保存供修复追踪",
+    artifact: {
+      kind: "screenplay",
+      summary: "剧本初稿未通过 Schema",
+      detail: `初次问题：${formatValidationIssues(validationIssues)}`,
+      diagnostic: {
+        initialIssues: validationIssues,
+        initialExcerpt
+      }
+    }
+  });
+  options.onProgress?.({
     stage: "schema_repair",
     message: "AI 返回结构未通过校验，正在尝试修复",
     artifact: {
