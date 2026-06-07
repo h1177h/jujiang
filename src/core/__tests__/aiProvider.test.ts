@@ -2369,7 +2369,8 @@ describe("AI provider", () => {
             ]),
             initialExcerpt: expect.stringContaining("\"scenes\":[]"),
             repairedExcerpt: expect.stringContaining("\"scenes\":[]")
-          })
+          }),
+          yamlDraft: expect.stringContaining("validationHints:\n  []")
         })
       ])
     );
