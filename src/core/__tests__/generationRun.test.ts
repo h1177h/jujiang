@@ -125,10 +125,10 @@ describe("generation run tracking", () => {
         createdAt: "2026-06-06T00:00:03.000Z"
       })
     ).toEqual([
-      "初次问题：scenes, characters.0.name",
-      "修复后问题：scenes",
-      "初次返回：{\"scenes\":[],\"characters\":[{}]}",
-      "修复返回：{\"scenes\":[],\"validationHints\":[]}"
+      "初次返回仍有 2 个结构问题：scenes；characters.0.name",
+      "修复后仍有 1 个结构问题：scenes",
+      "初次返回片段：{\"scenes\":[],\"characters\":[{}]}",
+      "修复返回片段：{\"scenes\":[],\"validationHints\":[]}"
     ]);
   });
 

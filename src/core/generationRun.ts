@@ -253,18 +253,22 @@ export function formatGenerationRunArtifactDiagnostics(artifact: GenerationRunAr
 
   const lines: string[] = [];
   if (diagnostic.initialIssues?.length) {
-    lines.push(`初次问题：${diagnostic.initialIssues.join(", ")}`);
+    lines.push(formatArtifactIssueLine("初次返回", diagnostic.initialIssues));
   }
   if (diagnostic.repairedIssues?.length) {
-    lines.push(`修复后问题：${diagnostic.repairedIssues.join(", ")}`);
+    lines.push(formatArtifactIssueLine("修复后", diagnostic.repairedIssues));
   }
   if (diagnostic.initialExcerpt) {
-    lines.push(`初次返回：${diagnostic.initialExcerpt}`);
+    lines.push(`初次返回片段：${diagnostic.initialExcerpt}`);
   }
   if (diagnostic.repairedExcerpt) {
-    lines.push(`修复返回：${diagnostic.repairedExcerpt}`);
+    lines.push(`修复返回片段：${diagnostic.repairedExcerpt}`);
   }
   return lines;
+}
+
+function formatArtifactIssueLine(label: string, issues: string[]): string {
+  return `${label}仍有 ${issues.length} 个结构问题：${issues.join("；")}`;
 }
 
 export function formatAiGenerationProgress(event: AiGenerationProgress, model: string): string {
