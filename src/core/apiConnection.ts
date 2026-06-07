@@ -131,7 +131,18 @@ export async function diagnoseAiConnection(
     }
 
     if (settings.model?.trim()) {
-      return probeAiProvider(settings, payload.targetBaseUrl || settings.providerBaseUrl || settings.baseUrl, fetcher);
+      try {
+        return await probeAiProvider(
+          settings,
+          payload.targetBaseUrl || settings.providerBaseUrl || settings.baseUrl,
+          fetcher
+        );
+      } catch (error) {
+        return {
+          ok: false,
+          message: formatProviderProbeFetchFailure(error)
+        };
+      }
     }
 
     return {
@@ -144,6 +155,11 @@ export async function diagnoseAiConnection(
       message: `应用内 AI 服务没有启动：请用 npm run dev:app 启动完整应用后再生成。`
     };
   }
+}
+
+function formatProviderProbeFetchFailure(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
+  return `AI provider 连接检查失败：应用内 AI 服务已响应 health，但 provider 探测请求没有完成。请重新测试连接；如果持续失败，重启 npm run dev:app 后再试。底层错误：${truncateConnectionDiagnostic(message)}`;
 }
 
 function validateAiConnectionConfig(settings: AiConnectionSettings): string | null {
