@@ -326,10 +326,27 @@ async function generateLongFormScreenplay(
     signal: options.signal,
     stage: "story_bible_generate"
   });
-  const blueprint = normalizeStoryBlueprint(
-    parseJsonObject(blueprintContent, "story_bible_generate"),
-    "story_bible_generate"
-  );
+  let blueprint: StoryBlueprint;
+  try {
+    blueprint = normalizeStoryBlueprint(
+      parseJsonObject(blueprintContent, "story_bible_generate"),
+      "story_bible_generate"
+    );
+  } catch (error) {
+    options.onProgress?.({
+      stage: "story_bible_generate",
+      message: "故事蓝图合并返回不可用",
+      artifact: {
+        kind: "story_blueprint",
+        summary: "故事蓝图合并失败",
+        detail: "Provider 返回内容未通过故事蓝图校验。",
+        diagnostic: {
+          initialExcerpt: summarizeBlueprintMergeFailure(blueprintContent)
+        }
+      }
+    });
+    throw error;
+  }
   options.onProgress?.({
     stage: "story_bible_generate",
     message: "故事圣经和改编策略已合并",
@@ -1363,6 +1380,25 @@ function summarizeReturnedJson(value: unknown, issuePaths: string[] = []): strin
     return focused ? `${focused}；整体：${fullSummary}` : fullSummary;
   } catch {
     return truncateDiagnostic(String(value));
+  }
+}
+
+function summarizeBlueprintMergeFailure(content: string): string {
+  try {
+    const parsed = JSON.parse(content) as unknown;
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return truncateDiagnostic(content);
+    }
+
+    const compact = Object.fromEntries(
+      Object.entries(parsed).map(([key, value]) => [
+        key,
+        key === "chapterEvents" && Array.isArray(value) ? `${value.length} chapter event groups` : value
+      ])
+    );
+    return truncateDiagnostic(JSON.stringify(compact));
+  } catch {
+    return truncateDiagnostic(content);
   }
 }
 
