@@ -24,7 +24,36 @@ export function GenerationRunPanel({
   onUseYamlDraft: (yamlText: string, label: string) => void;
 }) {
   const activeRun = run ?? history[0] ?? null;
-  if (!activeRun) return null;
+  if (!activeRun) {
+    return (
+      <div className="generation-run idle">
+        <div className="generation-run-head">
+          <div>
+            <strong>生成任务</strong>
+            <span>等待提交小说原文和 AI 配置</span>
+          </div>
+          <div className="generation-run-actions">
+            <em>待启动</em>
+          </div>
+        </div>
+        <div className="generation-stages">
+          {["连接测试", "长文本解析", "结构修复", "YAML 写入"].map((label) => (
+            <div className="generation-stage" key={label}>
+              <span className="stage-dot" />
+              <div>
+                <strong>{label}</strong>
+                <p>开始生成后会记录阶段状态、产物和失败诊断。</p>
+              </div>
+            </div>
+          ))}
+        </div>
+        <p className="generation-meta">
+          <Clock3 size={14} />
+          任务运行后可在这里查看 provider、耗时、阶段产物、错误原文和可重试建议。
+        </p>
+      </div>
+    );
+  }
 
   const statusLabel =
     activeRun.status === "completed"
