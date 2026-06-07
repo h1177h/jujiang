@@ -153,7 +153,7 @@ export async function generateScreenplayWithApi(
     stage: "screenplay_generate"
   });
 
-  const parsed = parseJsonObject(screenplayContent, "screenplay_generate");
+  const parsed = parseScreenplayJsonWithArtifact(options, screenplayContent);
   return validateOrRepairScreenplay(settings, baseUrl, options, sourceChapters, blueprint, parsed);
 }
 
@@ -233,7 +233,7 @@ async function generateLongFormScreenplay(
       options,
       sourceChapters,
       resumeCheckpoint.storyBlueprint,
-      parseJsonObject(screenplayContent, "screenplay_generate")
+      parseScreenplayJsonWithArtifact(options, screenplayContent)
     );
   }
 
@@ -346,7 +346,7 @@ async function generateLongFormScreenplay(
     options,
     sourceChapters,
     blueprint,
-    parseJsonObject(screenplayContent, "screenplay_generate")
+    parseScreenplayJsonWithArtifact(options, screenplayContent)
   );
 }
 
@@ -740,6 +740,26 @@ function parseJsonObject(
         `${labelProviderStage(stage)} 阶段返回内容不是可解析 JSON。Provider 返回：${truncateDiagnostic(trimmed)}`
       );
     }
+  }
+}
+
+function parseScreenplayJsonWithArtifact(options: AiGenerationOptions, content: string): unknown {
+  try {
+    return parseJsonObject(content, "screenplay_generate");
+  } catch (error) {
+    options.onProgress?.({
+      stage: "screenplay_generate",
+      message: "剧本生成返回不可解析 JSON",
+      artifact: {
+        kind: "screenplay",
+        summary: "剧本生成返回不可解析 JSON",
+        detail: "Provider 返回内容不是可解析 JSON。",
+        diagnostic: {
+          initialExcerpt: truncateDiagnostic(content)
+        }
+      }
+    });
+    throw error;
   }
 }
 

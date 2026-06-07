@@ -744,6 +744,80 @@ describe("AI provider", () => {
     );
   });
 
+  it("saves provider excerpts when final screenplay generation returns non-json text", async () => {
+    const validation = validateScreenplay(parse(sampleOutputYaml));
+    expect(validation.success).toBe(true);
+    if (!validation.success) return;
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        headers: new Headers({ "content-type": "application/json" }),
+        json: async () => ({
+          choices: [
+            {
+              message: {
+                content: JSON.stringify({
+                  chapterEvents: validation.data.chapterEvents,
+                  storyBible: validation.data.storyBible,
+                  adaptationStrategy: validation.data.adaptationStrategy
+                })
+              }
+            }
+          ]
+        })
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        headers: new Headers({ "content-type": "application/json" }),
+        json: async () => ({
+          choices: [
+            {
+              message: {
+                content: "我先给出改编思路，再继续补完整 YAML。"
+              }
+            }
+          ]
+        })
+      });
+    vi.stubGlobal("fetch", fetchMock);
+    const screenplayArtifacts: unknown[] = [];
+
+    await expect(
+      generateScreenplayWithApi(
+        {
+          baseUrl: "https://api.example.com",
+          apiKey: "test-key",
+          model: "test-model"
+        },
+        {
+          title: "雾港来信",
+          style: "cinematic",
+          novelText: sampleNovel,
+          onProgress: (event) => {
+            if (event.stage === "screenplay_generate" && event.artifact) {
+              screenplayArtifacts.push(event.artifact);
+            }
+          }
+        }
+      )
+    ).rejects.toThrow("screenplay_generate 阶段返回内容不是可解析 JSON");
+
+    expect(screenplayArtifacts).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "screenplay",
+          summary: "剧本生成返回不可解析 JSON",
+          diagnostic: expect.objectContaining({
+            initialExcerpt: expect.stringContaining("我先给出改编思路")
+          })
+        })
+      ])
+    );
+  });
+
   it("reports the provider JSON excerpt when the story blueprint schema fails", async () => {
     const invalidBlueprint = {
       chapterEvents: []
