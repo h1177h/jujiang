@@ -128,6 +128,53 @@ describe("workspace draft persistence", () => {
     expect(loadSavedWorkspaceDraft(storage)).toBeNull();
   });
 
+  it("ignores saved generation runs with malformed artifact diagnostics", () => {
+    const storage = createMemoryStorage();
+    storage.setItem(
+      workspaceDraftStorageKey,
+      JSON.stringify({
+        title: "Artifact Draft",
+        style: "cinematic",
+        novelText: "Chapter 1\nText",
+        yamlText: "work:\n  title: Artifact Draft\n",
+        selectedSceneId: null,
+        revisionHistory: [],
+        generationRuns: [
+          {
+            id: "run-1",
+            title: "Artifact Draft",
+            model: "gpt-4.1-mini",
+            chapterCount: 1,
+            status: "failed",
+            startedAt: "2026-06-06T00:03:00.000Z",
+            stages: [
+              {
+                id: "schema_repair",
+                label: "Schema repair",
+                status: "failed",
+                message: "Repair failed",
+                artifacts: [
+                  {
+                    kind: "repair",
+                    summary: "Repair failed",
+                    createdAt: "2026-06-06T00:03:08.000Z",
+                    diagnostic: {
+                      initialIssues: "scenes"
+                    }
+                  }
+                ],
+                updatedAt: "2026-06-06T00:03:12.000Z"
+              }
+            ]
+          }
+        ],
+        updatedAt: "2026-06-06T00:05:00.000Z"
+      })
+    );
+
+    expect(loadSavedWorkspaceDraft(storage)?.generationRuns).toEqual([]);
+  });
+
   it("clears the saved workspace draft", () => {
     const storage = createMemoryStorage();
     saveWorkspaceDraft(

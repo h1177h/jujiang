@@ -1,4 +1,5 @@
 import type { AiSettingsStorage } from "./apiSettings";
+import type { AiGenerationArtifact, AiGenerationDiagnostic } from "./aiProvider";
 import type { AdaptationStyle } from "./types";
 import type { ScreenplayRevision } from "./revisionHistory";
 import type { GenerationRun, GenerationRunStage } from "./generationRun";
@@ -131,18 +132,36 @@ function isGenerationRunStage(value: unknown): value is GenerationRunStage {
     (stage.current === undefined || typeof stage.current === "number") &&
     (stage.total === undefined || typeof stage.total === "number") &&
     (stage.artifacts === undefined ||
-      (Array.isArray(stage.artifacts) &&
-        stage.artifacts.every(
-          (artifact) =>
-            artifact &&
-            typeof artifact === "object" &&
-            typeof artifact.kind === "string" &&
-            typeof artifact.summary === "string" &&
-            (artifact.detail === undefined || typeof artifact.detail === "string") &&
-            typeof artifact.createdAt === "string"
-        ))) &&
+      (Array.isArray(stage.artifacts) && stage.artifacts.every(isGenerationRunArtifact))) &&
     typeof stage.updatedAt === "string"
   );
+}
+
+function isGenerationRunArtifact(value: unknown): value is AiGenerationArtifact & { createdAt: string } {
+  if (!value || typeof value !== "object") return false;
+  const artifact = value as Partial<AiGenerationArtifact & { createdAt: string }>;
+  return (
+    typeof artifact.kind === "string" &&
+    typeof artifact.summary === "string" &&
+    (artifact.detail === undefined || typeof artifact.detail === "string") &&
+    (artifact.diagnostic === undefined || isGenerationArtifactDiagnostic(artifact.diagnostic)) &&
+    typeof artifact.createdAt === "string"
+  );
+}
+
+function isGenerationArtifactDiagnostic(value: unknown): value is AiGenerationDiagnostic {
+  if (!value || typeof value !== "object") return false;
+  const diagnostic = value as Partial<AiGenerationDiagnostic>;
+  return (
+    isOptionalStringArray(diagnostic.initialIssues) &&
+    isOptionalStringArray(diagnostic.repairedIssues) &&
+    (diagnostic.initialExcerpt === undefined || typeof diagnostic.initialExcerpt === "string") &&
+    (diagnostic.repairedExcerpt === undefined || typeof diagnostic.repairedExcerpt === "string")
+  );
+}
+
+function isOptionalStringArray(value: unknown): value is string[] | undefined {
+  return value === undefined || (Array.isArray(value) && value.every((item) => typeof item === "string"));
 }
 
 function isGenerationRunStatus(value: unknown): value is GenerationRun["status"] {
