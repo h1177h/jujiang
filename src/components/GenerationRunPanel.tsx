@@ -4,6 +4,7 @@ import {
   formatGenerationRunRecoverySummary,
   formatGenerationRunRetryAction,
   formatGenerationRunStatus,
+  selectVisibleGenerationArtifacts,
   type GenerationRun
 } from "../core/generationRun";
 
@@ -89,7 +90,7 @@ export function GenerationRunPanel({
               </p>
               {stage.artifacts?.length ? (
                 <div className="stage-artifacts">
-                  {stage.artifacts.slice(-3).map((artifact) => (
+                  {selectVisibleGenerationArtifacts(stage.artifacts).map((artifact) => (
                     <span key={`${artifact.kind}-${artifact.createdAt}`}>
                       {artifact.summary}
                       {artifact.detail ? <small>{artifact.detail}</small> : null}
