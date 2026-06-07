@@ -274,6 +274,20 @@ export function formatGenerationRunResumeSummary(run: GenerationRun): string | n
   return `已保存 ${chapterIndexes.length} 章 / ${eventCount} 个事件：第 ${chapterIndexes.join("、")} 章，可从阶段产物继续`;
 }
 
+export function formatGenerationRunRetryAction(run: GenerationRun): { label: "续跑" | "重试"; title: string } | null {
+  if (run.status !== "failed" || !run.canRetry) return null;
+
+  return getGenerationRunResumeCheckpoint(run)
+    ? {
+        label: "续跑",
+        title: "从已保存阶段继续调用当前 AI 配置"
+      }
+    : {
+        label: "重试",
+        title: "重新调用当前 AI 配置"
+      };
+}
+
 export function formatGenerationRunArtifactDiagnostics(artifact: GenerationRunArtifact): string[] {
   const diagnostic = artifact.diagnostic;
   if (!diagnostic) return [];

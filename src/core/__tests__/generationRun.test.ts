@@ -7,6 +7,7 @@ import {
   failGenerationRunWithMessage,
   formatAiGenerationProgress,
   formatGenerationRunArtifactDiagnostics,
+  formatGenerationRunRetryAction,
   formatGenerationRunResumeSummary,
   formatGenerationRunStatus,
   getGenerationRunResumeCheckpoint,
@@ -512,6 +513,68 @@ describe("generation run tracking", () => {
     expect(schemaFailed.canRetry).toBe(true);
     expect(parseFailed.canRetry).toBe(true);
     expect(schemaFailed.recoveryHint).toBe("可以保留当前原文、AI 配置和已保存的阶段记录后重试。");
+  });
+
+  it("formats retry actions only when the failed run can retry", () => {
+    const baseRun = createGenerationRun({
+      title: "雾港来信",
+      model: "gpt-4.1-mini",
+      chapterCount: 3,
+      date: new Date("2026-06-06T00:00:00.000Z")
+    });
+    const nonRetryable = failGenerationRun(baseRun, "请先输入小说正文，再调用 AI 生成剧本。");
+    const retryable = failGenerationRun(
+      baseRun,
+      "screenplay_generate 阶段请求超时：HTTP 504。可重试。"
+    );
+    const resumable = failGenerationRun(
+      updateGenerationRunStage(baseRun, {
+        stage: "chapter_event_extract",
+        message: "Saved chapter events",
+        artifact: {
+          kind: "chapter_events",
+          summary: "1 chapter event group",
+          checkpoint: {
+            chapterEvents: [
+              {
+                chapterIndex: 1,
+                chapterTitle: "Chapter 1",
+                chapterGoal: "Find the clue",
+                events: [
+                  {
+                    id: "event-1",
+                    summary: "Lin finds the clue.",
+                    characters: ["Lin"],
+                    location: "Pier",
+                    conflict: "The clue is hidden.",
+                    emotionalTurn: "Suspicion rises.",
+                    source: {
+                      chapterIndex: 1,
+                      chapterTitle: "Chapter 1",
+                      paragraphIndexes: [1],
+                      lineStart: 1,
+                      lineEnd: 2,
+                      excerpt: "Lin finds the clue."
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      }),
+      "screenplay_generate 阶段请求超时：HTTP 504。可重试。"
+    );
+
+    expect(formatGenerationRunRetryAction(nonRetryable)).toBeNull();
+    expect(formatGenerationRunRetryAction(retryable)).toEqual({
+      label: "重试",
+      title: "重新调用当前 AI 配置"
+    });
+    expect(formatGenerationRunRetryAction(resumable)).toEqual({
+      label: "续跑",
+      title: "从已保存阶段继续调用当前 AI 配置"
+    });
   });
 
   it("completes the run and marks all stages done", () => {
