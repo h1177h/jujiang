@@ -49,6 +49,14 @@ export async function diagnoseAiConnection(
   settings: AiConnectionSettings,
   fetcher: FetchLike = fetch
 ): Promise<AiConnectionResult> {
+  const configIssue = validateAiConnectionConfig(settings);
+  if (configIssue) {
+    return {
+      ok: false,
+      message: configIssue
+    };
+  }
+
   if (!settings.useLocalProxy) {
     return {
       ok: true,
@@ -111,6 +119,25 @@ export async function diagnoseAiConnection(
       message: `应用内 AI 服务没有启动：请用 npm run dev:app 启动完整应用后再生成。`
     };
   }
+}
+
+function validateAiConnectionConfig(settings: AiConnectionSettings): string | null {
+  if (settings.model !== undefined && !settings.model.trim()) {
+    return "请先填写 Model，再测试连接。";
+  }
+
+  if (settings.providerBaseUrl !== undefined) {
+    const trimmedProviderBaseUrl = settings.providerBaseUrl.trim();
+    if (!trimmedProviderBaseUrl) {
+      return "请先填写 Provider Base URL，再测试连接。";
+    }
+
+    if (!/^https?:\/\//i.test(trimmedProviderBaseUrl)) {
+      return "Provider Base URL 必须以 http:// 或 https:// 开头。";
+    }
+  }
+
+  return null;
 }
 
 async function probeAiProvider(
