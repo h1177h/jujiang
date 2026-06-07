@@ -55,6 +55,69 @@ describe("AI connection diagnostics", () => {
     });
   });
 
+  it("rejects a blank selected model before checking the provider", async () => {
+    const fetcher = vi.fn();
+
+    const result = await diagnoseAiConnection(
+      {
+        baseUrl: "http://127.0.0.1:18787/v1",
+        useLocalProxy: true,
+        providerBaseUrl: "https://api.example.com",
+        apiKey: "browser-key",
+        model: "   "
+      },
+      fetcher
+    );
+
+    expect(fetcher).not.toHaveBeenCalled();
+    expect(result).toEqual({
+      ok: false,
+      message: "请先填写 Model，再测试连接。"
+    });
+  });
+
+  it("rejects a blank provider base URL before reaching the proxy", async () => {
+    const fetcher = vi.fn();
+
+    const result = await diagnoseAiConnection(
+      {
+        baseUrl: "http://127.0.0.1:18787/v1",
+        useLocalProxy: true,
+        providerBaseUrl: "   ",
+        apiKey: "browser-key",
+        model: "test-model"
+      },
+      fetcher
+    );
+
+    expect(fetcher).not.toHaveBeenCalled();
+    expect(result).toEqual({
+      ok: false,
+      message: "请先填写 Provider Base URL，再测试连接。"
+    });
+  });
+
+  it("rejects malformed provider base URLs before reaching the proxy", async () => {
+    const fetcher = vi.fn();
+
+    const result = await diagnoseAiConnection(
+      {
+        baseUrl: "http://127.0.0.1:18787/v1",
+        useLocalProxy: true,
+        providerBaseUrl: "not-a-url",
+        apiKey: "browser-key",
+        model: "test-model"
+      },
+      fetcher
+    );
+
+    expect(fetcher).not.toHaveBeenCalled();
+    expect(result).toEqual({
+      ok: false,
+      message: "Provider Base URL 必须以 http:// 或 https:// 开头。"
+    });
+  });
+
   it("rejects a different service listening on the proxy port", async () => {
     const result = await diagnoseAiConnection(
       {
