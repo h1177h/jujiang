@@ -126,7 +126,24 @@ export async function generateScreenplayWithApi(
     signal: options.signal,
     stage: "event_extract"
   });
-  const blueprint = normalizeStoryBlueprint(parseJsonObject(blueprintContent, "event_extract"), "event_extract");
+  let blueprint: StoryBlueprint;
+  try {
+    blueprint = normalizeStoryBlueprint(parseJsonObject(blueprintContent, "event_extract"), "event_extract");
+  } catch (error) {
+    options.onProgress?.({
+      stage: "event_extract",
+      message: "故事蓝图抽取返回不可用",
+      artifact: {
+        kind: "story_blueprint",
+        summary: "故事蓝图抽取失败",
+        detail: "Provider 返回内容未通过故事蓝图校验。",
+        diagnostic: {
+          initialExcerpt: summarizeBlueprintMergeFailure(blueprintContent)
+        }
+      }
+    });
+    throw error;
+  }
   options.onProgress?.({
     stage: "event_extract",
     message: "故事蓝图已生成",
@@ -1393,7 +1410,9 @@ function summarizeBlueprintMergeFailure(content: string): string {
     const compact = Object.fromEntries(
       Object.entries(parsed).map(([key, value]) => [
         key,
-        key === "chapterEvents" && Array.isArray(value) ? `${value.length} chapter event groups` : value
+        key === "chapterEvents" && Array.isArray(value) && value.length > 3
+          ? `${value.length} chapter event groups`
+          : value
       ])
     );
     return truncateDiagnostic(JSON.stringify(compact));
