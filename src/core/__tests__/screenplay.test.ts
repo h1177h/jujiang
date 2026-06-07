@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { parse, stringify } from "yaml";
 import { countChapters, parseChapters, summarizeSourceDraft } from "../chapters";
-import { editorIssueFromYamlDiagnostic, patchTouchesEditorIssueField } from "../editorIssues";
+import {
+  editorIssueFromYamlDiagnostic,
+  firstEditorIssueFromYamlDiagnostics,
+  patchTouchesEditorIssueField
+} from "../editorIssues";
 import { sampleNovel } from "../sampleNovel";
 import { isEditorReadyScene, updateScreenplaySceneYaml } from "../sceneEditor";
 import { validateScreenplay, validateStoryBlueprint } from "../schema";
@@ -374,6 +378,24 @@ describe("screenplay schema and review helpers", () => {
     });
     expect(editorIssueFromYamlDiagnostic({ ...diagnostic, sceneId: undefined })).toBeNull();
     expect(editorIssueFromYamlDiagnostic({ ...diagnostic, targetField: undefined })).toBeNull();
+  });
+
+  it("finds the first editable yaml diagnostic for adopted failed drafts", () => {
+    const parsed = parse(sampleOutputYaml);
+    parsed.work.title = "";
+    parsed.scenes[1].location = "";
+    parsed.scenes[1].goal = "";
+
+    const result = validateScreenplayYaml(stringify(parsed));
+
+    expect(result.ok).toBe(false);
+    expect(firstEditorIssueFromYamlDiagnostics(result.issues)).toEqual(
+      expect.objectContaining({
+        sceneId: "scene-02",
+        targetField: "goal"
+      })
+    );
+    expect(firstEditorIssueFromYamlDiagnostics()).toBeNull();
   });
 
   it("maps editable scene yaml diagnostics beyond goal and dialogue fields", () => {

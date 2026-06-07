@@ -34,3 +34,15 @@ export function editorIssueFromYamlDiagnostic(
     actionHint: issue.actionHint
   };
 }
+
+export function firstEditorIssueFromYamlDiagnostics(
+  issues?: ScreenplayYamlDiagnostic[]
+): ActiveEditorIssue | null {
+  for (const issue of issues ?? []) {
+    const editorIssue = editorIssueFromYamlDiagnostic(issue);
+    if (editorIssue && editorIssue.targetField !== "source") {
+      return editorIssue;
+    }
+  }
+  return null;
+}
