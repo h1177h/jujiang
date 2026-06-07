@@ -1742,6 +1742,7 @@ describe("AI provider", () => {
       }))
     );
 
+    const chapterArtifacts: unknown[] = [];
     let errorMessage = "";
     try {
       await generateScreenplayWithApi(
@@ -1753,7 +1754,12 @@ describe("AI provider", () => {
         {
           title: "长篇测试",
           style: "cinematic",
-          novelText: longNovel
+          novelText: longNovel,
+          onProgress: (event) => {
+            if (event.stage === "chapter_event_extract" && event.artifact) {
+              chapterArtifacts.push(event.artifact);
+            }
+          }
         }
       );
     } catch (error) {
@@ -1764,6 +1770,16 @@ describe("AI provider", () => {
       "chapter_event_extract 阶段章节事件未通过 Schema：0.chapterGoal, 0.events。Provider 返回摘要："
     );
     expect(errorMessage).toContain("\"chapterTitle\":\"起风\"");
+    expect(chapterArtifacts).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "chapter_events",
+          diagnostic: expect.objectContaining({
+            initialExcerpt: expect.stringContaining("\"chapterTitle\":\"起风\"")
+          })
+        })
+      ])
+    );
   });
 
   it("asks the model to repair screenplay JSON when schema validation fails", async () => {

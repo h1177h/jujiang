@@ -268,10 +268,29 @@ async function generateLongFormScreenplay(
       signal: options.signal,
       stage: "chapter_event_extract"
     });
-    const eventGroups = normalizeChapterEventGroups(
-      parseJsonObject(content, "chapter_event_extract"),
-      "chapter_event_extract"
-    );
+    let eventGroups: StoryBlueprint["chapterEvents"];
+    try {
+      eventGroups = normalizeChapterEventGroups(
+        parseJsonObject(content, "chapter_event_extract"),
+        "chapter_event_extract"
+      );
+    } catch (error) {
+      options.onProgress?.({
+        stage: "chapter_event_extract",
+        message: `第 ${sourceChapter.chapterIndex} 章事件抽取返回不可用`,
+        current: index + 1,
+        total: sourceChapters.length,
+        artifact: {
+          kind: "chapter_events",
+          summary: `第 ${sourceChapter.chapterIndex} 章事件抽取失败`,
+          detail: "Provider 返回内容未通过章节事件校验。",
+          diagnostic: {
+            initialExcerpt: truncateDiagnostic(content)
+          }
+        }
+      });
+      throw error;
+    }
     chapterEvents.push(...eventGroups);
     options.onProgress?.({
       stage: "chapter_event_extract",
