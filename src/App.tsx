@@ -422,6 +422,22 @@ export default function App() {
     setGenerationStatus(`已恢复版本：${revision.label}`);
   }
 
+  function handleUseYamlDraft(draftYaml: string, label: string) {
+    setYamlText(draftYaml);
+    setRevisionHistory((current) => pushRevision(current, createRevision(`接管草稿：${label}`, draftYaml)));
+    setActiveEditorIssue(null);
+    try {
+      const parsed = parse(draftYaml) as Partial<ScreenplayYaml>;
+      const firstScene = Array.isArray(parsed.scenes)
+        ? parsed.scenes.find((scene) => scene && typeof (scene as { id?: unknown }).id === "string")
+        : null;
+      setSelectedSceneId(firstScene ? (firstScene as { id: string }).id : null);
+    } catch {
+      setSelectedSceneId(null);
+    }
+    setGenerationStatus(`已接管阶段草稿：${label}`);
+  }
+
   async function handleRegenerateSelectedScene() {
     if (!preview || !selectedScene) {
       setGenerationStatus("请先生成或载入可编辑的剧本场景。");
@@ -685,6 +701,7 @@ export default function App() {
                 onCancel={handleCancelGeneration}
                 onRetry={handleGenerate}
                 onSelectRun={setGenerationRun}
+                onUseYamlDraft={handleUseYamlDraft}
               />
             </div>
 

@@ -2061,7 +2061,8 @@ describe("AI provider", () => {
           diagnostic: expect.objectContaining({
             initialIssues: expect.arrayContaining(["scenes"]),
             initialExcerpt: expect.stringContaining("\"scenes\":[]")
-          })
+          }),
+          yamlDraft: expect.stringContaining("scenes:\n  []")
         })
       ])
     );

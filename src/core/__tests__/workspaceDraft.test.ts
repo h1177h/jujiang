@@ -59,6 +59,7 @@ describe("workspace draft persistence", () => {
                     kind: "story_blueprint",
                     summary: "3 个章节事件组",
                     detail: "6 个事件",
+                    yamlDraft: "work:\n  title: Failed Draft\n",
                     createdAt: "2026-06-06T00:03:08.000Z"
                   }
                 ],
@@ -109,6 +110,7 @@ describe("workspace draft persistence", () => {
                     kind: "story_blueprint",
                     summary: "3 个章节事件组",
                     detail: "6 个事件",
+                    yamlDraft: "work:\n  title: Failed Draft\n",
                     createdAt: "2026-06-06T00:03:08.000Z"
                   }
                 ],
@@ -157,9 +159,10 @@ describe("workspace draft persistence", () => {
                   {
                     kind: "repair",
                     summary: "Repair failed",
+                    yamlDraft: 42,
                     createdAt: "2026-06-06T00:03:08.000Z",
                     diagnostic: {
-                      initialIssues: "scenes"
+                      initialIssues: ["scenes"]
                     }
                   }
                 ],
