@@ -4,7 +4,7 @@ import { countChapters, parseChapters, summarizeSourceDraft } from "../chapters"
 import { editorIssueFromYamlDiagnostic, patchTouchesEditorIssueField } from "../editorIssues";
 import { sampleNovel } from "../sampleNovel";
 import { isEditorReadyScene, updateScreenplaySceneYaml } from "../sceneEditor";
-import { validateScreenplay } from "../schema";
+import { validateScreenplay, validateStoryBlueprint } from "../schema";
 import { buildSourceTrace } from "../sourceTrace";
 import { analyzeScreenplay, findSceneIdForChapterEvent, formatStoryAnalysisPanelLabels } from "../storyAnalysis";
 import { validateScreenplayYaml } from "../yaml";
@@ -194,6 +194,32 @@ describe("screenplay schema and review helpers", () => {
         "scenes.0.dialogue.0.speaker"
       ])
     );
+  });
+
+  it("rejects story arc references to missing chapter events", () => {
+    const parsed = parse(sampleOutputYaml);
+    parsed.storyBible.characterArcs[0].firstEventId = "missing-first-event";
+    parsed.storyBible.characterArcs[0].lastEventId = "missing-last-event";
+
+    const screenplayValidation = validateScreenplay(parsed);
+    const blueprintValidation = validateStoryBlueprint({
+      chapterEvents: parsed.chapterEvents,
+      storyBible: parsed.storyBible,
+      adaptationStrategy: parsed.adaptationStrategy
+    });
+
+    expect(screenplayValidation.success).toBe(false);
+    expect(blueprintValidation.success).toBe(false);
+    if (screenplayValidation.success || blueprintValidation.success) return;
+
+    const screenplayPaths = screenplayValidation.error.issues.map((issue) => issue.path.join("."));
+    const blueprintPaths = blueprintValidation.error.issues.map((issue) => issue.path.join("."));
+    const expectedPaths = [
+      "storyBible.characterArcs.0.firstEventId",
+      "storyBible.characterArcs.0.lastEventId"
+    ];
+    expect(screenplayPaths).toEqual(expect.arrayContaining(expectedPaths));
+    expect(blueprintPaths).toEqual(expect.arrayContaining(expectedPaths));
   });
 
   it("returns structured diagnostics that point authors to the broken scene field", () => {

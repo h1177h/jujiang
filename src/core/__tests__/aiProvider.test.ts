@@ -3,6 +3,7 @@ import { parse } from "yaml";
 import { generateScreenplayWithApi, normalizeBaseUrl, regenerateSceneWithApi } from "../aiProvider";
 import { sampleNovel } from "../sampleNovel";
 import { validateScreenplay } from "../schema";
+import type { StoryBlueprint } from "../types";
 import sampleOutputYaml from "../../../examples/sample-output.yaml?raw";
 
 describe("AI provider", () => {
@@ -849,7 +850,7 @@ describe("AI provider", () => {
                 message: {
                   content: JSON.stringify({
                     chapterEvents: savedChapterEvents,
-                    storyBible: validation.data.storyBible,
+                    storyBible: storyBibleAnchoredToEvents(validation.data.storyBible, savedChapterEvents),
                     adaptationStrategy: validation.data.adaptationStrategy
                   })
                 }
@@ -946,7 +947,7 @@ describe("AI provider", () => {
     const savedChapterEvents = Array.from({ length: 5 }, (_, index) => makeChapterEvent(index + 1));
     const savedStoryBlueprint = {
       chapterEvents: [...savedChapterEvents, makeChapterEvent(9)],
-      storyBible: validation.data.storyBible,
+      storyBible: storyBibleAnchoredToEvents(validation.data.storyBible, savedChapterEvents),
       adaptationStrategy: validation.data.adaptationStrategy
     };
     const fetchMock = vi.fn(async () => ({
@@ -1056,7 +1057,7 @@ describe("AI provider", () => {
                 message: {
                   content: JSON.stringify({
                     chapterEvents: completedChapterEvents,
-                    storyBible: validation.data.storyBible,
+                    storyBible: storyBibleAnchoredToEvents(validation.data.storyBible, completedChapterEvents),
                     adaptationStrategy: validation.data.adaptationStrategy
                   })
                 }
@@ -1182,7 +1183,7 @@ describe("AI provider", () => {
                 message: {
                   content: JSON.stringify({
                     chapterEvents: completedChapterEvents,
-                    storyBible: validation.data.storyBible,
+                    storyBible: storyBibleAnchoredToEvents(validation.data.storyBible, completedChapterEvents),
                     adaptationStrategy: validation.data.adaptationStrategy
                   })
                 }
@@ -1321,7 +1322,7 @@ describe("AI provider", () => {
                 message: {
                   content: JSON.stringify({
                     chapterEvents: completedChapterEvents,
-                    storyBible: validation.data.storyBible,
+                    storyBible: storyBibleAnchoredToEvents(validation.data.storyBible, completedChapterEvents),
                     adaptationStrategy: validation.data.adaptationStrategy
                   })
                 }
@@ -1680,3 +1681,18 @@ describe("AI provider", () => {
     expect(payload.screenplay).toBeUndefined();
   });
 });
+
+function storyBibleAnchoredToEvents(
+  storyBible: StoryBlueprint["storyBible"],
+  chapterEvents: StoryBlueprint["chapterEvents"]
+): StoryBlueprint["storyBible"] {
+  const eventIds = chapterEvents.flatMap((group) => group.events.map((event) => event.id));
+  return {
+    ...storyBible,
+    characterArcs: storyBible.characterArcs.map((arc, index) => ({
+      ...arc,
+      firstEventId: eventIds[index % eventIds.length] ?? arc.firstEventId,
+      lastEventId: eventIds[eventIds.length - 1 - (index % eventIds.length)] ?? arc.lastEventId
+    }))
+  };
+}
