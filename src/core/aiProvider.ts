@@ -764,18 +764,32 @@ function normalizeResumeCheckpoint(
   if (checkpoint.storyBlueprint) {
     const result = validateStoryBlueprint(checkpoint.storyBlueprint);
     if (result.success && coversSourceChapters(result.data.chapterEvents, sourceChapterCount)) {
-      return { storyBlueprint: result.data, chapterEvents: result.data.chapterEvents };
+      const storyBlueprint = {
+        ...result.data,
+        chapterEvents: filterCheckpointChapterEvents(result.data.chapterEvents, sourceChapterCount)
+      };
+      return { storyBlueprint, chapterEvents: storyBlueprint.chapterEvents };
     }
   }
 
   if (checkpoint.chapterEvents) {
     const result = storyBlueprintSchema.shape.chapterEvents.safeParse(checkpoint.chapterEvents);
-    if (result.success && result.data.length > 0) {
-      return { chapterEvents: result.data };
+    if (result.success) {
+      const chapterEvents = filterCheckpointChapterEvents(result.data, sourceChapterCount);
+      if (chapterEvents.length > 0) {
+        return { chapterEvents };
+      }
     }
   }
 
   return null;
+}
+
+function filterCheckpointChapterEvents(
+  chapterEvents: StoryBlueprint["chapterEvents"],
+  sourceChapterCount: number
+): StoryBlueprint["chapterEvents"] {
+  return chapterEvents.filter((group) => group.chapterIndex >= 1 && group.chapterIndex <= sourceChapterCount);
 }
 
 function coversSourceChapters(chapterEvents: StoryBlueprint["chapterEvents"], sourceChapterCount: number): boolean {
