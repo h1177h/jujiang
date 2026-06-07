@@ -248,6 +248,40 @@ describe("AI provider", () => {
     expect(result.scenes).toHaveLength(6);
   });
 
+  it("preserves provider diagnostics from SSE error events", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({
+        ok: true,
+        status: 200,
+        headers: new Headers({ "content-type": "text/event-stream" }),
+        json: async () => {
+          throw new Error("stream body");
+        },
+        text: async () =>
+          [
+            `data: ${JSON.stringify({ error: { message: "quota exceeded" } })}`,
+            "data: [DONE]"
+          ].join("\n\n")
+      }))
+    );
+
+    await expect(
+      generateScreenplayWithApi(
+        {
+          baseUrl: "https://api.example.com",
+          apiKey: "test-key",
+          model: "test-model"
+        },
+        {
+          title: "Mist Harbor",
+          style: "cinematic",
+          novelText: sampleNovel
+        }
+      )
+    ).rejects.toThrow(/event_extract[\s\S]*quota exceeded/);
+  });
+
   it("reports stage, HTTP 504, and retryability when the provider times out", async () => {
     vi.stubGlobal(
       "fetch",

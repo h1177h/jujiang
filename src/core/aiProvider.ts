@@ -804,14 +804,16 @@ async function readChatCompletionResponse(
   const contentType = response.headers?.get("content-type") || "";
   if (contentType.includes("text/event-stream")) {
     const rawText = await readResponseText(response);
+    const parsedStream = parseSseChatCompletion(rawText);
     return {
       choices: [
         {
           message: {
-            content: parseSseChatContent(rawText)
+            content: parsedStream.content
           }
         }
       ],
+      ...(parsedStream.errorMessage ? { error: { message: parsedStream.errorMessage } } : {}),
       rawText
     };
   }
@@ -849,8 +851,9 @@ async function readResponseText(response: Response): Promise<string> {
   return textReader.call(response).catch(() => "");
 }
 
-function parseSseChatContent(rawText: string): string {
-  return rawText
+function parseSseChatCompletion(rawText: string): { content: string; errorMessage?: string } {
+  let errorMessage = "";
+  const content = rawText
     .split(/\r?\n/)
     .map((line) => line.trim())
     .filter((line) => line.startsWith("data:"))
@@ -859,17 +862,28 @@ function parseSseChatContent(rawText: string): string {
     .map((line) => {
       try {
         const payload = JSON.parse(line) as {
+          error?: { message?: string } | string;
           choices?: Array<{
             delta?: { content?: string };
             message?: { content?: string };
           }>;
         };
+        const streamError =
+          typeof payload.error === "string" ? payload.error : payload.error?.message;
+        if (streamError && !errorMessage) {
+          errorMessage = streamError;
+        }
         return payload.choices?.[0]?.delta?.content || payload.choices?.[0]?.message?.content || "";
       } catch {
+        if (!errorMessage) {
+          errorMessage = line;
+        }
         return "";
       }
     })
     .join("");
+
+  return { content, errorMessage: errorMessage || undefined };
 }
 
 function formatHttpFailure(
@@ -909,6 +923,10 @@ function formatEmptyContentFailure(
 ): string {
   if (!payload.choices?.length && payload.rawText?.trim()) {
     return `${labelProviderStage(stage)} 阶段返回了非 JSON 响应。Provider 返回：${truncateDiagnostic(payload.rawText)}`;
+  }
+
+  if (payload.error?.message) {
+    return `${labelProviderStage(stage)} returned empty content. Provider returned: ${truncateDiagnostic(payload.error.message)}`;
   }
 
   const finishReason = payload.choices?.[0]?.finish_reason;
