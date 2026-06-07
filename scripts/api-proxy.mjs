@@ -87,18 +87,32 @@ export function createApiProxyServer(config = getProxyConfig()) {
 
     let targetBaseUrl = config.targetBaseUrl;
     let forwardingToUpstream = false;
+    const clientAbortController = createClientAbortController(request, response);
     try {
       const body = await readBody(request);
       targetBaseUrl = resolveRequestTargetBaseUrl(config, request);
       forwardingToUpstream = true;
-      const upstream = await requestUpstreamChatCompletions(config, body, apiKey, targetBaseUrl);
+      const upstream = await requestUpstreamChatCompletions(
+        config,
+        body,
+        apiKey,
+        targetBaseUrl,
+        clientAbortController.signal
+      );
       const text = await upstream.text();
+
+      if (response.destroyed || clientAbortController.signal.aborted) {
+        return;
+      }
 
       response.writeHead(upstream.status, {
         "Content-Type": upstream.headers.get("content-type") || "application/json"
       });
       response.end(text);
     } catch (error) {
+      if (response.destroyed || clientAbortController.signal.aborted) {
+        return;
+      }
       const upstreamTimedOut = forwardingToUpstream && isUpstreamTimeout(error);
       writeJson(response, upstreamTimedOut ? 504 : forwardingToUpstream ? 502 : 500, {
         error: forwardingToUpstream
@@ -107,17 +121,33 @@ export function createApiProxyServer(config = getProxyConfig()) {
             : formatUpstreamFailure(targetBaseUrl, error)
           : error instanceof Error ? error.message : "应用内 AI 服务请求失败。"
       });
+    } finally {
+      clientAbortController.cleanup();
     }
   });
 }
 
-export async function requestUpstreamChatCompletions(config, body, apiKey = config.apiKey, targetBaseUrl = config.targetBaseUrl) {
+export async function requestUpstreamChatCompletions(
+  config,
+  body,
+  apiKey = config.apiKey,
+  targetBaseUrl = config.targetBaseUrl,
+  clientSignal
+) {
   const dispatcher = config.networkProxyUrl ? new ProxyAgent(config.networkProxyUrl) : undefined;
   const timeoutMs = normalizeUpstreamTimeoutMs(config.upstreamTimeoutMs);
   const controller = new AbortController();
   const timeout = setTimeout(() => {
     controller.abort(new Error(`upstream timeout after ${timeoutMs}ms`));
   }, timeoutMs);
+  const abortFromClient = () => {
+    controller.abort(clientSignal.reason || new Error("client aborted request"));
+  };
+  if (clientSignal?.aborted) {
+    abortFromClient();
+  } else {
+    clientSignal?.addEventListener("abort", abortFromClient, { once: true });
+  }
 
   try {
     return await undiciFetch(`${targetBaseUrl}/chat/completions`, {
@@ -132,7 +162,33 @@ export async function requestUpstreamChatCompletions(config, body, apiKey = conf
     });
   } finally {
     clearTimeout(timeout);
+    clientSignal?.removeEventListener("abort", abortFromClient);
   }
+}
+
+function createClientAbortController(request, response) {
+  const controller = new AbortController();
+  const abort = () => {
+    if (!controller.signal.aborted) {
+      controller.abort(new Error("client aborted request"));
+    }
+  };
+  const abortIfResponseClosedEarly = () => {
+    if (!response.writableEnded) {
+      abort();
+    }
+  };
+
+  request.on("aborted", abort);
+  response.on("close", abortIfResponseClosedEarly);
+
+  return {
+    signal: controller.signal,
+    cleanup() {
+      request.off("aborted", abort);
+      response.off("close", abortIfResponseClosedEarly);
+    }
+  };
 }
 
 function resolveRequestTargetBaseUrl(config, request) {
