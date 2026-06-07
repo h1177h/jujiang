@@ -294,6 +294,46 @@ describe("AI connection diagnostics", () => {
     });
   });
 
+  it("reports raw provider text when provider probe failure is not JSON", async () => {
+    const fetcher = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          ok: true,
+          service: "jujiang-api-proxy",
+          hasApiKey: true,
+          targetBaseUrl: "https://api.example.com/v1"
+        })
+      })
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 502,
+        json: async () => {
+          throw new Error("not json");
+        },
+        text: async () => "<html>Bad Gateway from upstream provider</html>"
+      });
+
+    const result = await diagnoseAiConnection(
+      {
+        baseUrl: "http://127.0.0.1:18787/v1",
+        useLocalProxy: true,
+        providerBaseUrl: "https://api.example.com",
+        apiKey: "browser-key",
+        model: "test-model"
+      },
+      fetcher
+    );
+
+    expect(result).toEqual({
+      ok: false,
+      message:
+        "AI provider 连接检查失败：HTTP 502。Provider 返回：<html>Bad Gateway from upstream provider</html>"
+    });
+  });
+
   it("rejects successful provider probes that return no chat text", async () => {
     const fetcher = vi
       .fn()
