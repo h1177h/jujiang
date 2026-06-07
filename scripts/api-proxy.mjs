@@ -6,6 +6,7 @@ const DEFAULT_TARGET_BASE_URL = "https://api.openai.com/v1";
 const DEFAULT_PORT = 18787;
 const MAX_BODY_BYTES = 2 * 1024 * 1024;
 const TARGET_BASE_URL_HEADER = "x-jujiang-target-base-url";
+const DEFAULT_UPSTREAM_TIMEOUT_MS = 180_000;
 
 export function normalizeTargetBaseUrl(value = DEFAULT_TARGET_BASE_URL) {
   const trimmed = value.trim().replace(/\/+$/, "");
@@ -26,7 +27,8 @@ export function getProxyConfig(env = process.env) {
       env.JUJIANG_API_BASE_URL || env.OPENAI_BASE_URL || DEFAULT_TARGET_BASE_URL
     ),
     apiKey: env.JUJIANG_API_KEY || env.OPENAI_API_KEY || "",
-    networkProxyUrl: getNetworkProxyUrl(env)
+    networkProxyUrl: getNetworkProxyUrl(env),
+    upstreamTimeoutMs: normalizeUpstreamTimeoutMs(env.JUJIANG_UPSTREAM_TIMEOUT_MS)
   };
 }
 
@@ -97,27 +99,40 @@ export function createApiProxyServer(config = getProxyConfig()) {
       });
       response.end(text);
     } catch (error) {
-      writeJson(response, forwardingToUpstream ? 502 : 500, {
+      const upstreamTimedOut = forwardingToUpstream && isUpstreamTimeout(error);
+      writeJson(response, upstreamTimedOut ? 504 : forwardingToUpstream ? 502 : 500, {
         error: forwardingToUpstream
-          ? formatUpstreamFailure(targetBaseUrl, error)
+          ? upstreamTimedOut
+            ? formatUpstreamTimeout(targetBaseUrl, config.upstreamTimeoutMs)
+            : formatUpstreamFailure(targetBaseUrl, error)
           : error instanceof Error ? error.message : "应用内 AI 服务请求失败。"
       });
     }
   });
 }
 
-export function requestUpstreamChatCompletions(config, body, apiKey = config.apiKey, targetBaseUrl = config.targetBaseUrl) {
+export async function requestUpstreamChatCompletions(config, body, apiKey = config.apiKey, targetBaseUrl = config.targetBaseUrl) {
   const dispatcher = config.networkProxyUrl ? new ProxyAgent(config.networkProxyUrl) : undefined;
+  const timeoutMs = normalizeUpstreamTimeoutMs(config.upstreamTimeoutMs);
+  const controller = new AbortController();
+  const timeout = setTimeout(() => {
+    controller.abort(new Error(`upstream timeout after ${timeoutMs}ms`));
+  }, timeoutMs);
 
-  return undiciFetch(`${targetBaseUrl}/chat/completions`, {
+  try {
+    return await undiciFetch(`${targetBaseUrl}/chat/completions`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${apiKey}`
         },
         body,
-        dispatcher
-  });
+        dispatcher,
+        signal: controller.signal
+    });
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 function resolveRequestTargetBaseUrl(config, request) {
@@ -148,6 +163,20 @@ function writeJson(response, status, payload) {
 function formatUpstreamFailure(targetBaseUrl, error) {
   const message = error instanceof Error ? error.message : String(error || "unknown error");
   return `上游 AI provider 连接失败：${targetBaseUrl}。请检查 Base URL、网络代理或 provider 服务状态。底层错误：${truncateDiagnostic(message)}`;
+}
+
+function formatUpstreamTimeout(targetBaseUrl, timeoutMs) {
+  const seconds = Math.max(1, Math.round(timeoutMs / 1000));
+  return `上游 AI provider 请求超时：${targetBaseUrl}。等待 ${seconds}s 后仍未返回，可重试。请检查 Base URL、网络代理或 provider 服务状态。`;
+}
+
+function isUpstreamTimeout(error) {
+  return error instanceof Error && /upstream timeout|aborted|aborterror|timeouterror/i.test(`${error.name} ${error.message}`);
+}
+
+function normalizeUpstreamTimeoutMs(value) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_UPSTREAM_TIMEOUT_MS;
 }
 
 function truncateDiagnostic(value) {
