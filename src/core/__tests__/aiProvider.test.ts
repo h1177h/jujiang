@@ -1861,6 +1861,15 @@ describe("AI provider", () => {
           initialIssues: expect.arrayContaining(["scenes"]),
           initialExcerpt: expect.stringContaining("\"scenes\":[]")
         })
+      }),
+      expect.objectContaining({
+        kind: "repair",
+        summary: "结构修复请求失败",
+        diagnostic: expect.objectContaining({
+          initialIssues: expect.arrayContaining(["scenes"]),
+          initialExcerpt: expect.stringContaining("\"scenes\":[]"),
+          repairedExcerpt: expect.stringContaining("Gateway Timeout")
+        })
       })
     ]);
   });

@@ -917,21 +917,41 @@ async function validateOrRepairScreenplay(
       }
     }
   });
-  const repairedContent = await requestChatCompletion(settings, baseUrl, {
-    temperature: 0.1,
-    messages: [
-      {
-        role: "system",
-        content: buildRepairSystemPrompt()
-      },
-      {
-        role: "user",
-        content: buildRepairUserPrompt(options, sourceChapters, blueprint, normalized, validationIssues)
+  let repairedContent: string;
+  try {
+    repairedContent = await requestChatCompletion(settings, baseUrl, {
+      temperature: 0.1,
+      messages: [
+        {
+          role: "system",
+          content: buildRepairSystemPrompt()
+        },
+        {
+          role: "user",
+          content: buildRepairUserPrompt(options, sourceChapters, blueprint, normalized, validationIssues)
+        }
+      ],
+      signal: options.signal,
+      stage: "schema_repair"
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    options.onProgress?.({
+      stage: "schema_repair",
+      message: "结构修复请求失败",
+      artifact: {
+        kind: "repair",
+        summary: "结构修复请求失败",
+        detail: `初次问题：${formatValidationIssues(validationIssues)}`,
+        diagnostic: {
+          initialIssues: validationIssues,
+          initialExcerpt,
+          repairedExcerpt: truncateDiagnostic(message)
+        }
       }
-    ],
-    signal: options.signal,
-    stage: "schema_repair"
-  });
+    });
+    throw error;
+  }
 
   let repairedJson: unknown;
   try {
