@@ -1083,7 +1083,7 @@ function formatEmptyContentFailure(
   }
 
   if (payload.error?.message) {
-    return `${labelProviderStage(stage)} returned empty content. Provider returned: ${truncateDiagnostic(payload.error.message)}`;
+    return `${labelProviderStage(stage)} 阶段返回空内容。Provider 返回：${truncateDiagnostic(payload.error.message)}`;
   }
 
   const finishReason = payload.choices?.[0]?.finish_reason;
