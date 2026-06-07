@@ -2023,6 +2023,7 @@ describe("AI provider", () => {
       });
     vi.stubGlobal("fetch", fetchMock);
     const repairArtifacts: unknown[] = [];
+    const screenplayArtifacts: unknown[] = [];
 
     const result = await generateScreenplayWithApi(
       {
@@ -2035,6 +2036,9 @@ describe("AI provider", () => {
         style: "cinematic",
         novelText: sampleNovel,
         onProgress: (event) => {
+          if (event.stage === "screenplay_generate" && event.artifact) {
+            screenplayArtifacts.push(event.artifact);
+          }
           if (event.stage === "schema_repair" && event.artifact) {
             repairArtifacts.push(event.artifact);
           }
@@ -2048,6 +2052,19 @@ describe("AI provider", () => {
     const repairPayload = JSON.parse(repairBody.messages[1].content);
     expect(repairPayload.pipelineStage).toBe("schema_repair");
     expect(repairPayload.validationIssues.join("\n")).toContain("scenes");
+    expect(screenplayArtifacts).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "screenplay",
+          summary: "剧本初稿未通过 Schema",
+          detail: expect.stringContaining("初次问题：scenes"),
+          diagnostic: expect.objectContaining({
+            initialIssues: expect.arrayContaining(["scenes"]),
+            initialExcerpt: expect.stringContaining("\"scenes\":[]")
+          })
+        })
+      ])
+    );
     expect(repairArtifacts).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
