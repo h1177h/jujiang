@@ -2,7 +2,7 @@ import type { AiSettingsStorage } from "./apiSettings";
 import type { AiGenerationArtifact, AiGenerationDiagnostic } from "./aiProvider";
 import type { AdaptationStyle } from "./types";
 import type { ScreenplayRevision } from "./revisionHistory";
-import type { GenerationRun, GenerationRunStage } from "./generationRun";
+import { getGenerationRunResumeCheckpoint, type GenerationRun, type GenerationRunStage } from "./generationRun";
 
 export interface SavedWorkspaceDraft {
   title: string;
@@ -130,14 +130,19 @@ function normalizeRestoredGenerationRun(run: GenerationRun, interruptedAt: strin
     return run;
   }
 
-  const message = "上次生成在页面关闭或刷新时中断，可从已保存阶段继续。";
+  const hasResumeCheckpoint = Boolean(getGenerationRunResumeCheckpoint(run));
+  const message = hasResumeCheckpoint
+    ? "上次生成在页面关闭或刷新时中断，可从已保存阶段继续。"
+    : "上次生成在页面关闭或刷新时中断，请重新调用当前 AI 配置。";
   return {
     ...run,
     status: "failed",
     completedAt: interruptedAt,
     error: message,
     canRetry: true,
-    recoveryHint: "保留了本机工作区里的阶段记录，可用当前 AI 配置继续或重试。",
+    recoveryHint: hasResumeCheckpoint
+      ? "保留了本机工作区里的阶段记录，可用当前 AI 配置继续或重试。"
+      : "还没有保存可续跑的阶段产物，可用当前 AI 配置重新生成。",
     stages: run.stages.map((stage) =>
       stage.status === "running"
         ? {

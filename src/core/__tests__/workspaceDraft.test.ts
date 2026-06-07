@@ -301,6 +301,57 @@ describe("workspace draft persistence", () => {
     expect(restored?.stages[0]?.artifacts?.[0]?.checkpoint).toBeTruthy();
   });
 
+  it("restores interrupted generation runs without checkpoints as retry-only failures", () => {
+    const storage = createMemoryStorage();
+    storage.setItem(
+      workspaceDraftStorageKey,
+      JSON.stringify({
+        title: "Interrupted Before Checkpoint",
+        style: "cinematic",
+        novelText: "Chapter 1\nText",
+        yamlText: "work:\n  title: Interrupted Before Checkpoint\n",
+        selectedSceneId: null,
+        revisionHistory: [],
+        generationRuns: [
+          {
+            id: "run-before-checkpoint",
+            title: "Interrupted Before Checkpoint",
+            model: "gpt-4.1-mini",
+            chapterCount: 2,
+            status: "running",
+            startedAt: "2026-06-06T00:03:00.000Z",
+            stages: [
+              {
+                id: "connection_check",
+                label: "连接 AI",
+                status: "running",
+                message: "正在检查 provider",
+                updatedAt: "2026-06-06T00:03:08.000Z"
+              }
+            ]
+          }
+        ],
+        updatedAt: "2026-06-06T00:05:00.000Z"
+      })
+    );
+
+    const restored = loadSavedWorkspaceDraft(storage)?.generationRuns[0];
+
+    expect(restored).toMatchObject({
+      id: "run-before-checkpoint",
+      status: "failed",
+      canRetry: true,
+      error: "上次生成在页面关闭或刷新时中断，请重新调用当前 AI 配置。",
+      recoveryHint: "还没有保存可续跑的阶段产物，可用当前 AI 配置重新生成。",
+      completedAt: "2026-06-06T00:05:00.000Z"
+    });
+    expect(restored?.stages[0]).toMatchObject({
+      id: "connection_check",
+      status: "failed",
+      message: "上次生成在页面关闭或刷新时中断，请重新调用当前 AI 配置。"
+    });
+  });
+
   it("clears the saved workspace draft", () => {
     const storage = createMemoryStorage();
     saveWorkspaceDraft(
