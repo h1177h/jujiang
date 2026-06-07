@@ -216,6 +216,91 @@ describe("workspace draft persistence", () => {
     expect(loadSavedWorkspaceDraft(storage)?.generationRuns[0]?.stages[0]?.status).toBe("cancelled");
   });
 
+  it("marks interrupted running generation runs as failed and retryable on load", () => {
+    const storage = createMemoryStorage();
+    storage.setItem(
+      workspaceDraftStorageKey,
+      JSON.stringify({
+        title: "Interrupted Draft",
+        style: "cinematic",
+        novelText: "Chapter 1\nText",
+        yamlText: "work:\n  title: Interrupted Draft\n",
+        selectedSceneId: null,
+        revisionHistory: [],
+        generationRuns: [
+          {
+            id: "run-running",
+            title: "Interrupted Draft",
+            model: "gpt-4.1-mini",
+            chapterCount: 2,
+            status: "running",
+            startedAt: "2026-06-06T00:03:00.000Z",
+            stages: [
+              {
+                id: "chapter_event_extract",
+                label: "逐章事件",
+                status: "running",
+                message: "正在抽取第 1 章事件",
+                artifacts: [
+                  {
+                    kind: "chapter_events",
+                    summary: "第 1 章事件已保存",
+                    checkpoint: {
+                      chapterEvents: [
+                        {
+                          chapterIndex: 1,
+                          chapterTitle: "Chapter 1",
+                          chapterGoal: "Find the clue",
+                          events: [
+                            {
+                              id: "event-1",
+                              summary: "Lin finds the clue.",
+                              characters: ["Lin"],
+                              location: "Pier",
+                              conflict: "The clue is hidden.",
+                              emotionalTurn: "Suspicion rises.",
+                              source: {
+                                chapterIndex: 1,
+                                chapterTitle: "Chapter 1",
+                                paragraphIndexes: [1],
+                                lineStart: 1,
+                                lineEnd: 2,
+                                excerpt: "Lin finds the clue."
+                              }
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    createdAt: "2026-06-06T00:03:08.000Z"
+                  }
+                ],
+                updatedAt: "2026-06-06T00:03:08.000Z"
+              }
+            ]
+          }
+        ],
+        updatedAt: "2026-06-06T00:05:00.000Z"
+      })
+    );
+
+    const restored = loadSavedWorkspaceDraft(storage)?.generationRuns[0];
+
+    expect(restored).toMatchObject({
+      id: "run-running",
+      status: "failed",
+      canRetry: true,
+      error: "上次生成在页面关闭或刷新时中断，可从已保存阶段继续。",
+      completedAt: "2026-06-06T00:05:00.000Z"
+    });
+    expect(restored?.stages[0]).toMatchObject({
+      id: "chapter_event_extract",
+      status: "failed",
+      message: "上次生成在页面关闭或刷新时中断，可从已保存阶段继续。"
+    });
+    expect(restored?.stages[0]?.artifacts?.[0]?.checkpoint).toBeTruthy();
+  });
+
   it("clears the saved workspace draft", () => {
     const storage = createMemoryStorage();
     saveWorkspaceDraft(
