@@ -44,8 +44,17 @@ describe("api proxy config", () => {
       port: 8989,
       targetBaseUrl: "https://proxy.example.com/v1",
       apiKey: "jujiang-key",
-      networkProxyUrl: ""
+      networkProxyUrl: "",
+      upstreamTimeoutMs: 180000
     });
+  });
+
+  it("reads a configurable upstream timeout for stalled provider requests", () => {
+    const config = getProxyConfig({
+      JUJIANG_UPSTREAM_TIMEOUT_MS: "45000"
+    });
+
+    expect(config.upstreamTimeoutMs).toBe(45000);
   });
 
   it("uses a Jujiang-specific default port", () => {
@@ -189,5 +198,41 @@ describe("api proxy config", () => {
     expect(payload.error).toContain("上游 AI provider 连接失败");
     expect(payload.error).toContain("http://127.0.0.1:9/v1");
     expect(payload.error).toContain("请检查 Base URL、网络代理或 provider 服务状态");
+  });
+
+  it("times out stalled upstream provider requests with a retryable 504", async () => {
+    const upstream = createServer(() => {
+      // Keep the socket open to simulate a provider that accepted the request but stopped responding.
+    });
+    const upstreamBaseUrl = await listen(upstream);
+    const proxy = createApiProxyServer({
+      port: 0,
+      targetBaseUrl: `${upstreamBaseUrl}/v1`,
+      apiKey: "",
+      networkProxyUrl: "",
+      upstreamTimeoutMs: 25
+    });
+    const proxyBaseUrl = await listen(proxy);
+
+    const request = fetch(`${proxyBaseUrl}/v1/chat/completions`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: "Bearer browser-key"
+      },
+      body: JSON.stringify({ model: "test-model", messages: [] })
+    });
+    const response = await Promise.race([
+      request,
+      new Promise((_, reject) => {
+        setTimeout(() => reject(new Error("proxy request did not time out")), 200);
+      })
+    ]);
+    const payload = await response.json();
+
+    expect(response.status).toBe(504);
+    expect(payload.error).toContain("上游 AI provider 请求超时");
+    expect(payload.error).toContain(`${upstreamBaseUrl}/v1`);
+    expect(payload.error).toContain("可重试");
   });
 });
