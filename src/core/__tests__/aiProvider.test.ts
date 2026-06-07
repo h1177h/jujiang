@@ -358,7 +358,7 @@ describe("AI provider", () => {
           novelText: sampleNovel
         }
       )
-    ).rejects.toThrow(/event_extract[\s\S]*quota exceeded/);
+    ).rejects.toThrow("event_extract 阶段返回空内容。Provider 返回：quota exceeded");
   });
 
   it("reports stage, HTTP 504, and retryability when the provider times out", async () => {
