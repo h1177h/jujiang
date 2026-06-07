@@ -222,6 +222,39 @@ describe("screenplay schema and review helpers", () => {
     expect(blueprintPaths).toEqual(expect.arrayContaining(expectedPaths));
   });
 
+  it("rejects inconsistent source locator anchors", () => {
+    const parsed = parse(sampleOutputYaml);
+    parsed.chapterEvents[0].events[0].source.chapterIndex = 2;
+    parsed.chapterMappings[0].sourceLines = [8, 3];
+    parsed.scenes[0].source.chapterIndex = 2;
+    parsed.scenes[0].source.lineStart = 9;
+    parsed.scenes[0].source.lineEnd = 8;
+    parsed.scenes[0].dialogue[0].source.chapterIndex = 3;
+
+    const validation = validateScreenplay(parsed);
+    const blueprintValidation = validateStoryBlueprint({
+      chapterEvents: parsed.chapterEvents,
+      storyBible: parsed.storyBible,
+      adaptationStrategy: parsed.adaptationStrategy
+    });
+
+    expect(validation.success).toBe(false);
+    expect(blueprintValidation.success).toBe(false);
+    if (validation.success || blueprintValidation.success) return;
+    const paths = validation.error.issues.map((issue) => issue.path.join("."));
+    const blueprintPaths = blueprintValidation.error.issues.map((issue) => issue.path.join("."));
+    expect(paths).toEqual(
+      expect.arrayContaining([
+        "chapterEvents.0.events.0.source.chapterIndex",
+        "chapterMappings.0.sourceLines.1",
+        "scenes.0.source.chapterIndex",
+        "scenes.0.source.lineEnd",
+        "scenes.0.dialogue.0.source.chapterIndex"
+      ])
+    );
+    expect(blueprintPaths).toEqual(expect.arrayContaining(["chapterEvents.0.events.0.source.chapterIndex"]));
+  });
+
   it("returns structured diagnostics that point authors to the broken scene field", () => {
     const parsed = parse(sampleOutputYaml);
     parsed.scenes[0].goal = "";

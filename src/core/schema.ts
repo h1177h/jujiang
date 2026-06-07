@@ -1,13 +1,23 @@
 import { z } from "zod";
 
-export const sourceLocatorSchema = z.object({
-  chapterIndex: z.number().int().positive(),
-  chapterTitle: z.string().min(1),
-  paragraphIndexes: z.array(z.number().int().nonnegative()).min(1),
-  lineStart: z.number().int().positive(),
-  lineEnd: z.number().int().positive(),
-  excerpt: z.string().min(1)
-});
+export const sourceLocatorSchema = z
+  .object({
+    chapterIndex: z.number().int().positive(),
+    chapterTitle: z.string().min(1),
+    paragraphIndexes: z.array(z.number().int().nonnegative()).min(1),
+    lineStart: z.number().int().positive(),
+    lineEnd: z.number().int().positive(),
+    excerpt: z.string().min(1)
+  })
+  .superRefine((source, ctx) => {
+    if (source.lineEnd < source.lineStart) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["lineEnd"],
+        message: "lineEnd must be greater than or equal to lineStart"
+      });
+    }
+  });
 
 export const chapterEventsSchema = z
   .array(
@@ -63,6 +73,7 @@ export const storyBlueprintBaseSchema = z.object({
 
 export const storyBlueprintSchema = storyBlueprintBaseSchema.superRefine((blueprint, ctx) => {
   addStoryArcEventReferenceIssues(blueprint, ctx);
+  addChapterEventSourceAnchorIssues(blueprint.chapterEvents, ctx);
 });
 
 export const sceneSchema = z.object({
@@ -162,6 +173,7 @@ export const screenplaySchema = z
 })
   .superRefine((screenplay, ctx) => {
     addStoryArcEventReferenceIssues(screenplay, ctx);
+    addChapterEventSourceAnchorIssues(screenplay.chapterEvents, ctx);
 
     const sourceChapterCount = screenplay.work.sourceChapterCount;
     const sceneIds = new Set(screenplay.scenes.map((scene) => scene.id));
@@ -220,6 +232,13 @@ export const screenplaySchema = z
 
     screenplay.chapterMappings.forEach((mapping, mappingIndex) => {
       addChapterRangeIssue(["chapterMappings", mappingIndex, "chapterIndex"], mapping.chapterIndex);
+      if (mapping.sourceLines[1] < mapping.sourceLines[0]) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["chapterMappings", mappingIndex, "sourceLines", 1],
+          message: "sourceLines end must be greater than or equal to sourceLines start"
+        });
+      }
       mapping.sceneIds.forEach((sceneId, sceneIdIndex) => {
         addSceneReferenceIssue(["chapterMappings", mappingIndex, "sceneIds", sceneIdIndex], sceneId);
       });
@@ -237,6 +256,12 @@ export const screenplaySchema = z
     screenplay.scenes.forEach((scene, sceneIndex) => {
       addChapterRangeIssue(["scenes", sceneIndex, "chapterIndex"], scene.chapterIndex);
       addChapterRangeIssue(["scenes", sceneIndex, "source", "chapterIndex"], scene.source.chapterIndex);
+      addSourceChapterAnchorIssue(
+        ["scenes", sceneIndex, "source", "chapterIndex"],
+        scene.source.chapterIndex,
+        scene.chapterIndex,
+        ctx
+      );
       scene.characters.forEach((character, characterIndex) => {
         addCharacterReferenceIssue(["scenes", sceneIndex, "characters", characterIndex], character);
       });
@@ -245,6 +270,12 @@ export const screenplaySchema = z
         addChapterRangeIssue(
           ["scenes", sceneIndex, "dialogue", lineIndex, "source", "chapterIndex"],
           line.source.chapterIndex
+        );
+        addSourceChapterAnchorIssue(
+          ["scenes", sceneIndex, "dialogue", lineIndex, "source", "chapterIndex"],
+          line.source.chapterIndex,
+          scene.chapterIndex,
+          ctx
         );
       });
     });
@@ -268,6 +299,37 @@ function addStoryArcEventReferenceIssues(
   value.storyBible.characterArcs.forEach((arc, arcIndex) => {
     addEventReferenceIssue(["storyBible", "characterArcs", arcIndex, "firstEventId"], arc.firstEventId);
     addEventReferenceIssue(["storyBible", "characterArcs", arcIndex, "lastEventId"], arc.lastEventId);
+  });
+}
+
+function addChapterEventSourceAnchorIssues(
+  chapterEvents: z.infer<typeof chapterEventsSchema>,
+  ctx: z.RefinementCtx
+) {
+  chapterEvents.forEach((group, groupIndex) => {
+    group.events.forEach((event, eventIndex) => {
+      addSourceChapterAnchorIssue(
+        ["chapterEvents", groupIndex, "events", eventIndex, "source", "chapterIndex"],
+        event.source.chapterIndex,
+        group.chapterIndex,
+        ctx
+      );
+    });
+  });
+}
+
+function addSourceChapterAnchorIssue(
+  path: (string | number)[],
+  sourceChapterIndex: number,
+  expectedChapterIndex: number,
+  ctx: z.RefinementCtx
+) {
+  if (sourceChapterIndex === expectedChapterIndex) return;
+
+  ctx.addIssue({
+    code: z.ZodIssueCode.custom,
+    path,
+    message: `source chapterIndex must match its parent chapterIndex (${expectedChapterIndex})`
   });
 }
 
