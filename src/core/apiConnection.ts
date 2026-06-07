@@ -131,7 +131,13 @@ export function isActionableConnectionMessage(message: string): boolean {
     message.startsWith("当前端口不是剧匠 AI 服务") ||
     message.startsWith("AI 服务连接检查失败") ||
     message.startsWith("浏览器直连失败") ||
-    message.startsWith("本地 proxy 未连接")
+    message.startsWith("本地 proxy 未连接") ||
+    message.includes("阶段请求超时") ||
+    message.includes("阶段请求失败") ||
+    message.includes("阶段返回了非 JSON 响应") ||
+    message.includes("阶段返回空内容") ||
+    message.includes("Provider 返回：") ||
+    message.startsWith("上游 AI provider")
   );
 }
 
