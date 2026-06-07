@@ -840,6 +840,7 @@ describe("AI provider", () => {
       }))
     );
 
+    const blueprintArtifacts: unknown[] = [];
     let errorMessage = "";
     try {
       await generateScreenplayWithApi(
@@ -851,7 +852,12 @@ describe("AI provider", () => {
         {
           title: "雾港来信",
           style: "cinematic",
-          novelText: sampleNovel
+          novelText: sampleNovel,
+          onProgress: (event) => {
+            if (event.stage === "event_extract" && event.artifact) {
+              blueprintArtifacts.push(event.artifact);
+            }
+          }
         }
       );
     } catch (error) {
@@ -862,6 +868,16 @@ describe("AI provider", () => {
       "event_extract 阶段故事蓝图未通过 Schema：chapterEvents, storyBible, adaptationStrategy。Provider 返回摘要："
     );
     expect(errorMessage).toContain("\"chapterEvents\":[]");
+    expect(blueprintArtifacts).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "story_blueprint",
+          diagnostic: expect.objectContaining({
+            initialExcerpt: expect.stringContaining("\"chapterEvents\":[]")
+          })
+        })
+      ])
+    );
   });
 
   it("retries without response_format when a compatible provider rejects json mode", async () => {
