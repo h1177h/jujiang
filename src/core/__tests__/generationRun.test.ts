@@ -13,6 +13,7 @@ import {
   formatGenerationRunStatus,
   getGenerationRunResumeCheckpoint,
   pushGenerationRunHistory,
+  updateActiveGenerationRun,
   updateGenerationRunStage
 } from "../generationRun";
 
@@ -83,6 +84,39 @@ describe("generation run tracking", () => {
       current: 3,
       total: 5
     });
+  });
+
+  it("ignores async updates from older generation runs", () => {
+    const olderRun = createGenerationRun({
+      title: "旧任务",
+      model: "gpt-4.1-mini",
+      chapterCount: 3,
+      date: new Date("2026-06-06T00:00:00.000Z")
+    });
+    const activeRun = createGenerationRun({
+      title: "新任务",
+      model: "gpt-4.1-mini",
+      chapterCount: 3,
+      date: new Date("2026-06-06T00:01:00.000Z")
+    });
+
+    const staleUpdate = updateActiveGenerationRun(activeRun, olderRun.id, (run) =>
+      updateGenerationRunStage(run, {
+        stage: "screenplay_generate",
+        message: "旧任务完成",
+        date: new Date("2026-06-06T00:01:10.000Z")
+      })
+    );
+    const currentUpdate = updateActiveGenerationRun(activeRun, activeRun.id, (run) =>
+      updateGenerationRunStage(run, {
+        stage: "screenplay_generate",
+        message: "新任务完成",
+        date: new Date("2026-06-06T00:01:11.000Z")
+      })
+    );
+
+    expect(staleUpdate).toBe(activeRun);
+    expect(currentUpdate?.stages.find((stage) => stage.id === "screenplay_generate")?.message).toBe("新任务完成");
   });
 
   it("attaches stage artifacts to the active generation stage", () => {
