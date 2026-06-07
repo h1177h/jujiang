@@ -138,6 +138,21 @@ h3 {
   color: #9a3412;
 }
 
+.topbar-action {
+  align-items: center;
+  background: #111827;
+  border: 1px solid #111827;
+  border-radius: 8px;
+  color: #ffffff;
+  cursor: pointer;
+  display: inline-flex;
+  font-size: 12px;
+  font-weight: 850;
+  gap: 6px;
+  min-height: 32px;
+  padding: 0 12px;
+}
+
 .workflow-brand {
   border-bottom: 1px solid rgb(255 255 255 / 10%);
   display: grid;
@@ -220,12 +235,13 @@ h3 {
 .studio-shell {
   display: grid;
   gap: 12px;
-  grid-template-columns: 170px minmax(260px, 300px) minmax(620px, 1fr) minmax(350px, 410px);
+  grid-template-columns: minmax(240px, 280px) minmax(620px, 1fr) minmax(350px, 410px);
   margin: 0 auto;
   max-width: 1720px;
   min-height: calc(100vh - 104px);
 }
 
+.left-rail,
 .workflow-rail,
 .source-rail,
 .delivery-rail {
@@ -233,6 +249,11 @@ h3 {
   display: grid;
   gap: 14px;
   min-width: 0;
+}
+
+.left-rail {
+  grid-column: 1;
+  grid-row: 1 / span 2;
   position: sticky;
   top: 12px;
 }
@@ -246,17 +267,55 @@ h3 {
   padding: 12px;
 }
 
+.source-rail .panel {
+  box-shadow: 0 10px 26px rgb(18 24 33 / 7%);
+  padding: 14px;
+}
+
+.source-rail .panel-header {
+  border-bottom: 1px solid #e2e8f0;
+  padding-bottom: 10px;
+}
+
+.source-rail h2 {
+  font-size: 15px;
+}
+
+.source-rail .field-row {
+  flex-direction: column;
+}
+
+.source-rail input,
+.source-rail select {
+  height: 36px;
+}
+
+.source-rail .icon-button {
+  min-height: 34px;
+  min-width: 34px;
+}
+
+.source-rail .primary-action {
+  min-height: 40px;
+}
+
 .review-stage {
   display: grid;
   gap: 14px;
+  grid-column: 2;
+  grid-row: 1 / span 2;
   min-width: 0;
 }
 
 .delivery-rail {
+  grid-column: 3;
+  grid-row: 1 / span 2;
   grid-template-columns: 1fr;
   max-height: calc(100vh - 104px);
   overflow: auto;
   padding-right: 2px;
+  position: sticky;
+  top: 12px;
 }
 
 .panel,
@@ -282,8 +341,6 @@ h3 {
 
 .input-panel {
   gap: 14px;
-  max-height: calc(100vh - 104px);
-  overflow: auto;
 }
 
 .output-panel {
@@ -303,7 +360,6 @@ h3 {
 }
 
 .input-panel .field-row,
-.input-panel .api-box,
 .input-panel .primary-action {
   grid-column: auto;
 }
@@ -331,8 +387,7 @@ h3 {
 }
 
 .toolbar,
-.field-row,
-.switch-row {
+.field-row {
   display: flex;
   gap: 8px;
 }
@@ -388,16 +443,6 @@ select:focus,
   box-shadow: 0 0 0 3px rgb(37 99 235 / 12%);
 }
 
-.api-box {
-  background: #f6f8fb;
-  border: 1px solid #d2dae6;
-  border-radius: 8px;
-  display: grid;
-  gap: 10px;
-  margin-bottom: 0;
-  padding: 12px;
-}
-
 .api-grid {
   display: grid;
   gap: 8px;
@@ -406,10 +451,6 @@ select:focus,
 
 .api-grid label:first-child {
   grid-column: 1 / -1;
-}
-
-.switch-row {
-  flex-wrap: wrap;
 }
 
 .toggle-line {
@@ -428,19 +469,6 @@ select:focus,
   height: 16px;
   margin: 0;
   width: 16px;
-}
-
-.connection-pill {
-  align-items: center;
-  background: #e8f5f0;
-  border: 1px solid #b8dfcf;
-  border-radius: 999px;
-  color: #126044;
-  display: inline-flex;
-  font-size: 12px;
-  font-weight: 700;
-  min-height: 30px;
-  padding: 0 10px;
 }
 
 .secret-field {
@@ -467,13 +495,6 @@ select:focus,
   flex: 0 0 auto;
 }
 
-.remember-row {
-  align-items: center;
-  display: flex;
-  gap: 10px;
-  justify-content: space-between;
-}
-
 .ghost-action {
   background: transparent;
   border: 0;
@@ -487,6 +508,71 @@ select:focus,
 
 .ghost-action:hover {
   color: #1d4ed8;
+}
+
+.settings-backdrop {
+  align-items: center;
+  background: rgb(15 23 42 / 42%);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  padding: 18px;
+  position: fixed;
+  z-index: 20;
+}
+
+.settings-dialog {
+  background: #ffffff;
+  border: 1px solid #c8ced8;
+  border-radius: 10px;
+  box-shadow: 0 28px 70px rgb(15 23 42 / 26%);
+  display: grid;
+  gap: 14px;
+  max-height: min(760px, calc(100vh - 36px));
+  max-width: 620px;
+  overflow: auto;
+  padding: 18px;
+  width: min(620px, 100%);
+}
+
+.settings-dialog-head {
+  align-items: flex-start;
+  border-bottom: 1px solid #e2e8f0;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  padding-bottom: 12px;
+}
+
+.settings-dialog .modal-toggle {
+  justify-content: flex-start;
+  width: fit-content;
+}
+
+.modal-grid {
+  gap: 12px;
+}
+
+.modal-grid label:first-child {
+  grid-column: auto;
+}
+
+.wide-field {
+  grid-column: 1 / -1;
+}
+
+.settings-dialog-actions {
+  align-items: center;
+  border-top: 1px solid #e2e8f0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+  padding-top: 12px;
+}
+
+.modal-primary {
+  margin-top: 0;
 }
 
 .status-note.strong {
@@ -1870,14 +1956,30 @@ select:focus,
 
 @media (max-width: 1180px) {
   .studio-shell {
-    grid-template-columns: 150px minmax(250px, 300px) minmax(0, 1fr);
+    grid-template-columns: minmax(230px, 280px) minmax(0, 1fr);
   }
 
   .delivery-rail {
     grid-column: 1 / -1;
+    grid-row: 3;
     grid-template-columns: 1fr;
     max-height: none;
     position: static;
+  }
+
+  .workflow-rail {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .source-rail {
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  .review-stage {
+    grid-column: 2;
+    grid-row: 1 / span 2;
   }
 
   .generation-stages {
@@ -1900,13 +2002,16 @@ select:focus,
     grid-template-columns: 1fr;
   }
 
-  .workflow-rail,
-  .source-rail {
+  .left-rail {
+    grid-column: 1;
+    grid-row: auto;
+    order: 1;
     position: static;
   }
 
   .workflow-rail {
-    order: 1;
+    grid-column: auto;
+    grid-row: auto;
   }
 
   .product-flow {
@@ -1919,7 +2024,6 @@ select:focus,
 
   .input-panel .panel-header,
   .input-panel .field-row,
-  .input-panel .api-box,
   .input-panel .primary-action,
   .input-panel .source-editor-column {
     grid-column: auto;
@@ -1927,16 +2031,20 @@ select:focus,
   }
 
   .source-rail {
-    order: 3;
-    position: static;
+    grid-column: auto;
+    grid-row: auto;
   }
 
   .review-stage {
+    grid-column: 1;
+    grid-row: auto;
     order: 2;
   }
 
   .delivery-rail {
-    order: 4;
+    grid-column: 1;
+    grid-row: auto;
+    order: 3;
   }
 }
 
@@ -1966,6 +2074,29 @@ select:focus,
   .source-stat-grid {
     grid-template-columns: 1fr;
     width: 100%;
+  }
+
+  .modal-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-backdrop {
+    align-items: flex-end;
+    padding: 10px;
+  }
+
+  .settings-dialog {
+    max-height: calc(100vh - 20px);
+    padding: 14px;
+  }
+
+  .settings-dialog-actions {
+    justify-content: stretch;
+  }
+
+  .settings-dialog-actions > button,
+  .settings-dialog-actions > label {
+    flex: 1 1 100%;
   }
 
   .workflow-rail {

@@ -2,8 +2,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   FileInput,
   KeyRound,
+  Settings2,
   Sparkles,
-  Trash2,
+  X
 } from "lucide-react";
 import { parse } from "yaml";
 import {
@@ -27,7 +28,6 @@ import {
 import { generateWorkspaceDraft } from "./core/generationWorkflow";
 import { createRevision, pushRevision, type ScreenplayRevision } from "./core/revisionHistory";
 import {
-  clearSavedWorkspaceDraft,
   loadSavedWorkspaceDraft,
   saveWorkspaceDraft
 } from "./core/workspaceDraft";
@@ -119,6 +119,7 @@ export default function App() {
   const [generationRun, setGenerationRun] = useState<GenerationRun | null>(
     initialWorkspaceDraft?.generationRuns[0] ?? null
   );
+  const [aiSettingsOpen, setAiSettingsOpen] = useState(false);
   const activeGenerationRunIdRef = useRef<string | null>(null);
   const generationAbortRef = useRef<AbortController | null>(null);
 
@@ -541,23 +542,6 @@ export default function App() {
     setGenerationStatus("已清除浏览器保存的 API 设置");
   }
 
-  function handleResetWorkspace() {
-    const nextHistory = [createRevision("示例 YAML", sampleOutputYaml)];
-    generationAbortRef.current?.abort();
-    generationAbortRef.current = null;
-    activeGenerationRunIdRef.current = null;
-    clearSavedWorkspaceDraft(getBrowserStorage());
-    setNovelText(sampleNovel);
-    setTitle("雾港来信");
-    setStyle("cinematic");
-    setYamlText(sampleOutputYaml);
-    setRevisionHistory(nextHistory);
-    setSelectedSceneId(null);
-    setGenerationRun(null);
-    setGenerationRunHistory([]);
-    setGenerationStatus("已重置工作区草稿");
-  }
-
   async function handleCheckConnection() {
     const apiKeyForRequest = apiKey.trim();
     const requestBaseUrl = resolveAiRequestBaseUrl(apiBaseUrl, useLocalProxy);
@@ -590,45 +574,50 @@ export default function App() {
           <span className={validation.ok ? "valid" : "invalid"}>
             {validation.ok ? "YAML 校验通过" : "YAML 待修正"}
           </span>
+          <button className="topbar-action" type="button" onClick={() => setAiSettingsOpen(true)}>
+            <Settings2 size={16} />
+            AI 设置
+          </button>
         </div>
       </header>
 
       <section className="studio-shell">
-        <nav className="workflow-rail" aria-label="创作阶段">
-          <div className="workflow-brand">
-            <span>Studio Flow</span>
-            <strong>{preview ? "审稿中" : "准备生成"}</strong>
-          </div>
-          <ol className="product-flow">
-            <li className="active">
-              <span>01</span>
-              <strong>原文解析</strong>
-              <small>{sourceSummary.chapterCount} 章 / {sourceSummary.paragraphCount} 段</small>
-            </li>
-            <li className={sceneCount > 0 ? "active" : ""}>
-              <span>02</span>
-              <strong>分场改编</strong>
-              <small>{sceneCount} 场剧本</small>
-            </li>
-            <li className={preview ? "active" : ""}>
-              <span>03</span>
-              <strong>作者审稿</strong>
-              <small>{preview ? "可编辑校验" : "等待草稿"}</small>
-            </li>
-            <li className={validation.ok ? "active" : ""}>
-              <span>04</span>
-              <strong>YAML 交付</strong>
-              <small>{validation.ok ? "校验通过" : "待修正"}</small>
-            </li>
-          </ol>
-        </nav>
+        <aside className="left-rail" aria-label="项目导航与准备">
+          <nav className="workflow-rail" aria-label="创作阶段">
+            <div className="workflow-brand">
+              <span>Studio Flow</span>
+              <strong>{preview ? "审稿中" : "准备生成"}</strong>
+            </div>
+            <ol className="product-flow">
+              <li className="active">
+                <span>01</span>
+                <strong>原文解析</strong>
+                <small>{sourceSummary.chapterCount} 章 / {sourceSummary.paragraphCount} 段</small>
+              </li>
+              <li className={sceneCount > 0 ? "active" : ""}>
+                <span>02</span>
+                <strong>分场改编</strong>
+                <small>{sceneCount} 场剧本</small>
+              </li>
+              <li className={preview ? "active" : ""}>
+                <span>03</span>
+                <strong>作者审稿</strong>
+                <small>{preview ? "可编辑校验" : "等待草稿"}</small>
+              </li>
+              <li className={validation.ok ? "active" : ""}>
+                <span>04</span>
+                <strong>YAML 交付</strong>
+                <small>{validation.ok ? "校验通过" : "待修正"}</small>
+              </li>
+            </ol>
+          </nav>
 
-        <aside className="source-rail" aria-label="原文与生成设置">
+          <section className="source-rail" aria-label="原文与生成设置">
           <section className="panel input-panel">
             <div className="panel-header">
               <div>
-                <p className="section-kicker">控制台</p>
-                <h2>项目与 AI 调度</h2>
+                <p className="section-kicker">项目</p>
+                <h2>创作准备</h2>
               </div>
               <div className="header-actions">
                 <label className="icon-button file-button" title="上传文本文件">
@@ -639,9 +628,6 @@ export default function App() {
                     onChange={(event) => handleFileUpload(event.target.files?.[0] ?? null)}
                   />
                 </label>
-                <button className="icon-button" type="button" onClick={handleResetWorkspace} title="重置工作区草稿">
-                  <Trash2 size={18} />
-                </button>
               </div>
             </div>
 
@@ -660,70 +646,6 @@ export default function App() {
                   ))}
                 </select>
               </label>
-            </div>
-
-            <div className="api-box">
-              <div className="switch-row">
-                <label className="toggle-line">
-                  <input type="checkbox" checked={useApi} onChange={(event) => setUseApi(event.target.checked)} />
-                  <span>AI 生成</span>
-                </label>
-                <span className="connection-pill">应用内 AI 服务</span>
-              </div>
-              <div className="api-grid">
-                <label>
-                  Provider
-                  <select value={providerId} onChange={(event) => handleProviderChange(event.target.value)}>
-                    {apiProviderPresets.map((provider) => (
-                      <option key={provider.id} value={provider.id}>
-                        {provider.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  Base URL
-                  <input value={providerBaseUrl} onChange={(event) => setProviderBaseUrl(event.target.value)} />
-                </label>
-                <label>
-                  Model
-                  <input list="api-model-presets" value={apiModel} onChange={(event) => setApiModel(event.target.value)} />
-                  <datalist id="api-model-presets">
-                    {selectedProvider.models.map((model) => (
-                      <option key={model} value={model} />
-                    ))}
-                  </datalist>
-                </label>
-              </div>
-              <label>
-                API Key
-                <div className="secret-field">
-                  <KeyRound size={16} />
-                  <input
-                    type="password"
-                    value={apiKey}
-                    onChange={(event) => setApiKey(event.target.value)}
-                    placeholder="输入一次后可记住在本机浏览器"
-                  />
-                </div>
-              </label>
-              <div className="remember-row">
-                <label className="toggle-line">
-                  <input
-                    type="checkbox"
-                    checked={rememberApiKey}
-                    onChange={(event) => handleRememberApiKey(event.target.checked)}
-                  />
-                  <span>记住 API Key</span>
-                </label>
-                <button className="ghost-action" type="button" onClick={handleClearSavedAiSettings}>
-                  清除
-                </button>
-              </div>
-              <button className="secondary-action" type="button" onClick={handleCheckConnection}>
-                测试连接
-              </button>
-              <p className="status-note strong">{generationStatus}</p>
             </div>
 
             <details className="source-editor-column">
@@ -759,14 +681,15 @@ export default function App() {
                 className="novel-editor"
                 value={novelText}
                 onChange={(event) => setNovelText(event.target.value)}
-                  spellCheck={false}
-                />
+                spellCheck={false}
+              />
             </details>
 
             <button className="primary-action" type="button" onClick={() => handleGenerate()}>
               <Sparkles size={18} />
               {useApi ? "调用 AI 生成剧本" : "配置 AI 后生成"}
             </button>
+          </section>
           </section>
         </aside>
 
@@ -819,6 +742,92 @@ export default function App() {
           )}
         </aside>
       </section>
+
+      {aiSettingsOpen ? (
+        <div
+          className="settings-backdrop"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.currentTarget === event.target) setAiSettingsOpen(false);
+          }}
+        >
+          <section className="settings-dialog" role="dialog" aria-modal="true" aria-labelledby="ai-settings-title">
+            <div className="settings-dialog-head">
+              <div>
+                <p className="section-kicker">AI Settings</p>
+                <h2 id="ai-settings-title">AI 连接设置</h2>
+              </div>
+              <button className="icon-button" type="button" onClick={() => setAiSettingsOpen(false)} title="关闭">
+                <X size={18} />
+              </button>
+            </div>
+
+            <label className="toggle-line modal-toggle">
+              <input type="checkbox" checked={useApi} onChange={(event) => setUseApi(event.target.checked)} />
+              <span>启用真实 AI 生成</span>
+            </label>
+
+            <div className="api-grid modal-grid">
+              <label>
+                Provider
+                <select value={providerId} onChange={(event) => handleProviderChange(event.target.value)}>
+                  {apiProviderPresets.map((provider) => (
+                    <option key={provider.id} value={provider.id}>
+                      {provider.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Model
+                <input list="api-model-presets" value={apiModel} onChange={(event) => setApiModel(event.target.value)} />
+                <datalist id="api-model-presets">
+                  {selectedProvider.models.map((model) => (
+                    <option key={model} value={model} />
+                  ))}
+                </datalist>
+              </label>
+              <label className="wide-field">
+                Base URL
+                <input value={providerBaseUrl} onChange={(event) => setProviderBaseUrl(event.target.value)} />
+              </label>
+              <label className="wide-field">
+                API Key
+                <div className="secret-field">
+                  <KeyRound size={16} />
+                  <input
+                    type="password"
+                    value={apiKey}
+                    onChange={(event) => setApiKey(event.target.value)}
+                    placeholder="输入一次后可记住在本机浏览器"
+                  />
+                </div>
+              </label>
+            </div>
+
+            <div className="settings-dialog-actions">
+              <label className="toggle-line">
+                <input
+                  type="checkbox"
+                  checked={rememberApiKey}
+                  onChange={(event) => handleRememberApiKey(event.target.checked)}
+                />
+                <span>记住 API Key</span>
+              </label>
+              <button className="ghost-action" type="button" onClick={handleClearSavedAiSettings}>
+                清除保存
+              </button>
+              <button className="secondary-action" type="button" onClick={handleCheckConnection}>
+                测试连接
+              </button>
+              <button className="primary-action modal-primary" type="button" onClick={() => setAiSettingsOpen(false)}>
+                完成
+              </button>
+            </div>
+            <p className="status-note strong">{generationStatus}</p>
+          </section>
+        </div>
+      ) : null}
     </main>
   );
 }
