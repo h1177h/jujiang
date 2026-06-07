@@ -209,7 +209,7 @@ export function getGenerationRunResumeCheckpoint(run: GenerationRun): AiGenerati
   const artifacts = run.stages.flatMap((stage) => stage.artifacts ?? []);
   for (const artifact of [...artifacts].reverse()) {
     const result = validateStoryBlueprint(artifact.checkpoint?.storyBlueprint);
-    if (result.success) {
+    if (result.success && checkpointEventsWithinRun(result.data.chapterEvents, run.chapterCount)) {
       return {
         storyBlueprint: result.data,
         chapterEvents: result.data.chapterEvents
@@ -223,7 +223,9 @@ export function getGenerationRunResumeCheckpoint(run: GenerationRun): AiGenerati
     if (!result.success) return;
 
     result.data.forEach((group) => {
-      chapterEventsByIndex.set(group.chapterIndex, group);
+      if (checkpointEventWithinRun(group.chapterIndex, run.chapterCount)) {
+        chapterEventsByIndex.set(group.chapterIndex, group);
+      }
     });
   });
 
@@ -234,6 +236,17 @@ export function getGenerationRunResumeCheckpoint(run: GenerationRun): AiGenerati
   return {
     chapterEvents: [...chapterEventsByIndex.values()].sort((left, right) => left.chapterIndex - right.chapterIndex)
   };
+}
+
+function checkpointEventsWithinRun(
+  chapterEvents: NonNullable<AiGenerationResumeCheckpoint["chapterEvents"]>,
+  chapterCount: number
+): boolean {
+  return chapterEvents.every((group) => checkpointEventWithinRun(group.chapterIndex, chapterCount));
+}
+
+function checkpointEventWithinRun(chapterIndex: number, chapterCount: number): boolean {
+  return chapterIndex >= 1 && chapterIndex <= chapterCount;
 }
 
 export function formatGenerationRunResumeSummary(run: GenerationRun): string | null {
