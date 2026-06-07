@@ -1865,6 +1865,100 @@ describe("AI provider", () => {
     ]);
   });
 
+  it("saves repaired response excerpts when schema repair returns non-json text", async () => {
+    const validation = validateScreenplay(parse(sampleOutputYaml));
+    expect(validation.success).toBe(true);
+    if (!validation.success) return;
+
+    const invalidScreenplay = {
+      ...validation.data,
+      scenes: []
+    };
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          choices: [
+            {
+              message: {
+                content: JSON.stringify({
+                  chapterEvents: validation.data.chapterEvents,
+                  storyBible: validation.data.storyBible,
+                  adaptationStrategy: validation.data.adaptationStrategy
+                })
+              }
+            }
+          ]
+        })
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          choices: [
+            {
+              message: {
+                content: JSON.stringify(invalidScreenplay)
+              }
+            }
+          ]
+        })
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          choices: [
+            {
+              message: {
+                content: "我先说明一下修复思路：场景不能为空，需要补齐 scenes。"
+              }
+            }
+          ]
+        })
+      });
+    vi.stubGlobal("fetch", fetchMock);
+    const repairArtifacts: unknown[] = [];
+
+    let errorMessage = "";
+    try {
+      await generateScreenplayWithApi(
+        {
+          baseUrl: "https://api.example.com",
+          apiKey: "test-key",
+          model: "test-model"
+        },
+        {
+          title: "雾港来信",
+          style: "cinematic",
+          novelText: sampleNovel,
+          onProgress: (event) => {
+            if (event.stage === "schema_repair" && event.artifact) {
+              repairArtifacts.push(event.artifact);
+            }
+          }
+        }
+      );
+    } catch (error) {
+      errorMessage = error instanceof Error ? error.message : String(error);
+    }
+
+    expect(errorMessage).toContain("schema_repair");
+    expect(errorMessage).toContain("不是可解析 JSON");
+    expect(repairArtifacts).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "repair",
+          summary: "结构修复返回不可解析 JSON",
+          diagnostic: expect.objectContaining({
+            initialIssues: expect.arrayContaining(["scenes"]),
+            initialExcerpt: expect.stringContaining("\"scenes\":[]"),
+            repairedExcerpt: expect.stringContaining("我先说明一下修复思路")
+          })
+        })
+      ])
+    );
+  });
+
   it("reports original and repaired JSON excerpts when schema repair still fails", async () => {
     const validation = validateScreenplay(parse(sampleOutputYaml));
     expect(validation.success).toBe(true);

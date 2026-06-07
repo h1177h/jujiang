@@ -933,7 +933,28 @@ async function validateOrRepairScreenplay(
     stage: "schema_repair"
   });
 
-  const repaired = normalizeApiScreenplay(parseJsonObject(repairedContent, "schema_repair"), settings.model, blueprint);
+  let repairedJson: unknown;
+  try {
+    repairedJson = parseJsonObject(repairedContent, "schema_repair");
+  } catch (error) {
+    options.onProgress?.({
+      stage: "schema_repair",
+      message: "结构修复返回不可解析 JSON",
+      artifact: {
+        kind: "repair",
+        summary: "结构修复返回不可解析 JSON",
+        detail: `初次问题：${formatValidationIssues(validationIssues)}`,
+        diagnostic: {
+          initialIssues: validationIssues,
+          initialExcerpt,
+          repairedExcerpt: truncateDiagnostic(repairedContent)
+        }
+      }
+    });
+    throw error;
+  }
+
+  const repaired = normalizeApiScreenplay(repairedJson, settings.model, blueprint);
   const repairedResult = validateScreenplay(repaired);
   if (!repairedResult.success) {
     const repairedIssues = getValidationIssuePaths(repairedResult.error.issues);
