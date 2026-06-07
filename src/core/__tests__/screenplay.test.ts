@@ -376,6 +376,49 @@ describe("screenplay schema and review helpers", () => {
     expect(editorIssueFromYamlDiagnostic({ ...diagnostic, targetField: undefined })).toBeNull();
   });
 
+  it("maps editable scene yaml diagnostics beyond goal and dialogue fields", () => {
+    const parsed = parse(sampleOutputYaml);
+    parsed.scenes[0].location = "";
+    parsed.scenes[0].time = "";
+    parsed.scenes[0].action = [];
+    parsed.scenes[0].pacing = "slow";
+
+    const result = validateScreenplayYaml(stringify(parsed));
+
+    expect(result.ok).toBe(false);
+    expect(result.issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          path: "scenes.0.location",
+          sceneId: "scene-01",
+          fieldLabel: "地点",
+          targetField: "location",
+          actionHint: "在场景编辑器中补齐地点后会同步回 YAML。"
+        }),
+        expect.objectContaining({
+          path: "scenes.0.time",
+          sceneId: "scene-01",
+          fieldLabel: "时间",
+          targetField: "time"
+        }),
+        expect.objectContaining({
+          path: "scenes.0.action",
+          sceneId: "scene-01",
+          fieldLabel: "动作描写",
+          targetField: "action"
+        }),
+        expect.objectContaining({
+          path: "scenes.0.pacing",
+          sceneId: "scene-01",
+          fieldLabel: "节奏",
+          targetField: "pacing"
+        })
+      ])
+    );
+    const locationDiagnostic = result.issues?.find((issue) => issue.targetField === "location");
+    expect(locationDiagnostic ? editorIssueFromYamlDiagnostic(locationDiagnostic)?.targetField : null).toBe("location");
+  });
+
   it("maps quality issues to editable scene fields", () => {
     const validation = validateScreenplay(parse(sampleOutputYaml));
     expect(validation.success).toBe(true);

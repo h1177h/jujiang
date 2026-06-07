@@ -9,7 +9,20 @@ export interface ScreenplayYamlDiagnostic {
   fieldLabel: string;
   severity: "error";
   suggestion: string;
-  targetField?: "goal" | "characters" | "dialogue" | "conflict" | "source" | "revisionNotes";
+  targetField?:
+    | "title"
+    | "goal"
+    | "location"
+    | "time"
+    | "characters"
+    | "action"
+    | "dialogue"
+    | "narrationOrTransition"
+    | "emotion"
+    | "pacing"
+    | "conflict"
+    | "source"
+    | "revisionNotes";
   actionHint: string;
   sceneId?: string;
 }
@@ -75,7 +88,14 @@ export function validateScreenplayYaml(yamlText: string): {
 function targetFieldForSchemaPath(
   path: string
 ): ScreenplayYamlDiagnostic["targetField"] {
+  if (/^scenes\.\d+\.title$/.test(path)) return "title";
   if (/^scenes\.\d+\.goal$/.test(path)) return "goal";
+  if (/^scenes\.\d+\.location$/.test(path)) return "location";
+  if (/^scenes\.\d+\.time$/.test(path)) return "time";
+  if (/^scenes\.\d+\.action/.test(path)) return "action";
+  if (/^scenes\.\d+\.narrationOrTransition$/.test(path)) return "narrationOrTransition";
+  if (/^scenes\.\d+\.emotion$/.test(path)) return "emotion";
+  if (/^scenes\.\d+\.pacing$/.test(path)) return "pacing";
   if (/^scenes\.\d+\.source/.test(path)) return "source";
   if (/^scenes\.\d+\.dialogue/.test(path)) return "dialogue";
   if (/^scenes\.\d+\.characters/.test(path)) return "characters";
@@ -86,8 +106,20 @@ function targetFieldForSchemaPath(
 
 function actionHintForSchemaPath(path: string): string {
   const targetField = targetFieldForSchemaPath(path);
+  if (targetField === "title") {
+    return "在场景编辑器中补齐场景标题后会同步回 YAML。";
+  }
   if (targetField === "goal") {
     return "在场景编辑器中补齐场景目标后会同步回 YAML。";
+  }
+  if (targetField === "location") {
+    return "在场景编辑器中补齐地点后会同步回 YAML。";
+  }
+  if (targetField === "time") {
+    return "在场景编辑器中补齐时间后会同步回 YAML。";
+  }
+  if (targetField === "action") {
+    return "打开对应场景的动作描写区，补齐至少一条可执行的画面动作。";
   }
   if (targetField === "source") {
     return "核对原文依据区；如果摘录缺失，需要用真实 AI 重新生成或手动修正 YAML 来源字段。";
@@ -101,6 +133,15 @@ function actionHintForSchemaPath(path: string): string {
   if (targetField === "conflict") {
     return "打开对应场景的冲突区，补齐冲突等级和冲突说明。";
   }
+  if (targetField === "narrationOrTransition") {
+    return "在场景编辑器中补齐旁白或转场说明后会同步回 YAML。";
+  }
+  if (targetField === "emotion") {
+    return "在场景编辑器中补齐本场情绪基调后会同步回 YAML。";
+  }
+  if (targetField === "pacing") {
+    return "在场景编辑器中选择 quiet、steady、tense 或 cliffhanger 之一。";
+  }
   if (targetField === "revisionNotes") {
     return "打开对应场景的修订建议区，补齐下一轮打磨方向。";
   }
@@ -108,7 +149,14 @@ function actionHintForSchemaPath(path: string): string {
 }
 
 function labelSchemaPath(path: string): string {
+  if (/^scenes\.\d+\.title$/.test(path)) return "场景标题";
   if (/^scenes\.\d+\.goal$/.test(path)) return "场景目标";
+  if (/^scenes\.\d+\.location$/.test(path)) return "地点";
+  if (/^scenes\.\d+\.time$/.test(path)) return "时间";
+  if (/^scenes\.\d+\.action/.test(path)) return "动作描写";
+  if (/^scenes\.\d+\.narrationOrTransition$/.test(path)) return "旁白 / 转场";
+  if (/^scenes\.\d+\.emotion$/.test(path)) return "情绪";
+  if (/^scenes\.\d+\.pacing$/.test(path)) return "节奏";
   if (/^scenes\.\d+\.source\.excerpt$/.test(path)) return "原文摘录";
   if (/^scenes\.\d+\.dialogue/.test(path)) return "对白";
   if (/^scenes\.\d+\.characters/.test(path)) return "出场人物";
@@ -124,8 +172,29 @@ function labelSchemaPath(path: string): string {
 }
 
 function suggestSchemaFix(path: string): string {
+  if (/^scenes\.\d+\.title$/.test(path)) {
+    return "补充这一场的短标题，便于作者在工作台里快速定位场景。";
+  }
   if (/^scenes\.\d+\.goal$/.test(path)) {
     return "补充这一场的戏剧目标，让作者知道本场要推动什么。";
+  }
+  if (/^scenes\.\d+\.location$/.test(path)) {
+    return "补充这一场发生的具体地点，避免分场只剩抽象剧情。";
+  }
+  if (/^scenes\.\d+\.time$/.test(path)) {
+    return "补充这一场的时间信息，例如白天、夜晚或原文中的明确时间点。";
+  }
+  if (/^scenes\.\d+\.action/.test(path)) {
+    return "补充可拍摄的动作描写，至少写出人物正在做什么或画面如何推进。";
+  }
+  if (/^scenes\.\d+\.narrationOrTransition$/.test(path)) {
+    return "补充旁白、转场或留空为明确的空字符串，保持场景衔接可读。";
+  }
+  if (/^scenes\.\d+\.emotion$/.test(path)) {
+    return "补充本场情绪基调，帮助后续对白和节奏打磨保持一致。";
+  }
+  if (/^scenes\.\d+\.pacing$/.test(path)) {
+    return "把节奏改为 quiet、steady、tense 或 cliffhanger 中的一个合法值。";
   }
   if (/^scenes\.\d+\.source\.excerpt$/.test(path)) {
     return "补充可追溯的原文摘录，避免场景失去改编依据。";

@@ -48,7 +48,7 @@ export function SceneInspector({
         </div>
       ) : null}
 
-      <label className="inspector-field">
+      <label className={highlightClass("title")}>
         场景标题
         <input value={scene.title} onChange={(event) => onPatch({ title: event.target.value })} />
       </label>
@@ -61,11 +61,11 @@ export function SceneInspector({
         />
       </label>
       <div className="inspector-grid">
-        <label className="inspector-field">
+        <label className={highlightClass("location")}>
           地点
           <input value={scene.location} onChange={(event) => onPatch({ location: event.target.value })} />
         </label>
-        <label className="inspector-field">
+        <label className={highlightClass("time")}>
           时间
           <input value={scene.time} onChange={(event) => onPatch({ time: event.target.value })} />
         </label>
@@ -91,7 +91,7 @@ export function SceneInspector({
             ))}
           </select>
         </label>
-        <label className="inspector-field">
+        <label className={highlightClass("pacing")}>
           节奏
           <select
             value={scene.pacing}
@@ -127,7 +127,7 @@ export function SceneInspector({
           onChange={(event) => onPatch({ characters: parseListInput(event.target.value) })}
         />
       </label>
-      <label className="inspector-field">
+      <label className={highlightClass("action")}>
         动作描写
         <textarea
           className="compact-editor tall"
@@ -143,7 +143,7 @@ export function SceneInspector({
           onChange={(event) => onPatch({ dialogue: parseDialogueInput(event.target.value, scene) })}
         />
       </label>
-      <label className="inspector-field">
+      <label className={highlightClass("narrationOrTransition")}>
         旁白 / 转场
         <textarea
           className="compact-editor"
@@ -151,7 +151,7 @@ export function SceneInspector({
           onChange={(event) => onPatch({ narrationOrTransition: event.target.value })}
         />
       </label>
-      <label className="inspector-field">
+      <label className={highlightClass("emotion")}>
         情绪
         <input value={scene.emotion} onChange={(event) => onPatch({ emotion: event.target.value })} />
       </label>
