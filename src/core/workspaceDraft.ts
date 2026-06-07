@@ -165,9 +165,21 @@ function isOptionalStringArray(value: unknown): value is string[] | undefined {
 }
 
 function isGenerationRunStatus(value: unknown): value is GenerationRun["status"] {
-  return value === "idle" || value === "running" || value === "completed" || value === "failed";
+  return (
+    value === "idle" ||
+    value === "running" ||
+    value === "completed" ||
+    value === "failed" ||
+    value === "cancelled"
+  );
 }
 
 function isGenerationRunStageStatus(value: unknown): value is GenerationRunStage["status"] {
-  return value === "pending" || value === "running" || value === "done" || value === "failed";
+  return (
+    value === "pending" ||
+    value === "running" ||
+    value === "done" ||
+    value === "failed" ||
+    value === "cancelled"
+  );
 }

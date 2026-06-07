@@ -1,4 +1,4 @@
-import { Clock3, RefreshCw, TriangleAlert } from "lucide-react";
+import { Clock3, RefreshCw, Square, TriangleAlert } from "lucide-react";
 import {
   formatGenerationRunArtifactDiagnostics,
   formatGenerationRunRecoverySummary,
@@ -10,11 +10,13 @@ import {
 export function GenerationRunPanel({
   run,
   history,
+  onCancel,
   onRetry,
   onSelectRun
 }: {
   run: GenerationRun | null;
   history: GenerationRun[];
+  onCancel: (run: GenerationRun) => void;
   onRetry: (run: GenerationRun) => void;
   onSelectRun: (run: GenerationRun) => void;
 }) {
@@ -22,7 +24,13 @@ export function GenerationRunPanel({
   if (!activeRun) return null;
 
   const statusLabel =
-    activeRun.status === "completed" ? "已完成" : activeRun.status === "failed" ? "需要处理" : "进行中";
+    activeRun.status === "completed"
+      ? "已完成"
+      : activeRun.status === "failed"
+        ? "需要处理"
+        : activeRun.status === "cancelled"
+          ? "已停止"
+          : "进行中";
   const elapsedSeconds = Math.max(
     0,
     Math.round(
@@ -45,6 +53,17 @@ export function GenerationRunPanel({
           </span>
         </div>
         <div className="generation-run-actions">
+          {activeRun.status === "running" ? (
+            <button
+              className="cancel-action"
+              type="button"
+              onClick={() => onCancel(activeRun)}
+              title="停止当前 AI 生成请求"
+            >
+              <Square size={12} />
+              停止
+            </button>
+          ) : null}
           {retryAction ? (
             <button
               type="button"
@@ -92,9 +111,11 @@ export function GenerationRunPanel({
             {activeRun.error}
           </p>
           <p>
-            {activeRun.canRetry
-              ? activeRun.recoveryHint
-              : "请先处理当前阶段提示的问题，再重新生成。"}
+            {activeRun.status === "cancelled"
+              ? "可以调整原文或配置后重新生成。"
+              : activeRun.canRetry
+                ? activeRun.recoveryHint
+                : "请先处理当前阶段提示的问题，再重新生成。"}
           </p>
           {recoverySummary ? <p>{recoverySummary}</p> : null}
         </div>

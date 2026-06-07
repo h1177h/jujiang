@@ -32,6 +32,7 @@ import {
   saveWorkspaceDraft
 } from "./core/workspaceDraft";
 import {
+  cancelGenerationRun,
   completeGenerationRun,
   createGenerationRun,
   failGenerationRun,
@@ -117,6 +118,7 @@ export default function App() {
     initialWorkspaceDraft?.generationRuns[0] ?? null
   );
   const activeGenerationRunIdRef = useRef<string | null>(null);
+  const generationAbortRef = useRef<AbortController | null>(null);
 
   const validation = useMemo(() => validateScreenplayYaml(yamlText), [yamlText]);
   const preview = useMemo(() => {
@@ -183,21 +185,28 @@ export default function App() {
   }, [generationRun]);
 
   async function handleGenerate(resumeRun?: GenerationRun) {
+    cancelActiveGenerationRequest("已启动新的生成，本次任务已停止。");
     const resumeFrom = resumeRun ? getGenerationRunResumeCheckpoint(resumeRun) : null;
     const apiKeyForRequest = apiKey.trim();
     const apiReady = Boolean(apiKeyForRequest);
     const requestBaseUrl = resolveAiRequestBaseUrl(apiBaseUrl, useLocalProxy);
+    const abortController = new AbortController();
     const run = createGenerationRun({
       title,
       model: apiModel,
       chapterCount: sourceSummary.chapterCount
     });
     activeGenerationRunIdRef.current = run.id;
+    generationAbortRef.current = abortController;
     setGenerationRun(run);
     setGenerationRunHistory((current) => pushGenerationRunHistory(current, run));
 
     if (!sourceSummary.canGenerate) {
       const failedRun = failGenerationRun(run, sourceSummary.detail);
+      activeGenerationRunIdRef.current = null;
+      if (generationAbortRef.current === abortController) {
+        generationAbortRef.current = null;
+      }
       setGenerationRun(failedRun);
       setGenerationRunHistory((current) => pushGenerationRunHistory(current, failedRun));
       setGenerationStatus(sourceSummary.detail);
@@ -212,11 +221,16 @@ export default function App() {
         useLocalProxy,
         providerBaseUrl,
         apiKey: apiKeyForRequest,
-        model: apiModel
+        model: apiModel,
+        signal: abortController.signal
       });
 
       if (!connection.ok) {
         if (activeGenerationRunIdRef.current !== run.id) return;
+        activeGenerationRunIdRef.current = null;
+        if (generationAbortRef.current === abortController) {
+          generationAbortRef.current = null;
+        }
         setGenerationStatus(connection.message);
         setGenerationRun((current) =>
           updateActiveGenerationRun(current, run.id, (activeRun) =>
@@ -259,6 +273,7 @@ export default function App() {
             style,
             novelText,
             ...(resumeFrom ? { resumeFrom } : {}),
+            signal: abortController.signal,
             onProgress: (event) => {
               if (activeGenerationRunIdRef.current !== run.id) return;
               setGenerationStatus(formatAiGenerationProgress(event, apiModel));
@@ -271,6 +286,10 @@ export default function App() {
     );
 
     if (activeGenerationRunIdRef.current !== run.id) return;
+    activeGenerationRunIdRef.current = null;
+    if (generationAbortRef.current === abortController) {
+      generationAbortRef.current = null;
+    }
     if (result.screenplay) {
       const nextYaml = screenplayToYaml(result.screenplay);
       setYamlText(nextYaml);
@@ -285,6 +304,27 @@ export default function App() {
       );
     }
     setGenerationStatus(result.status);
+  }
+
+  function cancelActiveGenerationRequest(message = "用户已停止本次生成。") {
+    const activeRunId = activeGenerationRunIdRef.current;
+    if (!activeRunId) return;
+
+    generationAbortRef.current?.abort();
+    generationAbortRef.current = null;
+    activeGenerationRunIdRef.current = null;
+    setGenerationRun((current) =>
+      updateActiveGenerationRun(current, activeRunId, (activeRun) => cancelGenerationRun(activeRun, message))
+    );
+    setGenerationRunHistory((current) =>
+      current.map((run) => (run.id === activeRunId ? cancelGenerationRun(run, message) : run))
+    );
+    setGenerationStatus(message);
+  }
+
+  function handleCancelGeneration(run: GenerationRun) {
+    if (activeGenerationRunIdRef.current !== run.id) return;
+    cancelActiveGenerationRequest();
   }
 
   async function handleCopy() {
@@ -463,6 +503,8 @@ export default function App() {
 
   function handleResetWorkspace() {
     const nextHistory = [createRevision("示例 YAML", sampleOutputYaml)];
+    generationAbortRef.current?.abort();
+    generationAbortRef.current = null;
     activeGenerationRunIdRef.current = null;
     clearSavedWorkspaceDraft(getBrowserStorage());
     setNovelText(sampleNovel);
@@ -619,6 +661,7 @@ export default function App() {
               <GenerationRunPanel
                 run={generationRun}
                 history={generationRunHistory}
+                onCancel={handleCancelGeneration}
                 onRetry={handleGenerate}
                 onSelectRun={setGenerationRun}
               />
