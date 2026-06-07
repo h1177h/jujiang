@@ -3,6 +3,7 @@ export interface AiConnectionSettings {
   useLocalProxy: boolean;
   providerBaseUrl?: string;
   apiKey?: string;
+  model?: string;
 }
 
 export interface AiConnectionResult {
@@ -96,6 +97,10 @@ export async function diagnoseAiConnection(
       };
     }
 
+    if (settings.model?.trim()) {
+      return probeAiProvider(settings, payload.targetBaseUrl || settings.providerBaseUrl || settings.baseUrl, fetcher);
+    }
+
     return {
       ok: true,
       message: `AI 服务已连接：${payload.targetBaseUrl || settings.providerBaseUrl || settings.baseUrl}`
@@ -106,6 +111,56 @@ export async function diagnoseAiConnection(
       message: `应用内 AI 服务没有启动：请用 npm run dev:app 启动完整应用后再生成。`
     };
   }
+}
+
+async function probeAiProvider(
+  settings: AiConnectionSettings,
+  targetBaseUrl: string,
+  fetcher: FetchLike
+): Promise<AiConnectionResult> {
+  const response = await fetcher(`${settings.baseUrl.replace(/\/+$/, "")}/chat/completions`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...buildAiGatewayHeaders(settings.apiKey, settings.providerBaseUrl)
+    },
+    body: JSON.stringify({
+      model: settings.model?.trim(),
+      temperature: 0,
+      max_tokens: 8,
+      messages: [
+        {
+          role: "user",
+          content: "Return only {\"ok\":true}."
+        }
+      ]
+    })
+  });
+  const payload = (await response.json().catch(() => ({}))) as {
+    error?: string | { message?: string };
+  };
+
+  if (!response.ok) {
+    const providerMessage = getProbeProviderMessage(payload);
+    return {
+      ok: false,
+      message: providerMessage
+        ? `AI provider 连接检查失败：HTTP ${response.status ?? "非 2xx"}。Provider 返回：${truncateConnectionDiagnostic(providerMessage)}`
+        : `AI provider 连接检查失败：HTTP ${response.status ?? "非 2xx"}。`
+    };
+  }
+
+  return {
+    ok: true,
+    message: `AI provider 已连接：${targetBaseUrl} · ${settings.model?.trim()}`
+  };
+}
+
+function getProbeProviderMessage(payload: { error?: string | { message?: string } }): string {
+  if (typeof payload.error === "string") {
+    return payload.error;
+  }
+  return payload.error?.message || "";
 }
 
 export function classifyFetchFailure(error: unknown, baseUrl: string): string {
@@ -130,6 +185,7 @@ export function isActionableConnectionMessage(message: string): boolean {
     message.startsWith("还没有可用的 API Key") ||
     message.startsWith("当前端口不是剧匠 AI 服务") ||
     message.startsWith("AI 服务连接检查失败") ||
+    message.startsWith("AI provider 连接检查失败") ||
     message.startsWith("浏览器直连失败") ||
     message.startsWith("本地 proxy 未连接") ||
     message.includes("阶段请求超时") ||
@@ -154,4 +210,9 @@ export function buildAiGatewayHeaders(apiKey?: string, providerBaseUrl?: string)
   }
 
   return headers;
+}
+
+function truncateConnectionDiagnostic(value: string): string {
+  const normalized = value.replace(/\s+/g, " ").trim();
+  return normalized.length > 300 ? `${normalized.slice(0, 300)}...` : normalized;
 }

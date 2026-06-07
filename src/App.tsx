@@ -204,7 +204,8 @@ export default function App() {
         baseUrl: requestBaseUrl,
         useLocalProxy,
         providerBaseUrl,
-        apiKey: apiKeyForRequest
+        apiKey: apiKeyForRequest,
+        model: apiModel
       });
 
       if (!connection.ok) {
@@ -358,7 +359,8 @@ export default function App() {
       baseUrl: requestBaseUrl,
       useLocalProxy,
       providerBaseUrl,
-      apiKey: apiKeyForRequest
+      apiKey: apiKeyForRequest,
+      model: apiModel
     });
     if (!connection.ok) {
       setGenerationStatus(connection.message);
@@ -462,7 +464,8 @@ export default function App() {
       baseUrl: requestBaseUrl,
       useLocalProxy,
       providerBaseUrl,
-      apiKey: apiKeyForRequest
+      apiKey: apiKeyForRequest,
+      model: apiModel
     });
     setGenerationStatus(connection.message);
   }
