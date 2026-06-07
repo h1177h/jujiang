@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { StoryBlueprint } from "../types";
 import {
   completeGenerationRun,
   createGenerationRun,
@@ -373,6 +374,113 @@ describe("generation run tracking", () => {
 
     expect(getGenerationRunResumeCheckpoint(run)).toBeNull();
     expect(formatGenerationRunResumeSummary(run)).toBeNull();
+  });
+
+  it("falls back to partial chapter events when a saved story blueprint does not cover the current run", () => {
+    const partialBlueprint: StoryBlueprint = {
+      chapterEvents: [makeChapterEventGroup(1), makeChapterEventGroup(2)],
+      storyBible: {
+        worldview: "A coastal city hides old evidence.",
+        coreConflict: "Lin must expose the hidden ledger before it disappears.",
+        timeline: ["Lin finds the coded note.", "Shen hides the clue."],
+        characterArcs: [
+          {
+            character: "Lin",
+            arc: "From suspicion to resolve.",
+            firstEventId: "event-1",
+            lastEventId: "event-2"
+          }
+        ]
+      },
+      adaptationStrategy: {
+        format: "short drama",
+        pacing: "steady escalation",
+        sceneRules: ["Anchor each scene to an extracted event."],
+        riskControls: ["Do not invent missing source evidence."]
+      }
+    };
+    const run = updateGenerationRunStage(
+      createGenerationRun({
+        title: "Partial Blueprint Story",
+        model: "gpt-4.1-mini",
+        chapterCount: 3,
+        date: new Date("2026-06-06T00:00:00.000Z")
+      }),
+      {
+        stage: "story_bible_generate",
+        message: "Saved partial story blueprint",
+        artifact: {
+          kind: "story_blueprint",
+          summary: "2 chapter event groups",
+          checkpoint: {
+            storyBlueprint: partialBlueprint,
+            chapterEvents: partialBlueprint.chapterEvents
+          }
+        },
+        date: new Date("2026-06-06T00:00:03.000Z")
+      }
+    );
+
+    const checkpoint = getGenerationRunResumeCheckpoint(run);
+
+    expect(checkpoint?.storyBlueprint).toBeUndefined();
+    expect(checkpoint?.chapterEvents?.map((group) => group.chapterIndex)).toEqual([1, 2]);
+  });
+
+  it("returns a cleaned story blueprint checkpoint when old chapters are outside the current run", () => {
+    const savedStoryBlueprint: StoryBlueprint = {
+      chapterEvents: [
+        makeChapterEventGroup(1),
+        makeChapterEventGroup(2),
+        makeChapterEventGroup(3),
+        makeChapterEventGroup(9)
+      ],
+      storyBible: {
+        worldview: "A coastal city hides old evidence.",
+        coreConflict: "Lin must expose the hidden ledger before it disappears.",
+        timeline: ["Lin finds the coded note.", "Shen hides the clue.", "The bell tower reveals the traitor."],
+        characterArcs: [
+          {
+            character: "Lin",
+            arc: "From suspicion to resolve.",
+            firstEventId: "event-1",
+            lastEventId: "event-3"
+          }
+        ]
+      },
+      adaptationStrategy: {
+        format: "short drama",
+        pacing: "steady escalation",
+        sceneRules: ["Anchor each scene to an extracted event."],
+        riskControls: ["Do not invent missing source evidence."]
+      }
+    };
+    const run = updateGenerationRunStage(
+      createGenerationRun({
+        title: "Clean Blueprint Story",
+        model: "gpt-4.1-mini",
+        chapterCount: 3,
+        date: new Date("2026-06-06T00:00:00.000Z")
+      }),
+      {
+        stage: "story_bible_generate",
+        message: "Saved story blueprint with stale chapters",
+        artifact: {
+          kind: "story_blueprint",
+          summary: "4 chapter event groups",
+          checkpoint: {
+            storyBlueprint: savedStoryBlueprint,
+            chapterEvents: savedStoryBlueprint.chapterEvents
+          }
+        },
+        date: new Date("2026-06-06T00:00:03.000Z")
+      }
+    );
+
+    const checkpoint = getGenerationRunResumeCheckpoint(run);
+
+    expect(checkpoint?.storyBlueprint?.chapterEvents.map((group) => group.chapterIndex)).toEqual([1, 2, 3]);
+    expect(checkpoint?.chapterEvents?.map((group) => group.chapterIndex)).toEqual([1, 2, 3]);
   });
 
   it("summarizes saved checkpoints before retrying a failed run", () => {
@@ -761,3 +869,29 @@ describe("generation run tracking", () => {
     expect(history).toHaveLength(2);
   });
 });
+
+function makeChapterEventGroup(chapterIndex: number): StoryBlueprint["chapterEvents"][number] {
+  return {
+    chapterIndex,
+    chapterTitle: `Chapter ${chapterIndex}`,
+    chapterGoal: `Track clue ${chapterIndex}`,
+    events: [
+      {
+        id: `event-${chapterIndex}`,
+        summary: `Event ${chapterIndex} moves the clue forward.`,
+        characters: chapterIndex === 1 ? ["Lin"] : ["Shen"],
+        location: chapterIndex === 1 ? "Pier" : "Archive",
+        conflict: "The clue may be lost.",
+        emotionalTurn: "Suspicion sharpens.",
+        source: {
+          chapterIndex,
+          chapterTitle: `Chapter ${chapterIndex}`,
+          paragraphIndexes: [1],
+          lineStart: chapterIndex,
+          lineEnd: chapterIndex + 1,
+          excerpt: `Chapter ${chapterIndex} clue excerpt.`
+        }
+      }
+    ]
+  };
+}

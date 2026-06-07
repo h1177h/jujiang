@@ -256,10 +256,17 @@ export function getGenerationRunResumeCheckpoint(run: GenerationRun): AiGenerati
   const artifacts = run.stages.flatMap((stage) => stage.artifacts ?? []);
   for (const artifact of [...artifacts].reverse()) {
     const result = validateStoryBlueprint(artifact.checkpoint?.storyBlueprint);
-    if (result.success && checkpointEventsWithinRun(result.data.chapterEvents, run.chapterCount)) {
+    if (!result.success) continue;
+
+    const chapterEvents = normalizeCheckpointChapterEvents(result.data.chapterEvents, run.chapterCount);
+    if (checkpointEventsCoverRun(chapterEvents, run.chapterCount)) {
+      const storyBlueprint = {
+        ...result.data,
+        chapterEvents
+      };
       return {
-        storyBlueprint: result.data,
-        chapterEvents: result.data.chapterEvents
+        storyBlueprint,
+        chapterEvents: storyBlueprint.chapterEvents
       };
     }
   }
@@ -285,11 +292,28 @@ export function getGenerationRunResumeCheckpoint(run: GenerationRun): AiGenerati
   };
 }
 
-function checkpointEventsWithinRun(
+function normalizeCheckpointChapterEvents(
+  chapterEvents: NonNullable<AiGenerationResumeCheckpoint["chapterEvents"]>,
+  chapterCount: number
+): NonNullable<AiGenerationResumeCheckpoint["chapterEvents"]> {
+  const chapterEventsByIndex = new Map<number, NonNullable<AiGenerationResumeCheckpoint["chapterEvents"]>[number]>();
+  chapterEvents.forEach((group) => {
+    if (checkpointEventWithinRun(group.chapterIndex, chapterCount)) {
+      chapterEventsByIndex.set(group.chapterIndex, group);
+    }
+  });
+
+  return [...chapterEventsByIndex.values()].sort((left, right) => left.chapterIndex - right.chapterIndex);
+}
+
+function checkpointEventsCoverRun(
   chapterEvents: NonNullable<AiGenerationResumeCheckpoint["chapterEvents"]>,
   chapterCount: number
 ): boolean {
-  return chapterEvents.every((group) => checkpointEventWithinRun(group.chapterIndex, chapterCount));
+  const covered = new Set(chapterEvents.map((group) => group.chapterIndex));
+  return Array.from({ length: chapterCount }, (_, index) => index + 1).every((chapterIndex) =>
+    covered.has(chapterIndex)
+  );
 }
 
 function checkpointEventWithinRun(chapterIndex: number, chapterCount: number): boolean {
