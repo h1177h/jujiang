@@ -1135,6 +1135,7 @@ describe("AI provider", () => {
         })
       });
     vi.stubGlobal("fetch", fetchMock);
+    const repairArtifacts: unknown[] = [];
 
     let errorMessage = "";
     try {
@@ -1147,7 +1148,12 @@ describe("AI provider", () => {
         {
           title: "雾港来信",
           style: "cinematic",
-          novelText: sampleNovel
+          novelText: sampleNovel,
+          onProgress: (event) => {
+            if (event.stage === "schema_repair" && event.artifact) {
+              repairArtifacts.push(event.artifact);
+            }
+          }
         }
       );
     } catch (error) {
@@ -1159,6 +1165,19 @@ describe("AI provider", () => {
     );
     expect(errorMessage).toContain("修复返回摘要：");
     expect(errorMessage).toContain("\"scenes\":[]");
+    expect(repairArtifacts).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "repair",
+          diagnostic: expect.objectContaining({
+            initialIssues: expect.arrayContaining(["scenes"]),
+            repairedIssues: expect.arrayContaining(["scenes"]),
+            initialExcerpt: expect.stringContaining("\"scenes\":[]"),
+            repairedExcerpt: expect.stringContaining("\"scenes\":[]")
+          })
+        })
+      ])
+    );
   });
 
   it("regenerates a single scene without rerunning the whole screenplay pipeline", async () => {

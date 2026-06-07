@@ -44,6 +44,14 @@ export interface AiGenerationArtifact {
   summary: string;
   detail?: string;
   checkpoint?: AiGenerationResumeCheckpoint;
+  diagnostic?: AiGenerationDiagnostic;
+}
+
+export interface AiGenerationDiagnostic {
+  initialIssues?: string[];
+  repairedIssues?: string[];
+  initialExcerpt?: string;
+  repairedExcerpt?: string;
 }
 
 export interface SceneRegenerationOptions {
@@ -871,13 +879,29 @@ async function validateOrRepairScreenplay(
   const repairedResult = validateScreenplay(repaired);
   if (!repairedResult.success) {
     const repairedIssues = getValidationIssuePaths(repairedResult.error.issues);
+    const initialExcerpt = summarizeReturnedJson(normalized, validationIssues);
+    const repairedExcerpt = summarizeReturnedJson(repaired, repairedIssues);
+    options.onProgress?.({
+      stage: "schema_repair",
+      message: "结构修复后仍未通过 Schema",
+      artifact: {
+        kind: "repair",
+        summary: "结构修复仍未通过 Schema",
+        detail: `初次问题：${formatValidationIssues(validationIssues)}；修复后问题：${formatValidationIssues(
+          repairedIssues
+        )}`,
+        diagnostic: {
+          initialIssues: validationIssues,
+          repairedIssues,
+          initialExcerpt,
+          repairedExcerpt
+        }
+      }
+    });
     throw new Error(
       `API 返回结构修复后仍未通过 Schema：初次问题：${formatValidationIssues(
         validationIssues
-      )}；修复后问题：${formatValidationIssues(repairedIssues)}。初次返回摘要：${summarizeReturnedJson(
-        normalized,
-        validationIssues
-      )}。修复返回摘要：${summarizeReturnedJson(repaired, repairedIssues)}`
+      )}；修复后问题：${formatValidationIssues(repairedIssues)}。初次返回摘要：${initialExcerpt}。修复返回摘要：${repairedExcerpt}`
     );
   }
   options.onProgress?.({
