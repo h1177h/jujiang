@@ -500,6 +500,72 @@ describe("AI provider", () => {
     ).rejects.toThrow("event_extract 阶段返回空内容。finish_reason=length");
   });
 
+  it("uses the first non-empty chat completion choice when earlier choices are blank", async () => {
+    const validation = validateScreenplay(parse(sampleOutputYaml));
+    expect(validation.success).toBe(true);
+    if (!validation.success) return;
+
+    const blueprint = {
+      chapterEvents: validation.data.chapterEvents,
+      storyBible: validation.data.storyBible,
+      adaptationStrategy: validation.data.adaptationStrategy
+    };
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        headers: new Headers({ "content-type": "application/json" }),
+        json: async () => ({
+          choices: [
+            {
+              finish_reason: "length",
+              message: {
+                content: ""
+              }
+            },
+            {
+              finish_reason: "stop",
+              message: {
+                content: JSON.stringify(blueprint)
+              }
+            }
+          ]
+        })
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        headers: new Headers({ "content-type": "application/json" }),
+        json: async () => ({
+          choices: [
+            {
+              message: {
+                content: JSON.stringify(validation.data)
+              }
+            }
+          ]
+        })
+      });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await generateScreenplayWithApi(
+      {
+        baseUrl: "https://api.example.com",
+        apiKey: "test-key",
+        model: "test-model"
+      },
+      {
+        title: "雾港来信",
+        style: "cinematic",
+        novelText: sampleNovel
+      }
+    );
+
+    expect(result.scenes).toHaveLength(6);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
   it("reports successful non-json provider responses with a raw response excerpt", async () => {
     vi.stubGlobal(
       "fetch",

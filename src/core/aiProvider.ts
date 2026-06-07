@@ -374,7 +374,7 @@ async function requestChatCompletion(
     throw new Error(formatHttpFailure(request.stage, response.status, payload));
   }
 
-  const content = extractChatCompletionText(payload.choices?.[0]?.message?.content);
+  const content = extractFirstChatCompletionText(payload.choices);
   if (!content) {
     throw new Error(formatEmptyContentFailure(request.stage, payload));
   }
@@ -1049,9 +1049,14 @@ function parseSseChatCompletion(rawText: string): { content: string; errorMessag
         if (streamError && !errorMessage) {
           errorMessage = streamError;
         }
-        return (
-          extractChatCompletionText(payload.choices?.[0]?.delta?.content) ||
-          extractChatCompletionText(payload.choices?.[0]?.message?.content)
+        return extractFirstChatCompletionText(
+          payload.choices?.map((choice) => ({
+            message: {
+              content:
+                extractChatCompletionText(choice.delta?.content) ||
+                extractChatCompletionText(choice.message?.content)
+            }
+          }))
         );
       } catch {
         if (!errorMessage) {
@@ -1063,6 +1068,29 @@ function parseSseChatCompletion(rawText: string): { content: string; errorMessag
     .join("");
 
   return { content, errorMessage: errorMessage || undefined };
+}
+
+function extractFirstChatCompletionText(
+  choices:
+    | Array<{
+        message?: {
+          content?: ChatCompletionContent;
+        };
+      }>
+    | undefined
+): string {
+  if (!choices?.length) {
+    return "";
+  }
+
+  for (const choice of choices) {
+    const content = extractChatCompletionText(choice.message?.content);
+    if (content) {
+      return content;
+    }
+  }
+
+  return "";
 }
 
 function extractChatCompletionText(content: ChatCompletionContent | undefined): string {
