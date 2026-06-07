@@ -34,6 +34,15 @@ type ProbeChatCompletionResponse = {
   error?: string | { message?: string };
 };
 
+type ProxyHealthResponse = {
+  ok?: boolean;
+  service?: string;
+  hasApiKey?: boolean;
+  targetBaseUrl?: string;
+  networkProxy?: string;
+  error?: string;
+};
+
 type ProbeChatCompletionToolCall = {
   type?: string;
   function?: ProbeChatCompletionFunctionCall;
@@ -100,19 +109,17 @@ export async function diagnoseAiConnection(
 
   try {
     const response = await fetcher(healthUrl, init);
-    const payload = (await response.json().catch(() => ({}))) as {
-      ok?: boolean;
-      service?: string;
-      hasApiKey?: boolean;
-      targetBaseUrl?: string;
-      networkProxy?: string;
-      error?: string;
-    };
+    const payload = await readProxyHealthResponse(response);
 
     if (!response.ok) {
+      const serviceMessage = getProxyHealthMessage(payload);
       return {
         ok: false,
-        message: payload.error || `AI 服务连接检查失败：HTTP ${response.status ?? "非 2xx"}。`
+        message: serviceMessage
+          ? `AI 服务连接检查失败：HTTP ${response.status ?? "非 2xx"}。服务返回：${truncateConnectionDiagnostic(
+              serviceMessage
+            )}`
+          : `AI 服务连接检查失败：HTTP ${response.status ?? "非 2xx"}。`
       };
     }
 
@@ -155,6 +162,20 @@ export async function diagnoseAiConnection(
       message: `应用内 AI 服务没有启动：请用 npm run dev:app 启动完整应用后再生成。`
     };
   }
+}
+
+async function readProxyHealthResponse(response: Awaited<ReturnType<FetchLike>>): Promise<ProxyHealthResponse> {
+  try {
+    const payload = (await response.json()) as ProxyHealthResponse;
+    return payload || {};
+  } catch {
+    const rawText = await response.text?.().catch(() => "");
+    return rawText ? { error: rawText } : {};
+  }
+}
+
+function getProxyHealthMessage(payload: ProxyHealthResponse): string {
+  return payload.error || "";
 }
 
 function formatProviderProbeFetchFailure(error: unknown): string {

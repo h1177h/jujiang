@@ -55,6 +55,28 @@ describe("AI connection diagnostics", () => {
     });
   });
 
+  it("reports raw local proxy health text when health failure is not JSON", async () => {
+    const result = await diagnoseAiConnection(
+      {
+        baseUrl: "http://127.0.0.1:18787/v1",
+        useLocalProxy: true
+      },
+      vi.fn(async () => ({
+        ok: false,
+        status: 502,
+        json: async () => {
+          throw new Error("not json");
+        },
+        text: async () => "Bad Gateway before proxy health"
+      }))
+    );
+
+    expect(result).toEqual({
+      ok: false,
+      message: "AI 服务连接检查失败：HTTP 502。服务返回：Bad Gateway before proxy health"
+    });
+  });
+
   it("rejects a blank selected model before checking the provider", async () => {
     const fetcher = vi.fn();
 
