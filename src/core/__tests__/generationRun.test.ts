@@ -256,6 +256,56 @@ describe("generation run tracking", () => {
     expect(formatGenerationRunResumeSummary(run)).toBeNull();
   });
 
+  it("ignores saved checkpoints outside the current source chapter range", () => {
+    const run = updateGenerationRunStage(
+      createGenerationRun({
+        title: "Outdated Checkpoint Story",
+        model: "gpt-4.1-mini",
+        chapterCount: 3,
+        date: new Date("2026-06-06T00:00:00.000Z")
+      }),
+      {
+        stage: "chapter_event_extract",
+        message: "Saved outdated chapter events",
+        artifact: {
+          kind: "chapter_events",
+          summary: "1 outdated chapter event group",
+          checkpoint: {
+            chapterEvents: [
+              {
+                chapterIndex: 4,
+                chapterTitle: "Chapter 4",
+                chapterGoal: "Use the old clue",
+                events: [
+                  {
+                    id: "event-4",
+                    summary: "Lin uses the old clue.",
+                    characters: ["Lin"],
+                    location: "Archive",
+                    conflict: "The clue may be stale.",
+                    emotionalTurn: "Resolve falters.",
+                    source: {
+                      chapterIndex: 4,
+                      chapterTitle: "Chapter 4",
+                      paragraphIndexes: [1],
+                      lineStart: 8,
+                      lineEnd: 9,
+                      excerpt: "Lin uses the old clue."
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        date: new Date("2026-06-06T00:00:03.000Z")
+      }
+    );
+
+    expect(getGenerationRunResumeCheckpoint(run)).toBeNull();
+    expect(formatGenerationRunResumeSummary(run)).toBeNull();
+  });
+
   it("summarizes saved checkpoints before retrying a failed run", () => {
     const run = failGenerationRun(
       updateGenerationRunStage(
