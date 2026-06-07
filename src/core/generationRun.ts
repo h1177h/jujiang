@@ -108,6 +108,15 @@ export function updateGenerationRunStage(
   };
 }
 
+export function updateActiveGenerationRun(
+  current: GenerationRun | null,
+  runId: string,
+  updater: (run: GenerationRun) => GenerationRun
+): GenerationRun | null {
+  if (!current || current.id !== runId) return current;
+  return updater(current);
+}
+
 export function markGenerationRunConnection(run: GenerationRun, message: string, date = new Date()): GenerationRun {
   const now = date.toISOString();
   return {

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   FileInput,
   KeyRound,
@@ -41,6 +41,7 @@ import {
   getGenerationRunResumeCheckpoint,
   markGenerationRunConnection,
   pushGenerationRunHistory,
+  updateActiveGenerationRun,
   updateGenerationRunStage,
   type GenerationRun
 } from "./core/generationRun";
@@ -115,6 +116,7 @@ export default function App() {
   const [generationRun, setGenerationRun] = useState<GenerationRun | null>(
     initialWorkspaceDraft?.generationRuns[0] ?? null
   );
+  const activeGenerationRunIdRef = useRef<string | null>(null);
 
   const validation = useMemo(() => validateScreenplayYaml(yamlText), [yamlText]);
   const preview = useMemo(() => {
@@ -190,6 +192,7 @@ export default function App() {
       model: apiModel,
       chapterCount: sourceSummary.chapterCount
     });
+    activeGenerationRunIdRef.current = run.id;
     setGenerationRun(run);
     setGenerationRunHistory((current) => pushGenerationRunHistory(current, run));
 
@@ -213,18 +216,24 @@ export default function App() {
       });
 
       if (!connection.ok) {
+        if (activeGenerationRunIdRef.current !== run.id) return;
         setGenerationStatus(connection.message);
         setGenerationRun((current) =>
-          current ? failGenerationRunStage(current, "connection_check", connection.message) : current
+          updateActiveGenerationRun(current, run.id, (activeRun) =>
+            failGenerationRunStage(activeRun, "connection_check", connection.message)
+          )
         );
         return;
       }
 
+      if (activeGenerationRunIdRef.current !== run.id) return;
       if (useLocalProxy) {
         setGenerationStatus(`${connection.message}，正在调用 ${apiModel}...`);
       }
       setGenerationRun((current) =>
-        current ? markGenerationRunConnection(current, connection.message) : current
+        updateActiveGenerationRun(current, run.id, (activeRun) =>
+          markGenerationRunConnection(activeRun, connection.message)
+        )
       );
     }
 
@@ -251,21 +260,29 @@ export default function App() {
             novelText,
             ...(resumeFrom ? { resumeFrom } : {}),
             onProgress: (event) => {
+              if (activeGenerationRunIdRef.current !== run.id) return;
               setGenerationStatus(formatAiGenerationProgress(event, apiModel));
-              setGenerationRun((current) => (current ? updateGenerationRunStage(current, event) : current));
+              setGenerationRun((current) =>
+                updateActiveGenerationRun(current, run.id, (activeRun) => updateGenerationRunStage(activeRun, event))
+              );
             }
           }
         )
     );
 
+    if (activeGenerationRunIdRef.current !== run.id) return;
     if (result.screenplay) {
       const nextYaml = screenplayToYaml(result.screenplay);
       setYamlText(nextYaml);
       setRevisionHistory((current) => pushRevision(current, createRevision("AI 生成", nextYaml)));
       setSelectedSceneId(result.screenplay.scenes[0]?.id ?? null);
-      setGenerationRun((current) => (current ? completeGenerationRun(current) : current));
+      setGenerationRun((current) =>
+        updateActiveGenerationRun(current, run.id, (activeRun) => completeGenerationRun(activeRun))
+      );
     } else {
-      setGenerationRun((current) => (current ? failGenerationRunWithMessage(current, result.status) : current));
+      setGenerationRun((current) =>
+        updateActiveGenerationRun(current, run.id, (activeRun) => failGenerationRunWithMessage(activeRun, result.status))
+      );
     }
     setGenerationStatus(result.status);
   }
@@ -446,6 +463,7 @@ export default function App() {
 
   function handleResetWorkspace() {
     const nextHistory = [createRevision("示例 YAML", sampleOutputYaml)];
+    activeGenerationRunIdRef.current = null;
     clearSavedWorkspaceDraft(getBrowserStorage());
     setNovelText(sampleNovel);
     setTitle("雾港来信");
