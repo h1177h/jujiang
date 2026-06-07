@@ -334,6 +334,39 @@ describe("AI connection diagnostics", () => {
     });
   });
 
+  it("does not report the app service as stopped when the provider probe request fails after health", async () => {
+    const fetcher = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          ok: true,
+          service: "jujiang-api-proxy",
+          hasApiKey: true,
+          targetBaseUrl: "https://api.example.com/v1"
+        })
+      })
+      .mockRejectedValueOnce(new TypeError("Failed to fetch"));
+
+    const result = await diagnoseAiConnection(
+      {
+        baseUrl: "http://127.0.0.1:18787/v1",
+        useLocalProxy: true,
+        providerBaseUrl: "https://api.example.com",
+        apiKey: "browser-key",
+        model: "test-model"
+      },
+      fetcher
+    );
+
+    expect(result).toEqual({
+      ok: false,
+      message:
+        "AI provider 连接检查失败：应用内 AI 服务已响应 health，但 provider 探测请求没有完成。请重新测试连接；如果持续失败，重启 npm run dev:app 后再试。底层错误：Failed to fetch"
+    });
+  });
+
   it("rejects successful provider probes that return no chat text", async () => {
     const fetcher = vi
       .fn()
