@@ -174,6 +174,28 @@ describe("screenplay schema and review helpers", () => {
     );
   });
 
+  it("rejects screenplay references to missing characters", () => {
+    const parsed = parse(sampleOutputYaml);
+    parsed.chapterEvents[0].events[0].characters = ["不存在的事件人物"];
+    parsed.storyBible.characterArcs[0].character = "不存在的人物弧线";
+    parsed.scenes[0].characters = ["不存在的出场人物"];
+    parsed.scenes[0].dialogue[0].speaker = "不存在的说话人";
+
+    const validation = validateScreenplay(parsed);
+
+    expect(validation.success).toBe(false);
+    if (validation.success) return;
+    const paths = validation.error.issues.map((issue) => issue.path.join("."));
+    expect(paths).toEqual(
+      expect.arrayContaining([
+        "chapterEvents.0.events.0.characters.0",
+        "storyBible.characterArcs.0.character",
+        "scenes.0.characters.0",
+        "scenes.0.dialogue.0.speaker"
+      ])
+    );
+  });
+
   it("returns structured diagnostics that point authors to the broken scene field", () => {
     const parsed = parse(sampleOutputYaml);
     parsed.scenes[0].goal = "";
