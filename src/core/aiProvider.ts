@@ -996,8 +996,11 @@ async function readChatCompletionResponse(
     return {
       choices: [
         {
+          finish_reason: parsedStream.finishReason,
           message: {
-            content: parsedStream.content
+            content: parsedStream.content,
+            ...(parsedStream.toolCalls?.length ? { tool_calls: parsedStream.toolCalls } : {}),
+            ...(parsedStream.functionCall ? { function_call: parsedStream.functionCall } : {})
           }
         }
       ],
@@ -1039,8 +1042,17 @@ async function readResponseText(response: Response): Promise<string> {
   return textReader.call(response).catch(() => "");
 }
 
-function parseSseChatCompletion(rawText: string): { content: string; errorMessage?: string } {
+function parseSseChatCompletion(rawText: string): {
+  content: string;
+  errorMessage?: string;
+  finishReason?: string;
+  toolCalls?: ChatCompletionToolCall[];
+  functionCall?: ChatCompletionFunctionCall;
+} {
   let errorMessage = "";
+  let finishReason = "";
+  const toolCalls: ChatCompletionToolCall[] = [];
+  let functionCall: ChatCompletionFunctionCall | undefined;
   const content = rawText
     .split(/\r?\n/)
     .map((line) => line.trim())
@@ -1052,8 +1064,17 @@ function parseSseChatCompletion(rawText: string): { content: string; errorMessag
         const payload = JSON.parse(line) as {
           error?: { message?: string } | string;
           choices?: Array<{
-            delta?: { content?: ChatCompletionContent };
-            message?: { content?: ChatCompletionContent };
+            finish_reason?: string;
+            delta?: {
+              content?: ChatCompletionContent;
+              tool_calls?: ChatCompletionToolCall[];
+              function_call?: ChatCompletionFunctionCall;
+            };
+            message?: {
+              content?: ChatCompletionContent;
+              tool_calls?: ChatCompletionToolCall[];
+              function_call?: ChatCompletionFunctionCall;
+            };
           }>;
         };
         const streamError =
@@ -1061,6 +1082,19 @@ function parseSseChatCompletion(rawText: string): { content: string; errorMessag
         if (streamError && !errorMessage) {
           errorMessage = streamError;
         }
+        payload.choices?.forEach((choice) => {
+          if (choice.finish_reason) {
+            finishReason = choice.finish_reason;
+          }
+          const streamedToolCalls = choice.delta?.tool_calls || choice.message?.tool_calls;
+          if (streamedToolCalls?.length) {
+            toolCalls.push(...streamedToolCalls);
+          }
+          const streamedFunctionCall = choice.delta?.function_call || choice.message?.function_call;
+          if (streamedFunctionCall) {
+            functionCall = mergeFunctionCall(functionCall, streamedFunctionCall);
+          }
+        });
         return extractFirstChatCompletionText(
           payload.choices?.map((choice) => ({
             message: {
@@ -1079,7 +1113,23 @@ function parseSseChatCompletion(rawText: string): { content: string; errorMessag
     })
     .join("");
 
-  return { content, errorMessage: errorMessage || undefined };
+  return {
+    content,
+    errorMessage: errorMessage || undefined,
+    finishReason: finishReason || undefined,
+    toolCalls: toolCalls.length ? toolCalls : undefined,
+    functionCall
+  };
+}
+
+function mergeFunctionCall(
+  current: ChatCompletionFunctionCall | undefined,
+  next: ChatCompletionFunctionCall
+): ChatCompletionFunctionCall {
+  return {
+    name: next.name ?? current?.name,
+    arguments: `${current?.arguments ?? ""}${next.arguments ?? ""}` || undefined
+  };
 }
 
 function extractFirstChatCompletionText(
