@@ -92,7 +92,8 @@ export const sceneSchema = z.object({
   source: sourceLocatorSchema
 });
 
-export const screenplaySchema = z.object({
+export const screenplaySchema = z
+  .object({
   work: z.object({
     title: z.string().min(1),
     adaptationStyle: z.enum(["balanced", "cinematic", "stage", "short_drama"]),
@@ -148,7 +149,48 @@ export const screenplaySchema = z.object({
     warnings: z.array(z.string())
   }),
   validationHints: z.array(z.string())
-});
+})
+  .superRefine((screenplay, ctx) => {
+    const sourceChapterCount = screenplay.work.sourceChapterCount;
+    const addChapterRangeIssue = (path: (string | number)[], chapterIndex: number) => {
+      if (chapterIndex > sourceChapterCount) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path,
+          message: `chapterIndex must be within sourceChapterCount (${sourceChapterCount})`
+        });
+      }
+    };
+
+    screenplay.chapterEvents.forEach((group, groupIndex) => {
+      addChapterRangeIssue(["chapterEvents", groupIndex, "chapterIndex"], group.chapterIndex);
+      group.events.forEach((event, eventIndex) => {
+        addChapterRangeIssue(
+          ["chapterEvents", groupIndex, "events", eventIndex, "source", "chapterIndex"],
+          event.source.chapterIndex
+        );
+      });
+    });
+
+    screenplay.characters.forEach((character, characterIndex) => {
+      addChapterRangeIssue(["characters", characterIndex, "firstSeenChapter"], character.firstSeenChapter);
+    });
+
+    screenplay.chapterMappings.forEach((mapping, mappingIndex) => {
+      addChapterRangeIssue(["chapterMappings", mappingIndex, "chapterIndex"], mapping.chapterIndex);
+    });
+
+    screenplay.scenes.forEach((scene, sceneIndex) => {
+      addChapterRangeIssue(["scenes", sceneIndex, "chapterIndex"], scene.chapterIndex);
+      addChapterRangeIssue(["scenes", sceneIndex, "source", "chapterIndex"], scene.source.chapterIndex);
+      scene.dialogue.forEach((line, lineIndex) => {
+        addChapterRangeIssue(
+          ["scenes", sceneIndex, "dialogue", lineIndex, "source", "chapterIndex"],
+          line.source.chapterIndex
+        );
+      });
+    });
+  });
 
 export type ScreenplaySchema = z.infer<typeof screenplaySchema>;
 export type StoryBlueprintSchema = z.infer<typeof storyBlueprintSchema>;

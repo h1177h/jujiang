@@ -126,6 +126,34 @@ describe("screenplay schema and review helpers", () => {
     expect(result.errors.join("\n")).toContain("Required");
   });
 
+  it("rejects screenplay references outside the imported source chapter range", () => {
+    const parsed = parse(sampleOutputYaml);
+    parsed.chapterEvents[0].chapterIndex = 4;
+    parsed.chapterEvents[0].events[0].source.chapterIndex = 4;
+    parsed.characters[0].firstSeenChapter = 4;
+    parsed.chapterMappings[0].chapterIndex = 4;
+    parsed.scenes[0].chapterIndex = 4;
+    parsed.scenes[0].source.chapterIndex = 4;
+    parsed.scenes[0].dialogue[0].source.chapterIndex = 4;
+
+    const validation = validateScreenplay(parsed);
+
+    expect(validation.success).toBe(false);
+    if (validation.success) return;
+    const paths = validation.error.issues.map((issue) => issue.path.join("."));
+    expect(paths).toEqual(
+      expect.arrayContaining([
+        "chapterEvents.0.chapterIndex",
+        "chapterEvents.0.events.0.source.chapterIndex",
+        "characters.0.firstSeenChapter",
+        "chapterMappings.0.chapterIndex",
+        "scenes.0.chapterIndex",
+        "scenes.0.source.chapterIndex",
+        "scenes.0.dialogue.0.source.chapterIndex"
+      ])
+    );
+  });
+
   it("returns structured diagnostics that point authors to the broken scene field", () => {
     const parsed = parse(sampleOutputYaml);
     parsed.scenes[0].goal = "";
