@@ -21,6 +21,16 @@ type FetchLike = (input: string, init?: RequestInit) => Promise<{
   json: () => Promise<unknown>;
 }>;
 
+type ProbeChatCompletionResponse = {
+  choices?: Array<{
+    finish_reason?: string;
+    message?: {
+      content?: string | Array<string | { text?: string; content?: string }>;
+    };
+  }>;
+  error?: string | { message?: string };
+};
+
 export function deriveProxyHealthUrl(baseUrl: string): string {
   const url = new URL(baseUrl.trim().replace(/\/+$/, ""));
   url.pathname = "/health";
@@ -166,9 +176,7 @@ async function probeAiProvider(
     }),
     signal: settings.signal
   });
-  const payload = (await response.json().catch(() => ({}))) as {
-    error?: string | { message?: string };
-  };
+  const payload = (await response.json().catch(() => ({}))) as ProbeChatCompletionResponse;
 
   if (!response.ok) {
     const providerMessage = getProbeProviderMessage(payload);
@@ -177,6 +185,14 @@ async function probeAiProvider(
       message: providerMessage
         ? `AI provider 连接检查失败：HTTP ${response.status ?? "非 2xx"}。Provider 返回：${truncateConnectionDiagnostic(providerMessage)}`
         : `AI provider 连接检查失败：HTTP ${response.status ?? "非 2xx"}。`
+    };
+  }
+
+  const probeContent = extractProbeChatText(payload);
+  if (!probeContent) {
+    return {
+      ok: false,
+      message: `AI provider 连接检查失败：返回空内容。${formatProbeEmptyDiagnostic(payload)}`
     };
   }
 
@@ -191,6 +207,52 @@ function getProbeProviderMessage(payload: { error?: string | { message?: string 
     return payload.error;
   }
   return payload.error?.message || "";
+}
+
+function extractProbeChatText(payload: ProbeChatCompletionResponse): string {
+  if (!payload.choices?.length) {
+    return "";
+  }
+
+  for (const choice of payload.choices) {
+    const content = extractProbeContentText(choice.message?.content);
+    if (content.trim()) {
+      return content;
+    }
+  }
+
+  return "";
+}
+
+function extractProbeContentText(
+  content: string | Array<string | { text?: string; content?: string }> | undefined
+): string {
+  if (typeof content === "string") {
+    return content;
+  }
+
+  if (!Array.isArray(content)) {
+    return "";
+  }
+
+  return content
+    .map((part) => {
+      if (typeof part === "string") {
+        return part;
+      }
+      return part.text || part.content || "";
+    })
+    .join("");
+}
+
+function formatProbeEmptyDiagnostic(payload: ProbeChatCompletionResponse): string {
+  const providerMessage = getProbeProviderMessage(payload);
+  if (providerMessage) {
+    return `Provider 返回：${truncateConnectionDiagnostic(providerMessage)}`;
+  }
+
+  const finishReason = payload.choices?.[0]?.finish_reason;
+  return finishReason ? `finish_reason=${finishReason}` : "choices[0].message.content 为空";
 }
 
 export function classifyFetchFailure(error: unknown, baseUrl: string): string {
