@@ -274,6 +274,13 @@ export function formatGenerationRunResumeSummary(run: GenerationRun): string | n
   return `已保存 ${chapterIndexes.length} 章 / ${eventCount} 个事件：第 ${chapterIndexes.join("、")} 章，可从阶段产物继续`;
 }
 
+export function formatGenerationRunRecoverySummary(run: GenerationRun): string | null {
+  const retryAction = formatGenerationRunRetryAction(run);
+  if (retryAction?.label !== "续跑") return null;
+
+  return formatGenerationRunResumeSummary(run);
+}
+
 export function formatGenerationRunRetryAction(run: GenerationRun): { label: "续跑" | "重试"; title: string } | null {
   if (run.status !== "failed" || !run.canRetry) return null;
 

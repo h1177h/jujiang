@@ -1,8 +1,8 @@
 import { Clock3, RefreshCw, TriangleAlert } from "lucide-react";
 import {
   formatGenerationRunArtifactDiagnostics,
+  formatGenerationRunRecoverySummary,
   formatGenerationRunRetryAction,
-  formatGenerationRunResumeSummary,
   formatGenerationRunStatus,
   type GenerationRun
 } from "../core/generationRun";
@@ -33,7 +33,7 @@ export function GenerationRunPanel({
   );
   const recentRuns = history.slice(0, 4);
   const retryAction = formatGenerationRunRetryAction(activeRun);
-  const resumeSummary = formatGenerationRunResumeSummary(activeRun);
+  const recoverySummary = formatGenerationRunRecoverySummary(activeRun);
 
   return (
     <div className={`generation-run ${activeRun.status}`}>
@@ -96,7 +96,7 @@ export function GenerationRunPanel({
               ? activeRun.recoveryHint
               : "请先处理当前阶段提示的问题，再重新生成。"}
           </p>
-          {resumeSummary ? <p>{resumeSummary}</p> : null}
+          {recoverySummary ? <p>{recoverySummary}</p> : null}
         </div>
       ) : (
         <p className="generation-meta">
