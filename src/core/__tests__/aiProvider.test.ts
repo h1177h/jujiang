@@ -434,6 +434,62 @@ describe("AI provider", () => {
     ).rejects.toThrow("event_extract 阶段返回空内容。Provider 返回：quota exceeded");
   });
 
+  it("reports tool calls from SSE streams when no text content is returned", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({
+        ok: true,
+        status: 200,
+        headers: new Headers({ "content-type": "text/event-stream" }),
+        text: async () =>
+          [
+            `data: ${JSON.stringify({
+              choices: [
+                {
+                  finish_reason: "tool_calls",
+                  delta: {
+                    tool_calls: [
+                      {
+                        type: "function",
+                        function: {
+                          name: "make_screenplay",
+                          arguments: "{\"title\":\"Mist Harbor\"}"
+                        }
+                      }
+                    ]
+                  }
+                }
+              ]
+            })}`,
+            "data: [DONE]"
+          ].join("\n\n")
+      }))
+    );
+
+    let message = "";
+    try {
+      await generateScreenplayWithApi(
+        {
+          baseUrl: "https://api.example.com",
+          apiKey: "test-key",
+          model: "test-model"
+        },
+        {
+          title: "雾港来信",
+          style: "cinematic",
+          novelText: sampleNovel
+        }
+      );
+    } catch (error) {
+      message = error instanceof Error ? error.message : String(error);
+    }
+
+    expect(message).toContain("event_extract");
+    expect(message).toContain("工具调用");
+    expect(message).toContain("tool_calls");
+    expect(message).toContain("make_screenplay");
+  });
+
   it("reports stage, HTTP 504, and retryability when the provider times out", async () => {
     vi.stubGlobal(
       "fetch",
