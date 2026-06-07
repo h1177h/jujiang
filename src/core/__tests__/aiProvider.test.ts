@@ -1496,6 +1496,7 @@ describe("AI provider", () => {
         })
       });
     vi.stubGlobal("fetch", fetchMock);
+    const repairArtifacts: unknown[] = [];
 
     const result = await generateScreenplayWithApi(
       {
@@ -1506,7 +1507,12 @@ describe("AI provider", () => {
       {
         title: "雾港来信",
         style: "cinematic",
-        novelText: sampleNovel
+        novelText: sampleNovel,
+        onProgress: (event) => {
+          if (event.stage === "schema_repair" && event.artifact) {
+            repairArtifacts.push(event.artifact);
+          }
+        }
       }
     );
 
@@ -1516,6 +1522,19 @@ describe("AI provider", () => {
     const repairPayload = JSON.parse(repairBody.messages[1].content);
     expect(repairPayload.pipelineStage).toBe("schema_repair");
     expect(repairPayload.validationIssues.join("\n")).toContain("scenes");
+    expect(repairArtifacts).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "repair",
+          diagnostic: expect.objectContaining({
+            initialIssues: expect.arrayContaining(["scenes"]),
+            repairedIssues: [],
+            initialExcerpt: expect.stringContaining("\"scenes\":[]"),
+            repairedExcerpt: expect.stringContaining("\"scenes\"")
+          })
+        })
+      ])
+    );
   });
 
   it("reports original and repaired JSON excerpts when schema repair still fails", async () => {

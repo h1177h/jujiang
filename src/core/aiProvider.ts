@@ -934,13 +934,21 @@ async function validateOrRepairScreenplay(
     message: "修复后的剧本结构已通过 Schema",
     artifact: describeScreenplayArtifact(repairedResult.data)
   });
+  const initialExcerpt = summarizeReturnedJson(normalized, validationIssues);
+  const repairedExcerpt = summarizeReturnedJson(repairedResult.data, validationIssues);
   options.onProgress?.({
     stage: "schema_repair",
     message: "结构修复已通过 Schema",
     artifact: {
       kind: "repair",
       summary: `${repairedResult.data.scenes.length} 场剧本已修复`,
-      detail: `修复字段：${validationIssues.slice(0, 4).join(", ") || "结构字段"}`
+      detail: `修复字段：${validationIssues.slice(0, 4).join(", ") || "结构字段"}`,
+      diagnostic: {
+        initialIssues: validationIssues,
+        repairedIssues: [],
+        initialExcerpt,
+        repairedExcerpt
+      }
     }
   });
   return repairedResult.data;
