@@ -179,6 +179,7 @@ function isGenerationRunArtifact(value: unknown): value is AiGenerationArtifact 
     typeof artifact.kind === "string" &&
     typeof artifact.summary === "string" &&
     (artifact.detail === undefined || typeof artifact.detail === "string") &&
+    (artifact.yamlDraft === undefined || typeof artifact.yamlDraft === "string") &&
     (artifact.diagnostic === undefined || isGenerationArtifactDiagnostic(artifact.diagnostic)) &&
     typeof artifact.createdAt === "string"
   );

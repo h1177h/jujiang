@@ -1,4 +1,4 @@
-import { Clock3, RefreshCw, Square, TriangleAlert } from "lucide-react";
+import { Clock3, FilePenLine, RefreshCw, Square, TriangleAlert } from "lucide-react";
 import {
   formatGenerationRunArtifactDiagnostics,
   formatGenerationRunRecoverySummary,
@@ -13,13 +13,15 @@ export function GenerationRunPanel({
   history,
   onCancel,
   onRetry,
-  onSelectRun
+  onSelectRun,
+  onUseYamlDraft
 }: {
   run: GenerationRun | null;
   history: GenerationRun[];
   onCancel: (run: GenerationRun) => void;
   onRetry: (run: GenerationRun) => void;
   onSelectRun: (run: GenerationRun) => void;
+  onUseYamlDraft: (yamlText: string, label: string) => void;
 }) {
   const activeRun = run ?? history[0] ?? null;
   if (!activeRun) return null;
@@ -97,6 +99,17 @@ export function GenerationRunPanel({
                       {formatGenerationRunArtifactDiagnostics(artifact).map((line) => (
                         <small key={line}>{line}</small>
                       ))}
+                      {artifact.yamlDraft ? (
+                        <button
+                          className="artifact-action"
+                          type="button"
+                          onClick={() => onUseYamlDraft(artifact.yamlDraft ?? "", artifact.summary)}
+                          title="把这份阶段草稿写入右侧 YAML，继续校验和编辑"
+                        >
+                          <FilePenLine size={12} />
+                          接管草稿
+                        </button>
+                      ) : null}
                     </span>
                   ))}
                 </div>

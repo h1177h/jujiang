@@ -2,6 +2,7 @@ import type { AdaptationStyle, Scene, ScreenplayYaml, StoryBlueprint } from "./t
 import { buildAiGatewayHeaders, classifyFetchFailure } from "./apiConnection";
 import { parseChapters } from "./chapters";
 import { chapterEventsSchema, validateScene, validateScreenplay, validateStoryBlueprint } from "./schema";
+import { screenplayToYaml } from "./yaml";
 
 const longFormChapterThreshold = 3;
 
@@ -43,6 +44,7 @@ export interface AiGenerationArtifact {
   kind: "chapter_events" | "story_blueprint" | "screenplay" | "repair";
   summary: string;
   detail?: string;
+  yamlDraft?: string;
   checkpoint?: AiGenerationResumeCheckpoint;
   diagnostic?: AiGenerationDiagnostic;
 }
@@ -984,6 +986,7 @@ async function validateOrRepairScreenplay(
       kind: "screenplay",
       summary: "剧本初稿未通过 Schema",
       detail: `初次问题：${formatValidationIssues(validationIssues)}`,
+      yamlDraft: screenplayToYaml(normalized),
       diagnostic: {
         initialIssues: validationIssues,
         initialExcerpt
