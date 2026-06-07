@@ -66,6 +66,8 @@ interface ChatCompletionResponse {
     finish_reason?: string;
     message?: {
       content?: ChatCompletionContent;
+      tool_calls?: ChatCompletionToolCall[];
+      function_call?: ChatCompletionFunctionCall;
     };
   }>;
   error?: {
@@ -83,6 +85,16 @@ type ChatCompletionContent =
           content?: string;
         }
     >;
+
+interface ChatCompletionToolCall {
+  type?: string;
+  function?: ChatCompletionFunctionCall;
+}
+
+interface ChatCompletionFunctionCall {
+  name?: string;
+  arguments?: string;
+}
 
 export async function generateScreenplayWithApi(
   settings: AiProviderSettings,
@@ -1155,9 +1167,42 @@ function formatEmptyContentFailure(
     return `${labelProviderStage(stage)} 阶段返回空内容。Provider 返回：${truncateDiagnostic(payload.error.message)}`;
   }
 
+  const callDiagnostic = getChatCallDiagnostic(payload.choices);
+  if (callDiagnostic) {
+    return `${labelProviderStage(stage)} 阶段返回了工具调用而不是文本 JSON。${callDiagnostic}`;
+  }
+
   const finishReason = payload.choices?.[0]?.finish_reason;
   const suffix = finishReason ? `finish_reason=${finishReason}` : "choices[0].message.content 为空";
   return `${labelProviderStage(stage)} 阶段返回空内容。${suffix}`;
+}
+
+function getChatCallDiagnostic(choices: ChatCompletionResponse["choices"]): string {
+  if (!choices?.length) {
+    return "";
+  }
+
+  for (const choice of choices) {
+    const message = choice.message;
+    if (!message) continue;
+
+    if (message.tool_calls?.length) {
+      const names = message.tool_calls
+        .map((call) => call.function?.name)
+        .filter((name): name is string => Boolean(name));
+      const nameSummary = names.length ? `工具：${truncateDiagnostic(names.join(", "))}。` : "";
+      const reason = choice.finish_reason ? `finish_reason=${choice.finish_reason}。` : "";
+      return `${reason}${nameSummary}Provider 返回：${truncateDiagnostic(JSON.stringify(message.tool_calls))}`;
+    }
+
+    if (message.function_call) {
+      const functionName = message.function_call.name ? `函数：${message.function_call.name}。` : "";
+      const reason = choice.finish_reason ? `finish_reason=${choice.finish_reason}。` : "";
+      return `${reason}${functionName}Provider 返回：${truncateDiagnostic(JSON.stringify(message.function_call))}`;
+    }
+  }
+
+  return "";
 }
 
 function isTimeoutStatus(status: number): boolean {
