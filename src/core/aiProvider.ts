@@ -88,7 +88,7 @@ export async function generateScreenplayWithApi(
     signal: options.signal,
     stage: "event_extract"
   });
-  const blueprint = normalizeStoryBlueprint(parseJsonObject(blueprintContent, "event_extract"));
+  const blueprint = normalizeStoryBlueprint(parseJsonObject(blueprintContent, "event_extract"), "event_extract");
   options.onProgress?.({
     stage: "event_extract",
     message: "故事蓝图已生成",
@@ -182,7 +182,10 @@ async function generateLongFormScreenplay(
       signal: options.signal,
       stage: "chapter_event_extract"
     });
-    const eventGroups = normalizeChapterEventGroups(parseJsonObject(content, "chapter_event_extract"));
+    const eventGroups = normalizeChapterEventGroups(
+      parseJsonObject(content, "chapter_event_extract"),
+      "chapter_event_extract"
+    );
     chapterEvents.push(...eventGroups);
     options.onProgress?.({
       stage: "chapter_event_extract",
@@ -212,7 +215,10 @@ async function generateLongFormScreenplay(
     signal: options.signal,
     stage: "story_bible_generate"
   });
-  const blueprint = normalizeStoryBlueprint(parseJsonObject(blueprintContent, "story_bible_generate"));
+  const blueprint = normalizeStoryBlueprint(
+    parseJsonObject(blueprintContent, "story_bible_generate"),
+    "story_bible_generate"
+  );
   options.onProgress?.({
     stage: "story_bible_generate",
     message: "故事圣经和改编策略已合并",
@@ -642,23 +648,41 @@ function parseJsonObject(
   }
 }
 
-function normalizeStoryBlueprint(value: unknown): StoryBlueprint {
+function normalizeStoryBlueprint(
+  value: unknown,
+  stage: AiGenerationProgress["stage"]
+): StoryBlueprint {
   const result = validateStoryBlueprint(value);
   if (!result.success) {
-    throw new Error(`API 故事蓝图未通过 Schema：${result.error.issues.map((issue) => issue.path.join(".")).join(", ")}`);
+    const issuePaths = getValidationIssuePaths(result.error.issues);
+    throw new Error(
+      `${labelProviderStage(stage)} 阶段故事蓝图未通过 Schema：${formatValidationIssues(
+        issuePaths
+      )}。Provider 返回摘要：${summarizeReturnedJson(value, issuePaths)}`
+    );
   }
   return result.data;
 }
 
-function normalizeChapterEventGroups(value: unknown): StoryBlueprint["chapterEvents"] {
+function normalizeChapterEventGroups(
+  value: unknown,
+  stage: AiGenerationProgress["stage"]
+): StoryBlueprint["chapterEvents"] {
   if (!value || typeof value !== "object") {
-    throw new Error("API 章节事件返回 JSON 不是对象。");
+    throw new Error(
+      `${labelProviderStage(stage)} 阶段章节事件返回 JSON 不是对象。Provider 返回摘要：${summarizeReturnedJson(value)}`
+    );
   }
 
   const chapterEvents = (value as Partial<StoryBlueprint>).chapterEvents;
   const result = storyBlueprintSchema.shape.chapterEvents.safeParse(chapterEvents);
   if (!result.success) {
-    throw new Error(`API 章节事件未通过 Schema：${result.error.issues.map((issue) => issue.path.join(".")).join(", ")}`);
+    const issuePaths = getValidationIssuePaths(result.error.issues);
+    throw new Error(
+      `${labelProviderStage(stage)} 阶段章节事件未通过 Schema：${formatValidationIssues(
+        issuePaths
+      )}。Provider 返回摘要：${summarizeReturnedJson(chapterEvents, issuePaths)}`
+    );
   }
   return result.data;
 }

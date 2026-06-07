@@ -383,6 +383,52 @@ describe("AI provider", () => {
     );
   });
 
+  it("reports the provider JSON excerpt when the story blueprint schema fails", async () => {
+    const invalidBlueprint = {
+      chapterEvents: []
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({
+        ok: true,
+        status: 200,
+        headers: new Headers({ "content-type": "application/json" }),
+        json: async () => ({
+          choices: [
+            {
+              message: {
+                content: JSON.stringify(invalidBlueprint)
+              }
+            }
+          ]
+        })
+      }))
+    );
+
+    let errorMessage = "";
+    try {
+      await generateScreenplayWithApi(
+        {
+          baseUrl: "https://api.example.com",
+          apiKey: "test-key",
+          model: "test-model"
+        },
+        {
+          title: "雾港来信",
+          style: "cinematic",
+          novelText: sampleNovel
+        }
+      );
+    } catch (error) {
+      errorMessage = error instanceof Error ? error.message : String(error);
+    }
+
+    expect(errorMessage).toContain(
+      "event_extract 阶段故事蓝图未通过 Schema：chapterEvents, storyBible, adaptationStrategy。Provider 返回摘要："
+    );
+    expect(errorMessage).toContain("\"chapterEvents\":[]");
+  });
+
   it("retries without response_format when a compatible provider rejects json mode", async () => {
     const validation = validateScreenplay(parse(sampleOutputYaml));
     expect(validation.success).toBe(true);
@@ -642,6 +688,67 @@ describe("AI provider", () => {
     expect(finalPayload.pipelineStage).toBe("screenplay_generate");
     expect(finalPayload.sourceChapters).toHaveLength(5);
     expect(finalPayload.sourceChapters[0].paragraphs).toBeUndefined();
+  });
+
+  it("reports the provider JSON excerpt when a chapter event schema fails", async () => {
+    const longNovel = [
+      "第一章 起风",
+      "林砚发现码头起风。",
+      "第二章 账册",
+      "沈知夏拿到账册。",
+      "第三章 黑伞",
+      "黑伞男人跟踪他们。",
+      "第四章 钟楼",
+      "众人进入钟楼。"
+    ].join("\n");
+    const invalidChapterEvents = {
+      chapterEvents: [
+        {
+          chapterIndex: 1,
+          chapterTitle: "起风"
+        }
+      ]
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({
+        ok: true,
+        status: 200,
+        headers: new Headers({ "content-type": "application/json" }),
+        json: async () => ({
+          choices: [
+            {
+              message: {
+                content: JSON.stringify(invalidChapterEvents)
+              }
+            }
+          ]
+        })
+      }))
+    );
+
+    let errorMessage = "";
+    try {
+      await generateScreenplayWithApi(
+        {
+          baseUrl: "https://api.example.com",
+          apiKey: "test-key",
+          model: "test-model"
+        },
+        {
+          title: "长篇测试",
+          style: "cinematic",
+          novelText: longNovel
+        }
+      );
+    } catch (error) {
+      errorMessage = error instanceof Error ? error.message : String(error);
+    }
+
+    expect(errorMessage).toContain(
+      "chapter_event_extract 阶段章节事件未通过 Schema：0.chapterGoal, 0.events。Provider 返回摘要："
+    );
+    expect(errorMessage).toContain("\"chapterTitle\":\"起风\"");
   });
 
   it("asks the model to repair screenplay JSON when schema validation fails", async () => {
