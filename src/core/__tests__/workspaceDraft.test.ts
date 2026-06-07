@@ -175,6 +175,47 @@ describe("workspace draft persistence", () => {
     expect(loadSavedWorkspaceDraft(storage)?.generationRuns).toEqual([]);
   });
 
+  it("restores cancelled generation runs from the workspace draft", () => {
+    const storage = createMemoryStorage();
+    storage.setItem(
+      workspaceDraftStorageKey,
+      JSON.stringify({
+        title: "Cancelled Draft",
+        style: "cinematic",
+        novelText: "Chapter 1\nText",
+        yamlText: "work:\n  title: Cancelled Draft\n",
+        selectedSceneId: null,
+        revisionHistory: [],
+        generationRuns: [
+          {
+            id: "run-cancelled",
+            title: "Cancelled Draft",
+            model: "gpt-4.1-mini",
+            chapterCount: 1,
+            status: "cancelled",
+            startedAt: "2026-06-06T00:03:00.000Z",
+            completedAt: "2026-06-06T00:03:12.000Z",
+            error: "用户已停止本次生成。",
+            canRetry: false,
+            stages: [
+              {
+                id: "screenplay_generate",
+                label: "生成剧本",
+                status: "cancelled",
+                message: "用户已停止本次生成。",
+                updatedAt: "2026-06-06T00:03:12.000Z"
+              }
+            ]
+          }
+        ],
+        updatedAt: "2026-06-06T00:05:00.000Z"
+      })
+    );
+
+    expect(loadSavedWorkspaceDraft(storage)?.generationRuns[0]?.status).toBe("cancelled");
+    expect(loadSavedWorkspaceDraft(storage)?.generationRuns[0]?.stages[0]?.status).toBe("cancelled");
+  });
+
   it("clears the saved workspace draft", () => {
     const storage = createMemoryStorage();
     saveWorkspaceDraft(

@@ -4,6 +4,7 @@ export interface AiConnectionSettings {
   providerBaseUrl?: string;
   apiKey?: string;
   model?: string;
+  signal?: AbortSignal;
 }
 
 export interface AiConnectionResult {
@@ -69,9 +70,10 @@ export async function diagnoseAiConnection(
   const init: RequestInit = Object.keys(headers).length
     ? {
         method: "GET",
-        headers
+        headers,
+        signal: settings.signal
       }
-    : { method: "GET" };
+    : { method: "GET", signal: settings.signal };
 
   try {
     const response = await fetcher(healthUrl, init);
@@ -161,7 +163,8 @@ async function probeAiProvider(
           content: "Return only {\"ok\":true}."
         }
       ]
-    })
+    }),
+    signal: settings.signal
   });
   const payload = (await response.json().catch(() => ({}))) as {
     error?: string | { message?: string };

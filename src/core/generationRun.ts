@@ -1,7 +1,7 @@
 import type { AiGenerationArtifact, AiGenerationProgress, AiGenerationResumeCheckpoint } from "./aiProvider";
 import { chapterEventsSchema, validateStoryBlueprint } from "./schema";
 
-export type GenerationRunStatus = "idle" | "running" | "completed" | "failed";
+export type GenerationRunStatus = "idle" | "running" | "completed" | "failed" | "cancelled";
 
 export type GenerationRunStageId =
   | "source_check"
@@ -12,7 +12,7 @@ export type GenerationRunStageId =
 export interface GenerationRunStage {
   id: GenerationRunStageId;
   label: string;
-  status: "pending" | "running" | "done" | "failed";
+  status: "pending" | "running" | "done" | "failed" | "cancelled";
   message: string;
   current?: number;
   total?: number;
@@ -173,6 +173,32 @@ export function failGenerationRun(run: GenerationRun, error: string, date = new 
     recoveryHint: canRetry ? "可以保留当前原文、AI 配置和已保存的阶段记录后重试。" : undefined,
     completedAt: now,
     stages: marked ? stages : [...stages, createStage("yaml_ready", "写入 YAML", error, "failed", now)]
+  };
+}
+
+export function cancelGenerationRun(
+  run: GenerationRun,
+  message = "用户已停止本次生成。",
+  date = new Date()
+): GenerationRun {
+  const now = date.toISOString();
+  let marked = false;
+  const stages = run.stages.map((stage) => {
+    if (stage.status === "running") {
+      marked = true;
+      return { ...stage, status: "cancelled" as const, message, updatedAt: now };
+    }
+    return stage;
+  });
+
+  return {
+    ...run,
+    status: "cancelled",
+    error: message,
+    canRetry: false,
+    recoveryHint: undefined,
+    completedAt: now,
+    stages: marked ? stages : [...stages, createStage("yaml_ready", "写入 YAML", message, "cancelled", now)]
   };
 }
 
@@ -347,6 +373,7 @@ export function formatAiGenerationProgress(event: AiGenerationProgress, model: s
 export function formatGenerationRunStatus(status: GenerationRun["status"]): string {
   if (status === "completed") return "完成";
   if (status === "failed") return "失败";
+  if (status === "cancelled") return "已停止";
   if (status === "running") return "运行中";
   return "待开始";
 }

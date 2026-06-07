@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   completeGenerationRun,
   createGenerationRun,
+  cancelGenerationRun,
   failGenerationRun,
   failGenerationRunStage,
   failGenerationRunWithMessage,
@@ -117,6 +118,37 @@ describe("generation run tracking", () => {
 
     expect(staleUpdate).toBe(activeRun);
     expect(currentUpdate?.stages.find((stage) => stage.id === "screenplay_generate")?.message).toBe("新任务完成");
+  });
+
+  it("marks cancelled runs without offering retry or resume actions", () => {
+    const run = updateGenerationRunStage(
+      createGenerationRun({
+        title: "雾港来信",
+        model: "gpt-4.1-mini",
+        chapterCount: 3,
+        date: new Date("2026-06-06T00:00:00.000Z")
+      }),
+      {
+        stage: "screenplay_generate",
+        message: "正在生成剧本",
+        date: new Date("2026-06-06T00:00:02.000Z")
+      }
+    );
+
+    const cancelled = cancelGenerationRun(run, "用户已停止本次生成。", new Date("2026-06-06T00:00:05.000Z"));
+
+    expect(cancelled.status).toBe("cancelled");
+    expect(cancelled.error).toBe("用户已停止本次生成。");
+    expect(cancelled.canRetry).toBe(false);
+    expect(cancelled.recoveryHint).toBeUndefined();
+    expect(cancelled.completedAt).toBe("2026-06-06T00:00:05.000Z");
+    expect(cancelled.stages.find((stage) => stage.id === "screenplay_generate")).toMatchObject({
+      status: "cancelled",
+      message: "用户已停止本次生成。"
+    });
+    expect(formatGenerationRunStatus("cancelled")).toBe("已停止");
+    expect(formatGenerationRunRetryAction(cancelled)).toBeNull();
+    expect(formatGenerationRunRecoverySummary(cancelled)).toBeNull();
   });
 
   it("attaches stage artifacts to the active generation stage", () => {
