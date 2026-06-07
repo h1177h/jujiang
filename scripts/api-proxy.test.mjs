@@ -235,4 +235,51 @@ describe("api proxy config", () => {
     expect(payload.error).toContain(`${upstreamBaseUrl}/v1`);
     expect(payload.error).toContain("可重试");
   });
+
+  it("aborts the upstream provider request when the browser client cancels generation", async () => {
+    let resolveUpstreamReceived;
+    let resolveUpstreamClosed;
+    const upstreamReceived = new Promise((resolve) => {
+      resolveUpstreamReceived = resolve;
+    });
+    const upstreamClosed = new Promise((resolve) => {
+      resolveUpstreamClosed = resolve;
+    });
+    const upstream = createServer((request) => {
+      resolveUpstreamReceived();
+      request.on("close", () => resolveUpstreamClosed());
+      // Keep the upstream request open until the proxy aborts it.
+    });
+    const upstreamBaseUrl = await listen(upstream);
+    const proxy = createApiProxyServer({
+      port: 0,
+      targetBaseUrl: `${upstreamBaseUrl}/v1`,
+      apiKey: "",
+      networkProxyUrl: "",
+      upstreamTimeoutMs: 150
+    });
+    const proxyBaseUrl = await listen(proxy);
+    const controller = new AbortController();
+
+    const request = fetch(`${proxyBaseUrl}/v1/chat/completions`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: "Bearer browser-key"
+      },
+      body: JSON.stringify({ model: "test-model", messages: [] }),
+      signal: controller.signal
+    }).catch((error) => error);
+
+    await upstreamReceived;
+    controller.abort();
+
+    await Promise.race([
+      upstreamClosed,
+      new Promise((_, reject) => {
+        setTimeout(() => reject(new Error("upstream request stayed open after client abort")), 80);
+      })
+    ]);
+    await request;
+  });
 });
