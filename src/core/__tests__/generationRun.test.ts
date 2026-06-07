@@ -17,6 +17,7 @@ import {
   pushGenerationRunHistory,
   selectVisibleGenerationArtifacts,
   updateActiveGenerationRun,
+  updateGenerationRunHistory,
   updateGenerationRunStage
 } from "../generationRun";
 
@@ -120,6 +121,35 @@ describe("generation run tracking", () => {
 
     expect(staleUpdate).toBe(activeRun);
     expect(currentUpdate?.stages.find((stage) => stage.id === "screenplay_generate")?.message).toBe("新任务完成");
+  });
+
+  it("updates active generation runs inside history by id", () => {
+    const olderRun = createGenerationRun({
+      title: "Old run",
+      model: "gpt-4.1-mini",
+      chapterCount: 3,
+      date: new Date("2026-06-06T00:00:00.000Z")
+    });
+    const activeRun = createGenerationRun({
+      title: "Active run",
+      model: "gpt-4.1-mini",
+      chapterCount: 3,
+      date: new Date("2026-06-06T00:01:00.000Z")
+    });
+
+    const updated = updateGenerationRunHistory([olderRun, activeRun], activeRun.id, (run) =>
+      updateGenerationRunStage(run, {
+        stage: "screenplay_generate",
+        message: "Active run progressed",
+        date: new Date("2026-06-06T00:01:10.000Z")
+      })
+    );
+    const stale = updateGenerationRunHistory(updated, "missing-run", (run) => failGenerationRun(run, "stale"));
+
+    const activeRunStages = updated.find((run) => run.id === activeRun.id)?.stages;
+    expect(activeRunStages?.[activeRunStages.length - 1]?.message).toBe("Active run progressed");
+    expect(updated.find((run) => run.id === olderRun.id)).toBe(olderRun);
+    expect(stale).toBe(updated);
   });
 
   it("marks cancelled runs without offering retry or resume actions", () => {
