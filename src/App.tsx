@@ -594,12 +594,41 @@ export default function App() {
       </header>
 
       <section className="studio-shell">
+        <nav className="workflow-rail" aria-label="创作阶段">
+          <div className="workflow-brand">
+            <span>Studio Flow</span>
+            <strong>{preview ? "审稿中" : "准备生成"}</strong>
+          </div>
+          <ol className="product-flow">
+            <li className="active">
+              <span>01</span>
+              <strong>原文解析</strong>
+              <small>{sourceSummary.chapterCount} 章 / {sourceSummary.paragraphCount} 段</small>
+            </li>
+            <li className={sceneCount > 0 ? "active" : ""}>
+              <span>02</span>
+              <strong>分场改编</strong>
+              <small>{sceneCount} 场剧本</small>
+            </li>
+            <li className={preview ? "active" : ""}>
+              <span>03</span>
+              <strong>作者审稿</strong>
+              <small>{preview ? "可编辑校验" : "等待草稿"}</small>
+            </li>
+            <li className={validation.ok ? "active" : ""}>
+              <span>04</span>
+              <strong>YAML 交付</strong>
+              <small>{validation.ok ? "校验通过" : "待修正"}</small>
+            </li>
+          </ol>
+        </nav>
+
         <aside className="source-rail" aria-label="原文与生成设置">
           <section className="panel input-panel">
             <div className="panel-header">
               <div>
-                <p className="section-kicker">Source</p>
-                <h2>原文与生成设置</h2>
+                <p className="section-kicker">控制台</p>
+                <h2>项目与 AI 调度</h2>
               </div>
               <div className="header-actions">
                 <label className="icon-button file-button" title="上传文本文件">
@@ -694,21 +723,14 @@ export default function App() {
               <button className="secondary-action" type="button" onClick={handleCheckConnection}>
                 测试连接
               </button>
-              <p className="status-note">
-                推荐用 npm run dev:app 启动完整应用。页面会把当前 provider 配置交给应用内 AI 服务，不需要单独配置上游环境变量。
-              </p>
               <p className="status-note strong">{generationStatus}</p>
-              <GenerationRunPanel
-                run={generationRun}
-                history={generationRunHistory}
-                onCancel={handleCancelGeneration}
-                onRetry={handleGenerate}
-                onSelectRun={setGenerationRun}
-                onUseYamlDraft={handleUseYamlDraft}
-              />
             </div>
 
-            <div className="source-editor-column">
+            <details className="source-editor-column">
+              <summary>
+                <span>原文素材</span>
+                <strong>{sourceSummary.canGenerate ? "已满足生成条件" : "继续补充内容"}</strong>
+              </summary>
               <div className={`source-health ${sourceSummary.status}`}>
                 <div className="source-health-head">
                   <div>
@@ -737,9 +759,9 @@ export default function App() {
                 className="novel-editor"
                 value={novelText}
                 onChange={(event) => setNovelText(event.target.value)}
-                spellCheck={false}
-              />
-            </div>
+                  spellCheck={false}
+                />
+            </details>
 
             <button className="primary-action" type="button" onClick={() => handleGenerate()}>
               <Sparkles size={18} />
@@ -749,12 +771,14 @@ export default function App() {
         </aside>
 
         <section className="review-stage" aria-label="审稿工作区">
-          <section className="product-flow" aria-label="创作流程">
-            <span className="active">1. 原文解析</span>
-            <span className={sceneCount > 0 ? "active" : ""}>2. 分场改编</span>
-            <span className={preview ? "active" : ""}>3. 作者审稿</span>
-            <span className={validation.ok ? "active" : ""}>4. YAML 交付</span>
-          </section>
+          <GenerationRunPanel
+            run={generationRun}
+            history={generationRunHistory}
+            onCancel={handleCancelGeneration}
+            onRetry={handleGenerate}
+            onSelectRun={setGenerationRun}
+            onUseYamlDraft={handleUseYamlDraft}
+          />
           <ScreenplayReview
             screenplay={preview}
             selectedSceneId={selectedScene?.id ?? null}
