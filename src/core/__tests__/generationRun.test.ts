@@ -4,6 +4,7 @@ import {
   createGenerationRun,
   failGenerationRun,
   failGenerationRunStage,
+  failGenerationRunWithMessage,
   formatAiGenerationProgress,
   formatGenerationRunArtifactDiagnostics,
   formatGenerationRunResumeSummary,
@@ -430,6 +431,30 @@ describe("generation run tracking", () => {
       status: "failed",
       message: "AI connection probe returned HTTP 504",
       updatedAt: "2026-06-06T00:00:05.000Z"
+    });
+  });
+
+  it("records missing AI configuration on the connection stage", () => {
+    const run = createGenerationRun({
+      title: "Mist Harbor",
+      model: "gpt-4.1-mini",
+      chapterCount: 3,
+      date: new Date("2026-06-06T00:00:00.000Z")
+    });
+
+    const failed = failGenerationRunWithMessage(
+      run,
+      "请先配置 AI 生成。剧匠不会用本地规则伪造剧情理解。",
+      new Date("2026-06-06T00:00:05.000Z")
+    );
+
+    expect(failed.status).toBe("failed");
+    expect(failed.stages.find((stage) => stage.id === "source_check")).toMatchObject({
+      status: "done"
+    });
+    expect(failed.stages.find((stage) => stage.id === "connection_check")).toMatchObject({
+      status: "failed",
+      message: "请先配置 AI 生成。剧匠不会用本地规则伪造剧情理解。"
     });
   });
 

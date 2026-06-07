@@ -167,6 +167,18 @@ export function failGenerationRun(run: GenerationRun, error: string, date = new 
   };
 }
 
+export function failGenerationRunWithMessage(
+  run: GenerationRun,
+  error: string,
+  date = new Date()
+): GenerationRun {
+  if (isAiConfigurationError(error)) {
+    return failGenerationRunStage(run, "connection_check", error, date);
+  }
+
+  return failGenerationRun(run, error, date);
+}
+
 export function failGenerationRunStage(
   run: GenerationRun,
   stageId: GenerationRunStageId,
@@ -341,6 +353,10 @@ function labelStage(stage: GenerationRunStageId): string {
 
 function isRetryableGenerationError(error: string): boolean {
   return /可重试|HTTP (408|429|500|502|503|504|524)|timeout|timed out|rate limit|temporarily|未通过 Schema|不是可解析 JSON|非 JSON 响应|返回空内容/i.test(error);
+}
+
+function isAiConfigurationError(error: string): boolean {
+  return error.startsWith("请先配置 AI 生成") || error.startsWith("还没有可用的 API Key");
 }
 
 function slug(value: string): string {

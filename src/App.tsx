@@ -36,6 +36,7 @@ import {
   createGenerationRun,
   failGenerationRun,
   failGenerationRunStage,
+  failGenerationRunWithMessage,
   formatAiGenerationProgress,
   getGenerationRunResumeCheckpoint,
   markGenerationRunConnection,
@@ -264,7 +265,7 @@ export default function App() {
       setSelectedSceneId(result.screenplay.scenes[0]?.id ?? null);
       setGenerationRun((current) => (current ? completeGenerationRun(current) : current));
     } else {
-      setGenerationRun((current) => (current ? failGenerationRun(current, result.status) : current));
+      setGenerationRun((current) => (current ? failGenerationRunWithMessage(current, result.status) : current));
     }
     setGenerationStatus(result.status);
   }
