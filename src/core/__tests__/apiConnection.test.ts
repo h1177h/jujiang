@@ -339,6 +339,61 @@ describe("AI connection diagnostics", () => {
     expect(result.message).toContain("finish_reason=length");
   });
 
+  it("reports provider probe tool calls instead of generic empty content", async () => {
+    const fetcher = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          ok: true,
+          service: "jujiang-api-proxy",
+          hasApiKey: true,
+          targetBaseUrl: "https://api.example.com/v1"
+        })
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          choices: [
+            {
+              finish_reason: "tool_calls",
+              message: {
+                content: "",
+                tool_calls: [
+                  {
+                    type: "function",
+                    function: {
+                      name: "make_screenplay",
+                      arguments: "{\"title\":\"Mist Harbor\"}"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        })
+      });
+
+    const result = await diagnoseAiConnection(
+      {
+        baseUrl: "http://127.0.0.1:18787/v1",
+        useLocalProxy: true,
+        providerBaseUrl: "https://api.example.com",
+        apiKey: "browser-key",
+        model: "test-model"
+      },
+      fetcher
+    );
+
+    expect(result.ok).toBe(false);
+    expect(result.message).toContain("AI provider 连接检查失败");
+    expect(result.message).toContain("工具调用");
+    expect(result.message).toContain("tool_calls");
+    expect(result.message).toContain("make_screenplay");
+  });
+
   it("points fetch failures back to the app service", () => {
     expect(classifyFetchFailure(new TypeError("Failed to fetch"), "https://api.openai.com/v1")).toBe(
       "AI 请求没有到达应用服务：请用 npm run dev:app 启动完整应用后再生成。"
