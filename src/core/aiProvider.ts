@@ -1,7 +1,7 @@
 import type { AdaptationStyle, Scene, ScreenplayYaml, StoryBlueprint } from "./types";
 import { buildAiGatewayHeaders, classifyFetchFailure } from "./apiConnection";
 import { parseChapters } from "./chapters";
-import { storyBlueprintSchema, validateScene, validateScreenplay, validateStoryBlueprint } from "./schema";
+import { chapterEventsSchema, validateScene, validateScreenplay, validateStoryBlueprint } from "./schema";
 
 const longFormChapterThreshold = 3;
 
@@ -747,7 +747,7 @@ function normalizeChapterEventGroups(
   }
 
   const chapterEvents = (value as Partial<StoryBlueprint>).chapterEvents;
-  const result = storyBlueprintSchema.shape.chapterEvents.safeParse(chapterEvents);
+  const result = chapterEventsSchema.safeParse(chapterEvents);
   if (!result.success) {
     const issuePaths = getValidationIssuePaths(result.error.issues);
     throw new Error(
@@ -777,7 +777,7 @@ function normalizeResumeCheckpoint(
   }
 
   if (checkpoint.chapterEvents) {
-    const result = storyBlueprintSchema.shape.chapterEvents.safeParse(checkpoint.chapterEvents);
+    const result = chapterEventsSchema.safeParse(checkpoint.chapterEvents);
     if (result.success) {
       const chapterEvents = normalizeCheckpointChapterEvents(result.data, sourceChapterCount);
       if (chapterEvents.length > 0) {
