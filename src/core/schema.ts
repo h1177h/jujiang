@@ -40,7 +40,10 @@ export const chapterEventsSchema = z
         .min(1)
     })
   )
-  .min(1);
+  .min(1)
+  .superRefine((chapterEvents, ctx) => {
+    addChapterEventSourceAnchorIssues(chapterEvents, ctx);
+  });
 
 export const storyBibleSchema = z.object({
   worldview: z.string().min(1),
@@ -73,7 +76,6 @@ export const storyBlueprintBaseSchema = z.object({
 
 export const storyBlueprintSchema = storyBlueprintBaseSchema.superRefine((blueprint, ctx) => {
   addStoryArcEventReferenceIssues(blueprint, ctx);
-  addChapterEventSourceAnchorIssues(blueprint.chapterEvents, ctx);
 });
 
 export const sceneSchema = z.object({
@@ -173,7 +175,6 @@ export const screenplaySchema = z
 })
   .superRefine((screenplay, ctx) => {
     addStoryArcEventReferenceIssues(screenplay, ctx);
-    addChapterEventSourceAnchorIssues(screenplay.chapterEvents, ctx);
 
     const sourceChapterCount = screenplay.work.sourceChapterCount;
     const sceneIds = new Set(screenplay.scenes.map((scene) => scene.id));
@@ -309,7 +310,7 @@ function addChapterEventSourceAnchorIssues(
   chapterEvents.forEach((group, groupIndex) => {
     group.events.forEach((event, eventIndex) => {
       addSourceChapterAnchorIssue(
-        ["chapterEvents", groupIndex, "events", eventIndex, "source", "chapterIndex"],
+        [groupIndex, "events", eventIndex, "source", "chapterIndex"],
         event.source.chapterIndex,
         group.chapterIndex,
         ctx
