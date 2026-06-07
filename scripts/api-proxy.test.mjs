@@ -231,6 +231,43 @@ describe("api proxy config", () => {
     expect(task.response.choices[0].message.content).toBe("{\"ok\":true}");
   });
 
+  it("lists recent generation tasks for recovery after a page refresh", async () => {
+    const upstream = createServer((request, response) => {
+      response.writeHead(200, { "Content-Type": "application/json" });
+      response.end(JSON.stringify({ choices: [{ message: { content: "{\"ok\":true}" } }] }));
+    });
+    const upstreamBaseUrl = await listen(upstream);
+    const proxy = createApiProxyServer({
+      port: 0,
+      targetBaseUrl: `${upstreamBaseUrl}/v1`,
+      apiKey: "",
+      networkProxyUrl: ""
+    });
+    const proxyBaseUrl = await listen(proxy);
+
+    const createResponse = await fetch(`${proxyBaseUrl}/v1/generation-tasks`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: "Bearer browser-key"
+      },
+      body: JSON.stringify({ model: "test-model", messages: [] })
+    });
+    const created = await createResponse.json();
+    const task = await waitForTask(proxyBaseUrl, created.task.id);
+
+    const listResponse = await fetch(`${proxyBaseUrl}/v1/generation-tasks`);
+    const listed = await listResponse.json();
+
+    expect(listResponse.status).toBe(200);
+    expect(listed.tasks[0]).toMatchObject({
+      id: task.id,
+      requestId: task.requestId,
+      status: "completed"
+    });
+    expect(listed.tasks[0].response).toBeNull();
+  });
+
   it("keeps provider errors on failed generation tasks", async () => {
     const upstream = createServer((request, response) => {
       response.writeHead(504, { "Content-Type": "text/plain" });

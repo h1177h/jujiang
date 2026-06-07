@@ -23,6 +23,7 @@ export interface AiGenerationOptions {
   novelText: string;
   signal?: AbortSignal;
   onProgress?: (event: AiGenerationProgress) => void;
+  onTaskUpdate?: (task: AiGenerationTaskSnapshot) => void;
 }
 
 export interface AiGenerationProgress {
@@ -35,6 +36,22 @@ export interface AiGenerationProgress {
   message: string;
   current?: number;
   total?: number;
+}
+
+export interface AiGenerationTaskSnapshot {
+  taskId: string;
+  requestId?: string;
+  status: "queued" | "running" | "completed" | "failed" | "cancelled";
+  targetBaseUrl?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  upstreamStatus?: number;
+  message?: string;
+}
+
+interface GenerationTaskListPayload {
+  tasks?: Array<NonNullable<GenerationTaskPayload["task"]>>;
+  error?: string;
 }
 
 type AiRequestStage = AiGenerationProgress["stage"] | "scene_regenerate";
@@ -60,7 +77,11 @@ interface ChatCompletionResponse {
 interface GenerationTaskPayload {
   task?: {
     id: string;
+    requestId?: string;
     status: "queued" | "running" | "completed" | "failed" | "cancelled";
+    targetBaseUrl?: string;
+    createdAt?: string;
+    updatedAt?: string;
     response?: ChatCompletionResponse;
     error?: {
       message?: string;
@@ -104,7 +125,8 @@ export async function generateScreenplayWithApi(
         content: buildBlueprintUserPrompt(options, sourceChapters)
       }
     ],
-    signal: options.signal
+    signal: options.signal,
+    onTaskUpdate: options.onTaskUpdate
   });
   const blueprint = normalizeStoryBlueprint(parseJsonObject(blueprintContent));
 
@@ -125,7 +147,8 @@ export async function generateScreenplayWithApi(
         content: buildScreenplayUserPrompt(options, sourceChapters, blueprint)
       }
     ],
-    signal: options.signal
+    signal: options.signal,
+    onTaskUpdate: options.onTaskUpdate
   });
 
   const parsed = parseJsonObject(screenplayContent);
@@ -165,6 +188,26 @@ export async function regenerateSceneWithApi(
   return normalizeRegeneratedScene(parseJsonObject(content), scene);
 }
 
+export async function listLocalGenerationTasks(baseUrl: string): Promise<AiGenerationTaskSnapshot[]> {
+  const normalizedBaseUrl = normalizeBaseUrl(baseUrl);
+  const response = await fetch(`${normalizedBaseUrl}/generation-tasks`);
+  const payload = (await response.json().catch(() => ({}))) as GenerationTaskListPayload;
+  if (!response.ok) {
+    throw new Error(payload.error || `HTTP ${response.status}`);
+  }
+
+  return (payload.tasks ?? []).map((task) => ({
+    taskId: task.id,
+    requestId: task.requestId,
+    status: task.status,
+    targetBaseUrl: task.targetBaseUrl,
+    createdAt: task.createdAt,
+    updatedAt: task.updatedAt,
+    upstreamStatus: task.error?.upstreamStatus,
+    message: task.error?.message
+  }));
+}
+
 async function generateLongFormScreenplay(
   settings: AiProviderSettings,
   baseUrl: string,
@@ -195,7 +238,8 @@ async function generateLongFormScreenplay(
           content: buildChapterEventUserPrompt(options, unit, sourceChapters.length)
         }
       ],
-      signal: options.signal
+      signal: options.signal,
+      onTaskUpdate: options.onTaskUpdate
     });
     chapterEvents.push(...normalizeChapterEventGroups(parseJsonObject(content)));
   }
@@ -217,7 +261,8 @@ async function generateLongFormScreenplay(
         content: buildBlueprintMergeUserPrompt(options, sourceChapters, mergeChapterEventGroups(chapterEvents))
       }
     ],
-    signal: options.signal
+    signal: options.signal,
+    onTaskUpdate: options.onTaskUpdate
   });
   const blueprint = normalizeStoryBlueprint(parseJsonObject(blueprintContent));
 
@@ -238,7 +283,8 @@ async function generateLongFormScreenplay(
         content: buildLongFormScreenplayUserPrompt(options, sourceChapters, blueprint)
       }
     ],
-    signal: options.signal
+    signal: options.signal,
+    onTaskUpdate: options.onTaskUpdate
   });
 
   return validateOrRepairScreenplay(
@@ -259,6 +305,7 @@ async function requestChatCompletion(
     temperature: number;
     messages: Array<{ role: "system" | "user"; content: string }>;
     signal?: AbortSignal;
+    onTaskUpdate?: (task: AiGenerationTaskSnapshot) => void;
   }
 ): Promise<string> {
   const startedAt = Date.now();
@@ -273,7 +320,7 @@ async function requestChatCompletion(
   for (let attempt = 1; attempt <= maxTransientAttempts; attempt++) {
     let completionAttempt: ChatCompletionAttempt;
     try {
-      completionAttempt = await requestChatCompletionAttempt(settings, baseUrl, body, request.signal);
+      completionAttempt = await requestChatCompletionAttempt(settings, baseUrl, body, request.signal, request.onTaskUpdate);
     } catch (error) {
       const message = classifyFetchFailure(error, baseUrl);
       if (message.includes("生成任务已取消")) {
@@ -321,10 +368,11 @@ async function requestChatCompletionAttempt(
   settings: AiProviderSettings,
   baseUrl: string,
   body: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  onTaskUpdate?: (task: AiGenerationTaskSnapshot) => void
 ): Promise<ChatCompletionAttempt> {
   if (settings.useGenerationTasks) {
-    return requestChatCompletionTask(settings, baseUrl, body, signal);
+    return requestChatCompletionTask(settings, baseUrl, body, signal, onTaskUpdate);
   }
 
   const response = await fetch(`${baseUrl}/chat/completions`, {
@@ -349,7 +397,8 @@ async function requestChatCompletionTask(
   settings: AiProviderSettings,
   baseUrl: string,
   body: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  onTaskUpdate?: (task: AiGenerationTaskSnapshot) => void
 ): Promise<ChatCompletionAttempt> {
   const createResponse = await fetch(`${baseUrl}/generation-tasks`, {
     method: "POST",
@@ -372,6 +421,7 @@ async function requestChatCompletionTask(
       }
     };
   }
+  emitTaskSnapshot(created.task, onTaskUpdate);
 
   try {
     while (true) {
@@ -394,6 +444,7 @@ async function requestChatCompletionTask(
           }
         };
       }
+      emitTaskSnapshot(task, onTaskUpdate);
 
       if (task.status === "completed") {
         return {
@@ -424,6 +475,23 @@ async function requestChatCompletionTask(
     }
     throw error;
   }
+}
+
+function emitTaskSnapshot(
+  task: GenerationTaskPayload["task"],
+  onTaskUpdate?: (task: AiGenerationTaskSnapshot) => void
+): void {
+  if (!task || !onTaskUpdate) return;
+  onTaskUpdate({
+    taskId: task.id,
+    requestId: task.requestId,
+    status: task.status,
+    targetBaseUrl: task.targetBaseUrl,
+    createdAt: task.createdAt,
+    updatedAt: task.updatedAt,
+    upstreamStatus: task.error?.upstreamStatus,
+    message: task.error?.message
+  });
 }
 
 async function cancelGenerationTask(baseUrl: string, taskId: string): Promise<void> {

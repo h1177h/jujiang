@@ -144,6 +144,12 @@ function createGenerationTaskStore(config) {
     return tasks.get(id) || null;
   }
 
+  function list(limit = 20) {
+    return Array.from(tasks.values())
+      .sort((left, right) => Date.parse(right.updatedAt) - Date.parse(left.updatedAt))
+      .slice(0, limit);
+  }
+
   function create({ body, apiKey, targetBaseUrl }) {
     const now = new Date().toISOString();
     const task = {
@@ -179,12 +185,17 @@ function createGenerationTaskStore(config) {
     return task;
   }
 
-  return { create, get, cancel };
+  return { create, get, list, cancel };
 }
 
 async function handleGenerationTaskRequest(config, taskStore, request, response) {
   const url = new URL(request.url || "/", "http://127.0.0.1");
   const taskId = url.pathname.match(/^\/v1\/generation-tasks\/([^/]+)$/)?.[1] || "";
+
+  if (request.method === "GET" && url.pathname === "/v1/generation-tasks") {
+    writeJson(response, 200, { tasks: taskStore.list().map((task) => serializeTask(task, { includeResponse: false })) });
+    return;
+  }
 
   if (request.method === "GET" && taskId) {
     const task = taskStore.get(taskId);
@@ -276,7 +287,7 @@ function updateTask(task, patch) {
   });
 }
 
-function serializeTask(task) {
+function serializeTask(task, options = { includeResponse: true }) {
   return {
     id: task.id,
     requestId: task.requestId,
@@ -284,7 +295,7 @@ function serializeTask(task) {
     targetBaseUrl: task.targetBaseUrl,
     createdAt: task.createdAt,
     updatedAt: task.updatedAt,
-    response: task.response,
+    response: options.includeResponse ? task.response : null,
     error: task.error
   };
 }

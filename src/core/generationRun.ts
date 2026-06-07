@@ -28,6 +28,18 @@ export interface GenerationRun {
   completedAt?: string;
   error?: string;
   stages: GenerationRunStage[];
+  localTasks?: GenerationRunTaskSnapshot[];
+}
+
+export interface GenerationRunTaskSnapshot {
+  taskId: string;
+  requestId?: string;
+  status: "queued" | "running" | "completed" | "failed" | "cancelled";
+  targetBaseUrl?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  upstreamStatus?: number;
+  message?: string;
 }
 
 export function createGenerationRun({
@@ -173,6 +185,68 @@ export function pushGenerationRunHistory(
   return [run, ...history.filter((item) => item.id !== run.id)].slice(0, limit);
 }
 
+export function updateGenerationRunTask(run: GenerationRun, task: GenerationRunTaskSnapshot): GenerationRun {
+  const existing = run.localTasks ?? [];
+  const next = [task, ...existing.filter((item) => item.taskId !== task.taskId)].slice(0, 24);
+
+  return {
+    ...run,
+    localTasks: next
+  };
+}
+
+export function mergeRecoveredGenerationTasks(
+  history: GenerationRun[],
+  tasks: GenerationRunTaskSnapshot[],
+  date = new Date()
+): GenerationRun[] {
+  if (!history.length || !tasks.length) {
+    return history;
+  }
+
+  const tasksById = new Map(tasks.map((task) => [task.taskId, task]));
+
+  return history.map((run) => {
+    const matchedTasks = (run.localTasks ?? [])
+      .map((task) => tasksById.get(task.taskId) ?? task)
+      .sort((left, right) => Date.parse(right.updatedAt ?? "") - Date.parse(left.updatedAt ?? ""));
+
+    if (!matchedTasks.length) {
+      return run;
+    }
+
+    const latestTerminal = matchedTasks.find(
+      (task) => task.status === "failed" || task.status === "cancelled" || task.status === "completed"
+    );
+    const withTasks = {
+      ...run,
+      localTasks: matchedTasks
+    };
+
+    if (!latestTerminal || run.status !== "running") {
+      return withTasks;
+    }
+
+    if (latestTerminal.status === "completed") {
+      return {
+        ...withTasks,
+        status: "completed",
+        completedAt: date.toISOString()
+      };
+    }
+
+    if (latestTerminal.status === "cancelled") {
+      return cancelGenerationRun(withTasks, date);
+    }
+
+    return failGenerationRun(
+      withTasks,
+      `本地生成任务恢复失败：${latestTerminal.message || "生成任务失败"}`,
+      date
+    );
+  });
+}
+
 export function buildGenerationRunDiagnostic(run: GenerationRun): string {
   const failedStage = run.stages.find((stage) => stage.status === "failed");
   const lines = [
@@ -187,7 +261,22 @@ export function buildGenerationRunDiagnostic(run: GenerationRun): string {
     run.completedAt ? `Completed: ${run.completedAt}` : null
   ];
 
-  return lines.filter((line): line is string => Boolean(line)).join("\n");
+  const localTaskLines = (run.localTasks ?? []).map((task) =>
+    [
+      task.taskId,
+      task.requestId,
+      task.status,
+      task.upstreamStatus ? `HTTP ${task.upstreamStatus}` : null,
+      task.message
+    ]
+      .filter(Boolean)
+      .join(" / ")
+  );
+
+  return [
+    ...lines.filter((line): line is string => Boolean(line)),
+    ...(localTaskLines.length ? ["Local tasks:", ...localTaskLines] : [])
+  ].join("\n");
 }
 
 function createStage(

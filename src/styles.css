@@ -657,6 +657,58 @@ select:focus,
   font-weight: 750;
 }
 
+.generation-local-tasks {
+  border-top: 1px solid #e2e8f0;
+  display: grid;
+  gap: 8px;
+  padding-top: 10px;
+}
+
+.local-task {
+  background: #f8fafc;
+  border: 1px solid #dbe4f0;
+  border-radius: 8px;
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  padding: 8px 9px;
+}
+
+.local-task span {
+  color: #2563eb;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.local-task.failed span {
+  color: #c2410c;
+}
+
+.local-task.cancelled span {
+  color: #64748b;
+}
+
+.local-task.completed span {
+  color: #15803d;
+}
+
+.local-task strong,
+.local-task p {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.local-task strong {
+  color: #0f172a;
+  font-size: 12px;
+}
+
+.local-task p {
+  color: #64748b;
+  font-size: 11px;
+}
+
 .generation-history {
   border-top: 1px solid #e2e8f0;
   display: grid;
