@@ -1159,12 +1159,149 @@ describe("AI provider", () => {
     const mergePayload = JSON.parse(mergeBody.messages[1].content);
     expect(mergePayload.pipelineStage).toBe("story_bible_generate");
     expect(mergePayload.chapterEvents.map((group: { chapterIndex: number }) => group.chapterIndex)).toEqual([
-      2,
       1,
+      2,
       3,
       4,
       5
     ]);
+  });
+
+  it("deduplicates partial resume checkpoints before continuing long-form generation", async () => {
+    const validation = validateScreenplay(parse(sampleOutputYaml));
+    expect(validation.success).toBe(true);
+    if (!validation.success) return;
+
+    const longNovel = [
+      "Chapter 1 The Pier",
+      "Lin finds a coded note at the pier.",
+      "Chapter 2 The Ledger",
+      "Shen discovers the missing ledger.",
+      "Chapter 3 The Tail",
+      "A stranger follows them through the market.",
+      "Chapter 4 The Bell Tower",
+      "They hide evidence inside the bell tower.",
+      "Chapter 5 The Eleventh Bell",
+      "The eleventh bell exposes the traitor."
+    ].join("\n");
+    const makeChapterEvents = (chapterIndex: number, version: string) => {
+      const source = validation.data.chapterEvents[(chapterIndex - 1) % validation.data.chapterEvents.length];
+      return [
+        {
+          ...source,
+          chapterIndex,
+          chapterTitle: `Chapter ${chapterIndex}`,
+          chapterGoal: `${version} checkpoint chapter ${chapterIndex}`,
+          events: source.events.map((event, eventIndex) => ({
+            ...event,
+            id: `${version}-${chapterIndex}-${eventIndex + 1}`,
+            source: {
+              ...event.source,
+              chapterIndex,
+              chapterTitle: `Chapter ${chapterIndex}`,
+              excerpt: `${version} excerpt ${chapterIndex}`
+            }
+          }))
+        }
+      ];
+    };
+    const savedChapterEvents = [
+      ...makeChapterEvents(2, "old"),
+      ...makeChapterEvents(2, "latest"),
+      ...makeChapterEvents(4, "saved")
+    ];
+    const completedChapterEvents = [
+      ...makeChapterEvents(1, "generated"),
+      ...makeChapterEvents(2, "latest"),
+      ...makeChapterEvents(3, "generated"),
+      ...makeChapterEvents(4, "saved"),
+      ...makeChapterEvents(5, "generated")
+    ];
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      json: async () => {
+        const callIndex = fetchMock.mock.calls.length;
+        if (callIndex === 1) {
+          return {
+            choices: [{ message: { content: JSON.stringify({ chapterEvents: makeChapterEvents(1, "generated") }) } }]
+          };
+        }
+        if (callIndex === 2) {
+          return {
+            choices: [{ message: { content: JSON.stringify({ chapterEvents: makeChapterEvents(3, "generated") }) } }]
+          };
+        }
+        if (callIndex === 3) {
+          return {
+            choices: [{ message: { content: JSON.stringify({ chapterEvents: makeChapterEvents(5, "generated") }) } }]
+          };
+        }
+        if (callIndex === 4) {
+          return {
+            choices: [
+              {
+                message: {
+                  content: JSON.stringify({
+                    chapterEvents: completedChapterEvents,
+                    storyBible: validation.data.storyBible,
+                    adaptationStrategy: validation.data.adaptationStrategy
+                  })
+                }
+              }
+            ]
+          };
+        }
+
+        return {
+          choices: [
+            {
+              message: {
+                content: JSON.stringify({
+                  ...validation.data,
+                  work: {
+                    ...validation.data.work,
+                    sourceChapterCount: 5
+                  },
+                  chapterEvents: completedChapterEvents
+                })
+              }
+            }
+          ]
+        };
+      }
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await generateScreenplayWithApi(
+      {
+        baseUrl: "https://api.example.com",
+        apiKey: "test-key",
+        model: "test-model"
+      },
+      {
+        title: "Duplicate Checkpoint Story",
+        style: "cinematic",
+        novelText: longNovel,
+        resumeFrom: {
+          chapterEvents: savedChapterEvents
+        }
+      }
+    );
+
+    expect(fetchMock).toHaveBeenCalledTimes(5);
+    const mergeBody = JSON.parse(String(((fetchMock.mock.calls[3] as unknown as [string, RequestInit])[1]).body));
+    const mergePayload = JSON.parse(mergeBody.messages[1].content);
+    expect(mergePayload.pipelineStage).toBe("story_bible_generate");
+    expect(mergePayload.chapterEvents.map((group: { chapterIndex: number }) => group.chapterIndex)).toEqual([
+      1,
+      2,
+      3,
+      4,
+      5
+    ]);
+    expect(
+      mergePayload.chapterEvents.find((group: { chapterIndex: number }) => group.chapterIndex === 2).events[0].id
+    ).toBe("latest-2-1");
   });
 
   it("reports the provider JSON excerpt when a chapter event schema fails", async () => {
