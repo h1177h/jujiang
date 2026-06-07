@@ -59,6 +59,7 @@ import {
 } from "./core/sceneEditor";
 import {
   editorIssueFromYamlDiagnostic,
+  firstEditorIssueFromYamlDiagnostics,
   patchTouchesEditorIssueField,
   type ActiveEditorIssue
 } from "./core/editorIssues";
@@ -425,15 +426,17 @@ export default function App() {
   function handleUseYamlDraft(draftYaml: string, label: string) {
     setYamlText(draftYaml);
     setRevisionHistory((current) => pushRevision(current, createRevision(`接管草稿：${label}`, draftYaml)));
-    setActiveEditorIssue(null);
+    const adoptedValidation = validateScreenplayYaml(draftYaml);
+    const firstEditorIssue = firstEditorIssueFromYamlDiagnostics(adoptedValidation.issues);
+    setActiveEditorIssue(firstEditorIssue);
     try {
       const parsed = parse(draftYaml) as Partial<ScreenplayYaml>;
       const firstScene = Array.isArray(parsed.scenes)
         ? parsed.scenes.find((scene) => scene && typeof (scene as { id?: unknown }).id === "string")
         : null;
-      setSelectedSceneId(firstScene ? (firstScene as { id: string }).id : null);
+      setSelectedSceneId(firstEditorIssue?.sceneId ?? (firstScene ? (firstScene as { id: string }).id : null));
     } catch {
-      setSelectedSceneId(null);
+      setSelectedSceneId(firstEditorIssue?.sceneId ?? null);
     }
     setGenerationStatus(`已接管阶段草稿：${label}`);
   }
