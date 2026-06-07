@@ -1125,6 +1125,113 @@ describe("AI provider", () => {
     expect(finalPayload.sourceChapters[0].paragraphs).toBeUndefined();
   });
 
+  it("saves provider excerpts when merged story blueprint schema fails", async () => {
+    const validation = validateScreenplay(parse(sampleOutputYaml));
+    expect(validation.success).toBe(true);
+    if (!validation.success) return;
+
+    const longNovel = [
+      "Chapter 1 The Pier",
+      "Lin finds a coded note at the pier.",
+      "Chapter 2 The Ledger",
+      "Shen discovers the missing ledger.",
+      "Chapter 3 The Tail",
+      "A stranger follows them through the market.",
+      "Chapter 4 The Bell Tower",
+      "They hide evidence inside the bell tower."
+    ].join("\n");
+    const makeChapterEvents = (chapterIndex: number) => {
+      const source = validation.data.chapterEvents[(chapterIndex - 1) % validation.data.chapterEvents.length];
+      return [
+        {
+          ...source,
+          chapterIndex,
+          chapterTitle: `Chapter ${chapterIndex}`,
+          chapterGoal: `Extract chapter ${chapterIndex}`,
+          events: source.events.map((event, eventIndex) => ({
+            ...event,
+            id: `merge-fail-${chapterIndex}-${eventIndex + 1}`,
+            source: {
+              ...event.source,
+              chapterIndex,
+              chapterTitle: `Chapter ${chapterIndex}`,
+              excerpt: `Merge fail excerpt ${chapterIndex}`
+            }
+          }))
+        }
+      ];
+    };
+    const completedChapterEvents = [
+      ...makeChapterEvents(1),
+      ...makeChapterEvents(2),
+      ...makeChapterEvents(3),
+      ...makeChapterEvents(4)
+    ];
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      json: async () => {
+        const callIndex = fetchMock.mock.calls.length;
+        if (callIndex <= 4) {
+          return {
+            choices: [
+              {
+                message: {
+                  content: JSON.stringify({ chapterEvents: makeChapterEvents(callIndex) })
+                }
+              }
+            ]
+          };
+        }
+
+        return {
+          choices: [
+            {
+              message: {
+                content: JSON.stringify({
+                  chapterEvents: completedChapterEvents,
+                  mergeNote: "missing story bible"
+                })
+              }
+            }
+          ]
+        };
+      }
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+    const blueprintArtifacts: unknown[] = [];
+
+    await expect(
+      generateScreenplayWithApi(
+        {
+          baseUrl: "https://api.example.com",
+          apiKey: "test-key",
+          model: "test-model"
+        },
+        {
+          title: "Merge Failure Story",
+          style: "cinematic",
+          novelText: longNovel,
+          onProgress: (event) => {
+            if (event.stage === "story_bible_generate" && event.artifact) {
+              blueprintArtifacts.push(event.artifact);
+            }
+          }
+        }
+      )
+    ).rejects.toThrow("story_bible_generate 阶段故事蓝图未通过 Schema");
+
+    expect(blueprintArtifacts).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "story_blueprint",
+          diagnostic: expect.objectContaining({
+            initialExcerpt: expect.stringContaining("\"mergeNote\":\"missing story bible\"")
+          })
+        })
+      ])
+    );
+  });
+
   it("resumes long-form generation from saved chapter event checkpoints", async () => {
     const validation = validateScreenplay(parse(sampleOutputYaml));
     expect(validation.success).toBe(true);
