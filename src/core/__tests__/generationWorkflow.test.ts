@@ -48,6 +48,30 @@ describe("generation workflow", () => {
     );
   });
 
+  it("preserves provider stage diagnostics without adding a generic hint", async () => {
+    const apiGenerator = vi.fn<() => Promise<ScreenplayYaml>>(async () => {
+      throw new Error(
+        "screenplay_generate 阶段请求超时：HTTP 504。可重试。Provider 返回：Gateway Timeout"
+      );
+    });
+
+    const result = await generateWorkspaceDraft(
+      {
+        title: "雨夜来信",
+        style: "cinematic",
+        novelText: "第一章 雨夜\n林砚推开旧书店的门，说：“我来取那封信。”",
+        useApi: true,
+        apiReady: true,
+        model: "test-model"
+      },
+      apiGenerator
+    );
+
+    expect(result.status).toBe(
+      "AI 生成失败：screenplay_generate 阶段请求超时：HTTP 504。可重试。Provider 返回：Gateway Timeout"
+    );
+  });
+
   it("requires AI configuration instead of generating a local plot", async () => {
     const apiGenerator = vi.fn<() => Promise<ScreenplayYaml>>();
 

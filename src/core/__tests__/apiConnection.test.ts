@@ -3,6 +3,7 @@ import {
   classifyFetchFailure,
   deriveProxyHealthUrl,
   diagnoseAiConnection,
+  isActionableConnectionMessage,
   resolveAiRequestBaseUrl
 } from "../apiConnection";
 
@@ -136,5 +137,18 @@ describe("AI connection diagnostics", () => {
     expect(classifyFetchFailure(new TypeError("Failed to fetch"), "https://api.openai.com/v1")).toBe(
       "AI 请求没有到达应用服务：请用 npm run dev:app 启动完整应用后再生成。"
     );
+  });
+
+  it("treats provider stage diagnostics as actionable messages", () => {
+    expect(
+      isActionableConnectionMessage(
+        "screenplay_generate 阶段请求超时：HTTP 504。可重试。Provider 返回：Gateway Timeout"
+      )
+    ).toBe(true);
+    expect(
+      isActionableConnectionMessage(
+        "上游 AI provider 请求超时：http://127.0.0.1:19000/v1。等待 1s 后仍未返回，可重试。"
+      )
+    ).toBe(true);
   });
 });
