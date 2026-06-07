@@ -681,6 +681,89 @@ describe("AI provider", () => {
     expect(repairPayload.validationIssues.join("\n")).toContain("scenes");
   });
 
+  it("reports original and repaired JSON excerpts when schema repair still fails", async () => {
+    const validation = validateScreenplay(parse(sampleOutputYaml));
+    expect(validation.success).toBe(true);
+    if (!validation.success) return;
+
+    const invalidScreenplay = {
+      ...validation.data,
+      scenes: []
+    };
+    const invalidRepair = {
+      ...validation.data,
+      scenes: [],
+      validationHints: []
+    };
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          choices: [
+            {
+              message: {
+                content: JSON.stringify({
+                  chapterEvents: validation.data.chapterEvents,
+                  storyBible: validation.data.storyBible,
+                  adaptationStrategy: validation.data.adaptationStrategy
+                })
+              }
+            }
+          ]
+        })
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          choices: [
+            {
+              message: {
+                content: JSON.stringify(invalidScreenplay)
+              }
+            }
+          ]
+        })
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          choices: [
+            {
+              message: {
+                content: JSON.stringify(invalidRepair)
+              }
+            }
+          ]
+        })
+      });
+    vi.stubGlobal("fetch", fetchMock);
+
+    let errorMessage = "";
+    try {
+      await generateScreenplayWithApi(
+        {
+          baseUrl: "https://api.example.com",
+          apiKey: "test-key",
+          model: "test-model"
+        },
+        {
+          title: "雾港来信",
+          style: "cinematic",
+          novelText: sampleNovel
+        }
+      );
+    } catch (error) {
+      errorMessage = error instanceof Error ? error.message : String(error);
+    }
+
+    expect(errorMessage).toContain(
+      "API 返回结构修复后仍未通过 Schema：初次问题：scenes；修复后问题：scenes。初次返回摘要："
+    );
+    expect(errorMessage).toContain("修复返回摘要：");
+    expect(errorMessage).toContain("\"scenes\":[]");
+  });
+
   it("regenerates a single scene without rerunning the whole screenplay pipeline", async () => {
     const validation = validateScreenplay(parse(sampleOutputYaml));
     expect(validation.success).toBe(true);

@@ -711,7 +711,7 @@ async function validateOrRepairScreenplay(
     return result.data;
   }
 
-  const validationIssues = result.error.issues.map((issue) => issue.path.join(".")).filter(Boolean);
+  const validationIssues = getValidationIssuePaths(result.error.issues);
   options.onProgress?.({
     stage: "schema_repair",
     message: "AI 返回结构未通过校验，正在尝试修复"
@@ -735,7 +735,15 @@ async function validateOrRepairScreenplay(
   const repaired = normalizeApiScreenplay(parseJsonObject(repairedContent), settings.model, blueprint);
   const repairedResult = validateScreenplay(repaired);
   if (!repairedResult.success) {
-    throw new Error(`API 返回结构未通过 Schema：${repairedResult.error.issues.map((issue) => issue.path.join(".")).join(", ")}`);
+    const repairedIssues = getValidationIssuePaths(repairedResult.error.issues);
+    throw new Error(
+      `API 返回结构修复后仍未通过 Schema：初次问题：${formatValidationIssues(
+        validationIssues
+      )}；修复后问题：${formatValidationIssues(repairedIssues)}。初次返回摘要：${summarizeReturnedJson(
+        normalized,
+        validationIssues
+      )}。修复返回摘要：${summarizeReturnedJson(repaired, repairedIssues)}`
+    );
   }
   options.onProgress?.({
     stage: "screenplay_generate",
@@ -884,6 +892,41 @@ function labelProviderStage(stage: AiGenerationProgress["stage"] | "scene_regene
 function truncateDiagnostic(value: string): string {
   const normalized = value.replace(/\s+/g, " ").trim();
   return normalized.length > 500 ? `${normalized.slice(0, 500)}...` : normalized;
+}
+
+function getValidationIssuePaths(issues: Array<{ path: Array<string | number> }>): string[] {
+  return issues.map((issue) => issue.path.join(".")).filter(Boolean);
+}
+
+function formatValidationIssues(paths: string[]): string {
+  return paths.join(", ") || "结构字段";
+}
+
+function summarizeReturnedJson(value: unknown, issuePaths: string[] = []): string {
+  try {
+    const focused = getFocusedJsonFields(value, issuePaths);
+    const fullSummary = truncateDiagnostic(JSON.stringify(value));
+    return focused ? `${focused}；整体：${fullSummary}` : fullSummary;
+  } catch {
+    return truncateDiagnostic(String(value));
+  }
+}
+
+function getFocusedJsonFields(value: unknown, issuePaths: string[]): string {
+  if (!value || typeof value !== "object") {
+    return "";
+  }
+
+  const record = value as Record<string, unknown>;
+  const focused: Record<string, unknown> = {};
+  issuePaths.forEach((path) => {
+    const [topLevelKey] = path.split(".");
+    if (topLevelKey && topLevelKey in record) {
+      focused[topLevelKey] = record[topLevelKey];
+    }
+  });
+
+  return Object.keys(focused).length ? truncateDiagnostic(JSON.stringify(focused)) : "";
 }
 
 function describeChapterEventsArtifact(
