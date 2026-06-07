@@ -153,6 +153,7 @@ export const screenplaySchema = z
   .superRefine((screenplay, ctx) => {
     const sourceChapterCount = screenplay.work.sourceChapterCount;
     const sceneIds = new Set(screenplay.scenes.map((scene) => scene.id));
+    const characterRefs = new Set(screenplay.characters.flatMap((character) => [character.id, character.name]));
     const addChapterRangeIssue = (path: (string | number)[], chapterIndex: number) => {
       if (chapterIndex > sourceChapterCount) {
         ctx.addIssue({
@@ -171,6 +172,15 @@ export const screenplaySchema = z
         });
       }
     };
+    const addCharacterReferenceIssue = (path: (string | number)[], characterRef: string) => {
+      if (!characterRefs.has(characterRef)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path,
+          message: `character must reference an existing character (${characterRef})`
+        });
+      }
+    };
 
     screenplay.chapterEvents.forEach((group, groupIndex) => {
       addChapterRangeIssue(["chapterEvents", groupIndex, "chapterIndex"], group.chapterIndex);
@@ -179,11 +189,21 @@ export const screenplaySchema = z
           ["chapterEvents", groupIndex, "events", eventIndex, "source", "chapterIndex"],
           event.source.chapterIndex
         );
+        event.characters.forEach((character, characterIndex) => {
+          addCharacterReferenceIssue(
+            ["chapterEvents", groupIndex, "events", eventIndex, "characters", characterIndex],
+            character
+          );
+        });
       });
     });
 
     screenplay.characters.forEach((character, characterIndex) => {
       addChapterRangeIssue(["characters", characterIndex, "firstSeenChapter"], character.firstSeenChapter);
+    });
+
+    screenplay.storyBible.characterArcs.forEach((arc, arcIndex) => {
+      addCharacterReferenceIssue(["storyBible", "characterArcs", arcIndex, "character"], arc.character);
     });
 
     screenplay.chapterMappings.forEach((mapping, mappingIndex) => {
@@ -205,7 +225,11 @@ export const screenplaySchema = z
     screenplay.scenes.forEach((scene, sceneIndex) => {
       addChapterRangeIssue(["scenes", sceneIndex, "chapterIndex"], scene.chapterIndex);
       addChapterRangeIssue(["scenes", sceneIndex, "source", "chapterIndex"], scene.source.chapterIndex);
+      scene.characters.forEach((character, characterIndex) => {
+        addCharacterReferenceIssue(["scenes", sceneIndex, "characters", characterIndex], character);
+      });
       scene.dialogue.forEach((line, lineIndex) => {
+        addCharacterReferenceIssue(["scenes", sceneIndex, "dialogue", lineIndex, "speaker"], line.speaker);
         addChapterRangeIssue(
           ["scenes", sceneIndex, "dialogue", lineIndex, "source", "chapterIndex"],
           line.source.chapterIndex
