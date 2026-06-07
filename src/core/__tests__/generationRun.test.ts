@@ -6,6 +6,7 @@ import {
   failGenerationRunStage,
   formatAiGenerationProgress,
   formatGenerationRunArtifactDiagnostics,
+  formatGenerationRunResumeSummary,
   formatGenerationRunStatus,
   getGenerationRunResumeCheckpoint,
   pushGenerationRunHistory,
@@ -203,6 +204,82 @@ describe("generation run tracking", () => {
     const checkpoint = getGenerationRunResumeCheckpoint(run);
 
     expect(checkpoint?.chapterEvents?.map((group) => group.chapterIndex)).toEqual([1, 2]);
+  });
+
+  it("summarizes saved checkpoints before retrying a failed run", () => {
+    const run = failGenerationRun(
+      updateGenerationRunStage(
+        createGenerationRun({
+          title: "Checkpoint Story",
+          model: "gpt-4.1-mini",
+          chapterCount: 3,
+          date: new Date("2026-06-06T00:00:00.000Z")
+        }),
+        {
+          stage: "chapter_event_extract",
+          message: "Saved chapter events",
+          artifact: {
+            kind: "chapter_events",
+            summary: "2 chapter event groups",
+            checkpoint: {
+              chapterEvents: [
+                {
+                  chapterIndex: 1,
+                  chapterTitle: "Chapter 1",
+                  chapterGoal: "Find the clue",
+                  events: [
+                    {
+                      id: "event-1",
+                      summary: "Lin finds the clue.",
+                      characters: ["Lin"],
+                      location: "Pier",
+                      conflict: "The clue is hidden.",
+                      emotionalTurn: "Suspicion rises.",
+                      source: {
+                        chapterIndex: 1,
+                        chapterTitle: "Chapter 1",
+                        paragraphIndexes: [1],
+                        lineStart: 1,
+                        lineEnd: 2,
+                        excerpt: "Lin finds the clue."
+                      }
+                    }
+                  ]
+                },
+                {
+                  chapterIndex: 3,
+                  chapterTitle: "Chapter 3",
+                  chapterGoal: "Use the clue",
+                  events: [
+                    {
+                      id: "event-3",
+                      summary: "Lin uses the clue.",
+                      characters: ["Lin"],
+                      location: "Archive",
+                      conflict: "The clue may be false.",
+                      emotionalTurn: "Resolve hardens.",
+                      source: {
+                        chapterIndex: 3,
+                        chapterTitle: "Chapter 3",
+                        paragraphIndexes: [1],
+                        lineStart: 8,
+                        lineEnd: 9,
+                        excerpt: "Lin uses the clue."
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          date: new Date("2026-06-06T00:00:03.000Z")
+        }
+      ),
+      "screenplay_generate HTTP 504",
+      new Date("2026-06-06T00:00:05.000Z")
+    );
+
+    expect(formatGenerationRunResumeSummary(run)).toBe("已保存 2 章 / 2 个事件：第 1、3 章，可从阶段产物继续");
   });
 
   it("records failure on the active stage without losing prior context", () => {

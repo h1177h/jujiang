@@ -234,6 +234,19 @@ export function getGenerationRunResumeCheckpoint(run: GenerationRun): AiGenerati
   };
 }
 
+export function formatGenerationRunResumeSummary(run: GenerationRun): string | null {
+  const checkpoint = getGenerationRunResumeCheckpoint(run);
+  const chapterEvents = checkpoint?.storyBlueprint?.chapterEvents ?? checkpoint?.chapterEvents;
+  if (!chapterEvents?.length) return null;
+
+  const chapterIndexes = [...new Set(chapterEvents.map((group) => group.chapterIndex))].sort(
+    (left, right) => left - right
+  );
+  const eventCount = chapterEvents.reduce((sum, group) => sum + group.events.length, 0);
+
+  return `已保存 ${chapterIndexes.length} 章 / ${eventCount} 个事件：第 ${chapterIndexes.join("、")} 章，可从阶段产物继续`;
+}
+
 export function formatGenerationRunArtifactDiagnostics(artifact: GenerationRunArtifact): string[] {
   const diagnostic = artifact.diagnostic;
   if (!diagnostic) return [];
