@@ -1,9 +1,9 @@
 import { Clock3, RefreshCw, TriangleAlert } from "lucide-react";
 import {
   formatGenerationRunArtifactDiagnostics,
+  formatGenerationRunRetryAction,
   formatGenerationRunResumeSummary,
   formatGenerationRunStatus,
-  getGenerationRunResumeCheckpoint,
   type GenerationRun
 } from "../core/generationRun";
 
@@ -32,7 +32,7 @@ export function GenerationRunPanel({
     )
   );
   const recentRuns = history.slice(0, 4);
-  const canResume = Boolean(getGenerationRunResumeCheckpoint(activeRun));
+  const retryAction = formatGenerationRunRetryAction(activeRun);
   const resumeSummary = formatGenerationRunResumeSummary(activeRun);
 
   return (
@@ -45,14 +45,14 @@ export function GenerationRunPanel({
           </span>
         </div>
         <div className="generation-run-actions">
-          {activeRun.status === "failed" ? (
+          {retryAction ? (
             <button
               type="button"
               onClick={() => onRetry(activeRun)}
-              title={canResume ? "从已保存阶段继续调用当前 AI 配置" : "重新调用当前 AI 配置"}
+              title={retryAction.title}
             >
               <RefreshCw size={13} />
-              {canResume ? "续跑" : "重试"}
+              {retryAction.label}
             </button>
           ) : null}
           <em>{statusLabel}</em>
