@@ -128,6 +128,84 @@ describe("AI provider", () => {
     expect(secondPayload.storyBlueprint.chapterEvents[0].events[0].id).toBe("event-01-01");
   });
 
+  it("preserves the staged story blueprint when the final screenplay response drifts", async () => {
+    const validation = validateScreenplay(parse(sampleOutputYaml));
+    expect(validation.success).toBe(true);
+    if (!validation.success) return;
+
+    const stagedBlueprint = {
+      chapterEvents: validation.data.chapterEvents,
+      storyBible: validation.data.storyBible,
+      adaptationStrategy: validation.data.adaptationStrategy
+    };
+    const driftedChapterEvents = validation.data.chapterEvents.map((group) => ({
+      ...group,
+      chapterGoal: `drifted ${group.chapterGoal}`,
+      events: group.events.map((event) => ({
+        ...event,
+        id: `drifted-${event.id}`,
+        summary: `drifted ${event.summary}`
+      }))
+    }));
+    const driftedStoryBible = {
+      ...validation.data.storyBible,
+      coreConflict: "drifted final response conflict"
+    };
+    const driftedAdaptationStrategy = {
+      ...validation.data.adaptationStrategy,
+      pacing: "drifted final response pacing"
+    };
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          choices: [
+            {
+              message: {
+                content: JSON.stringify(stagedBlueprint)
+              }
+            }
+          ]
+        })
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          choices: [
+            {
+              message: {
+                content: JSON.stringify({
+                  ...validation.data,
+                  chapterEvents: driftedChapterEvents,
+                  storyBible: driftedStoryBible,
+                  adaptationStrategy: driftedAdaptationStrategy
+                })
+              }
+            }
+          ]
+        })
+      });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await generateScreenplayWithApi(
+      {
+        baseUrl: "https://api.example.com",
+        apiKey: "test-key",
+        model: "test-model"
+      },
+      {
+        title: "Blueprint Drift Story",
+        style: "cinematic",
+        novelText: sampleNovel
+      }
+    );
+
+    expect(result.chapterEvents[0].events[0].id).toBe(validation.data.chapterEvents[0].events[0].id);
+    expect(result.storyBible.coreConflict).toBe(validation.data.storyBible.coreConflict);
+    expect(result.adaptationStrategy.pacing).toBe(validation.data.adaptationStrategy.pacing);
+  });
+
   it("records stage artifacts when provider stages return usable structured content", async () => {
     const validation = validateScreenplay(parse(sampleOutputYaml));
     expect(validation.success).toBe(true);
