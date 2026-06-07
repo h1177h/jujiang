@@ -26,9 +26,21 @@ type ProbeChatCompletionResponse = {
     finish_reason?: string;
     message?: {
       content?: string | Array<string | { text?: string; content?: string }>;
+      tool_calls?: ProbeChatCompletionToolCall[];
+      function_call?: ProbeChatCompletionFunctionCall;
     };
   }>;
   error?: string | { message?: string };
+};
+
+type ProbeChatCompletionToolCall = {
+  type?: string;
+  function?: ProbeChatCompletionFunctionCall;
+};
+
+type ProbeChatCompletionFunctionCall = {
+  name?: string;
+  arguments?: string;
 };
 
 export function deriveProxyHealthUrl(baseUrl: string): string {
@@ -251,8 +263,41 @@ function formatProbeEmptyDiagnostic(payload: ProbeChatCompletionResponse): strin
     return `Provider 返回：${truncateConnectionDiagnostic(providerMessage)}`;
   }
 
+  const callDiagnostic = getProbeCallDiagnostic(payload);
+  if (callDiagnostic) {
+    return `返回了工具调用而不是文本。${callDiagnostic}`;
+  }
+
   const finishReason = payload.choices?.[0]?.finish_reason;
   return finishReason ? `finish_reason=${finishReason}` : "choices[0].message.content 为空";
+}
+
+function getProbeCallDiagnostic(payload: ProbeChatCompletionResponse): string {
+  if (!payload.choices?.length) {
+    return "";
+  }
+
+  for (const choice of payload.choices) {
+    const message = choice.message;
+    if (!message) continue;
+
+    if (message.tool_calls?.length) {
+      const names = message.tool_calls
+        .map((call) => call.function?.name)
+        .filter((name): name is string => Boolean(name));
+      const nameSummary = names.length ? `工具：${truncateConnectionDiagnostic(names.join(", "))}。` : "";
+      const reason = choice.finish_reason ? `finish_reason=${choice.finish_reason}。` : "";
+      return `${reason}${nameSummary}Provider 返回：${truncateConnectionDiagnostic(JSON.stringify(message.tool_calls))}`;
+    }
+
+    if (message.function_call) {
+      const functionName = message.function_call.name ? `函数：${message.function_call.name}。` : "";
+      const reason = choice.finish_reason ? `finish_reason=${choice.finish_reason}。` : "";
+      return `${reason}${functionName}Provider 返回：${truncateConnectionDiagnostic(JSON.stringify(message.function_call))}`;
+    }
+  }
+
+  return "";
 }
 
 export function classifyFetchFailure(error: unknown, baseUrl: string): string {
